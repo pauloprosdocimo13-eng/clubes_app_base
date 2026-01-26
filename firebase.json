@@ -1,0 +1,62 @@
+{
+  "flutter": {
+    "platforms": {
+      "android": {
+        "default": {
+          "projectId": "club-guemes-2",
+          "appId": "1:209153364414:android:0b4a5cac4ccd0673d129ef",
+          "fileOutput": "android/app/google-services.json"
+        }
+      },
+      "dart": {
+        "lib/firebase_options.dart": {
+          "projectId": "club-guemes-2",
+          "configurations": {
+            "android": "1:209153364414:android:0b4a5cac4ccd0673d129ef",
+            "ios": "1:209153364414:ios:e870b6118b01f83cd129ef",
+            "web": "1:209153364414:web:577a5a096eb898a8d129ef"
+          }
+        },
+        "lib/firebase_options_generico.dart": {
+          "projectId": "club-generico",
+          "configurations": {
+            "android": "1:1023847313810:android:d765df0bd9de9967f0d14b",
+            "ios": "1:1023847313810:ios:40c61a66c6f83c57f0d14b",
+            "macos": "1:1023847313810:ios:40c61a66c6f83c57f0d14b",
+            "web": "1:1023847313810:web:12c88e02463c8f9ff0d14b",
+            "windows": "1:1023847313810:web:2d973f306d106e10f0d14b"
+          }
+        },
+        "lib/firebase_options_guemes.dart": {
+          "projectId": "club-guemes-2",
+          "configurations": {
+            "android": "1:209153364414:android:0b4a5cac4ccd0673d129ef",
+            "ios": "1:209153364414:ios:e870b6118b01f83cd129ef",
+            "macos": "1:209153364414:ios:e870b6118b01f83cd129ef",
+            "web": "1:209153364414:web:577a5a096eb898a8d129ef",
+            "windows": "1:209153364414:web:75527e8e8f94ac4ed129ef"
+          }
+        }
+      }
+    }
+  },
+  "functions": {
+    "source": "functions",
+    "codebase": "default",
+    "ignore": [
+      "node_modules",
+      ".git",
+      "firebase-debug.log",
+      "firebase-debug.*.log"
+    ]
+  },
+  "firestore": {
+    "database": "(default)",
+    "location": "nam5",
+    "rules": "firestore.rules",
+    "indexes": "firestore.indexes.json"
+  },
+  "storage": {
+    "rules": "storage.rules"
+  }
+}

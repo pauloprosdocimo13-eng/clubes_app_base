@@ -1,0 +1,62 @@
+cambiar el nombre de icon.png
+
+flutter_launcher_icons:
+  android: "launcher_icon"
+  ios: true
+  image_path: "assets/icon/icon.png"
+  min_sdk_android: 21 # Importante para apps modernas
+  # Si quieres un icono adaptativo (Android 8+), descomenta estas lineas y pon un fondo:
+  # adaptive_icon_background: "#FFFFFF" 
+  # adaptive_icon_foreground: "assets/icon/icon.png"
+  
+ 
+ flutter pub get
+ 
+ dart run flutter_launcher_icons
+ 
+ ------------------------------------------------------
+ 
+ nombre
+ 
+ android/app/src/main/AndroidManifest.xml
+ 
+ <application
+    android:label="Club Güemes"
+    android:name="${applicationName}"
+    ...
+	
+	-----------------------------------------------------------
+	
+	IMPORTANTE: El "ID" para el Play Store
+
+Mencionaste que vas a reemplazar una app vieja en el Play Store. Para que Google Play acepte esta actualización, esta nueva app TIENE QUE TENER EL MISMO "PACKAGE NAME" (ID de paquete) que la app vieja.
+
+Si la app vieja se llamaba internamente com.guemes.oficial, la nueva debe tener el mismo ID, sino Google pensará que es una app distinta.
+
+¿Cómo verificar y cambiar esto?
+
+    Ve a tu consola de Google Play y fíjate cuál es el ID de la app vieja (suele aparecer debajo del nombre, ej: com.clubguemes.app).
+
+    En tu proyecto Flutter, abre: android/app/build.gradle (ojo, el que está dentro de app).
+
+    Busca defaultConfig y revisa el applicationId.
+
+Gradle
+
+defaultConfig {
+    // ESTO DEBE COINCIDIR EXACTAMENTE CON LA APP VIEJA DEL PLAY STORE
+    applicationId "com.tuhistorial.clubguemes" 
+    ...
+}
+
+Si el ID es diferente, cámbialo ahí.
+Paso Final: Limpiar y Recompilar 🧹
+
+Como cambiamos configuraciones nativas, a veces queda "basura" en la memoria del compilador. Haz esto en la terminal:
+Bash
+
+flutter clean
+flutter pub get
+flutter run
+
+¡Ahora tu app debería instalarse con el ícono del escudo y el nombre "Club Güemes"! ⚽

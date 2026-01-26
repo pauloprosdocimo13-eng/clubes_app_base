@@ -1,0 +1,41 @@
+=== RESUMEN TÉCNICO: APP DE CLUBES (FLUTTER + FIREBASE) ===
+
+ESTADO ACTUAL:
+- App funcional con "Modo Usuario" y "Modo Administrador" (Login con Firebase Auth).
+- Sistema Multi-Tira (Baby H, Baby Blanco, Futsal, etc.) configurable desde Admin.
+
+ESTRUCTURA DE ARCHIVOS CLAVE:
+- lib/main_generico.dart: Punto de entrada (inicializa Firebase y carga Configuración).
+- lib/configuracion/configuracion_app.dart: Colores, escudos y datos estáticos del club.
+- lib/pantallas/pantalla_inicio.dart: Home con botones (Resultados, Noticias, etc.) y Banner Publicidad.
+- lib/pantallas/pantalla_login_admin.dart: Acceso al panel (usa FirebaseAuth).
+- lib/pantallas/pantalla_admin_dashboard.dart: Menú principal del Admin con Selector de Tira.
+
+BASE DE DATOS (FIRESTORE):
+1. Colección 'partidos':
+   - Campos: rival, fecha, es_local, estado (programado/finalizado), torneo (apertura/clausura), deporte_id (baby_h, baby_blanco...), resultados (Array de mapas con goles por categoría).
+
+2. Colección 'jugadores':
+   - Campos: nombre, apellido, dorsal, foto, goles, posicion, categoria (2013, 2014...), deporte_id.
+
+3. Colección 'noticias':
+   - Campos: titulo, bajada, imagen_url, fecha, visible (bool).
+
+4. Colección 'avisos':
+   - Campos: titulo, mensaje, importante (bool), fecha, deporte_id.
+
+5. Colección 'publicidad':
+   - Campos: nombre, imagen_url, link, orden, activo (bool).
+
+6. Colección 'configuracion' (Doc: 'general'):
+   - Campo 'menu_deportes': Array con las tiras activas (ej: [{id: 'baby_h', titulo: 'Baby H'}, ...]).
+   - Campo 'enlaces': Map con links a tablas de posiciones externas.
+
+REGLAS DE NEGOCIO:
+- El Admin puede crear nuevas tiras dinámicamente.
+- Los resultados de partidos manejan múltiples categorías dentro de un mismo documento.
+- El plantel tiene ranking de goleadores automático.
+- Las categorías se autogeneran según el deporte (Baby = años, Futsal = 1ra/Reserva).
+
+PRÓXIMOS PASOS / PENDIENTES:
+- Mantenimiento y posibles nuevas funcionalidades (pagos, carnet digital).

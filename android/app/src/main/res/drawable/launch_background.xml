@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="utf-8"?>
+<layer-list xmlns:android="http://schemas.android.com/apk/res/android">
+    
+    <!-- 1. Fondo NEGRO sólido (Carga instantánea) -->
+    <item android:drawable="@android:color/black" />
+
+    <!-- 2. Tu Icono en el centro (Usa el que ya generamos) -->
+    <!--
+    <item>
+        <bitmap
+            android:gravity="center"
+            android:src="@mipmap/ic_launcher" />
+    </item>
+    -->
+</layer-list>

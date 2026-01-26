@@ -1,0 +1,28 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- VOLVEMOS AL TEMA ESTÁNDAR pero forzamos los colores -->
+    <style name="LaunchTheme" parent="@android:style/Theme.Light.NoTitleBar">
+        
+        <!-- 1. Fondo principal (llama a tu archivo launch_background.xml) -->
+        <item name="android:windowBackground">@drawable/launch_background</item>
+        
+        <!-- 2. ESTO ES CLAVE: False para que pinte el color sólido -->
+        <item name="android:windowIsTranslucent">false</item>
+
+        <!-- 3. Forzamos Barras de Sistema en Negro (para que no se vea una tira blanca arriba) -->
+        <item name="android:statusBarColor">@android:color/black</item>
+        <item name="android:navigationBarColor">@android:color/black</item>
+
+        <!-- 4. CONFIGURACIÓN ANDROID 12+ (SPLASH SCREEN API) -->
+        <!-- Fondo negro para la nueva animación de Android -->
+        <item name="android:windowSplashScreenBackground">@android:color/black</item>
+        
+        <!-- Opcional: Color de fondo del icono (si tu icono tiene transparencia, esto ayuda) -->
+        <item name="android:windowSplashScreenIconBackgroundColor">@android:color/black</item>
+    </style>
+
+    <!-- Tema normal de la App -->
+    <style name="NormalTheme" parent="@android:style/Theme.Light.NoTitleBar">
+        <item name="android:windowBackground">?android:colorBackground</item>
+    </style>
+</resources>
