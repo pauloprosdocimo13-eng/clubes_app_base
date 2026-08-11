@@ -1,0 +1,119 @@
+Folder PATH listing for volume InfoBackup
+Volume serial number is 00000160 E07C:6E74
+E:\1_DESARROLLO_SOFTWARE\APP\APP PARA CLUBES\CLUBES_APP_BASE\LIB
+¦   app_bootstrap.dart
+¦   firebase_options.dart
+¦   firebase_options_fatima.dart
+¦   firebase_options_generico.dart
+¦   firebase_options_guemes.dart
+¦   firebase_options_laloma.dart
+¦   main.dart
+¦   main_fatima.dart
+¦   main_generico.dart
+¦   main_guemes.dart
+¦   main_laloma.dart
+¦   mi_aplicacion.dart
+¦   
++---configuracion
+¦       admin_permisos.dart
+¦       configuracion_app.dart
+¦       registro_flavors.dart
+¦       
++---pantallas
+¦   ¦   pantalla_admin_avisos.dart
+¦   ¦   pantalla_admin_dashboard.dart
+¦   ¦   pantalla_admin_deportes.dart
+¦   ¦   pantalla_admin_formulario_aviso.dart
+¦   ¦   pantalla_admin_formulario_galeria.dart
+¦   ¦   pantalla_admin_formulario_jugador.dart
+¦   ¦   pantalla_admin_formulario_noticia.dart
+¦   ¦   pantalla_admin_formulario_partido.dart
+¦   ¦   pantalla_admin_formulario_publicidad.dart
+¦   ¦   pantalla_admin_galeria.dart
+¦   ¦   pantalla_admin_jugadores.dart
+¦   ¦   pantalla_admin_noticias.dart
+¦   ¦   pantalla_admin_partidos.dart
+¦   ¦   pantalla_admin_publicidad.dart
+¦   ¦   pantalla_avisos.dart
+¦   ¦   pantalla_calendario_usuario.dart
+¦   ¦   pantalla_detalle_noticia.dart
+¦   ¦   pantalla_detalle_sorteo.dart
+¦   ¦   pantalla_galeria.dart
+¦   ¦   pantalla_historial_minuto.dart
+¦   ¦   pantalla_inicio.dart
+¦   ¦   pantalla_jugadores.dart
+¦   ¦   pantalla_login_admin.dart
+¦   ¦   pantalla_minuto_a_minuto.dart
+¦   ¦   pantalla_noticias.dart
+¦   ¦   pantalla_pizarra_tactica.dart
+¦   ¦   pantalla_posiciones_web.dart
+¦   ¦   pantalla_reservas.dart
+¦   ¦   pantalla_resultados.dart
+¦   ¦   pantalla_rivales.dart
+¦   ¦   pantalla_seleccion.dart
+¦   ¦   pantalla_seleccion_actividad.dart
+¦   ¦   pantalla_sorteos.dart
+¦   ¦   pantalla_splash.dart
+¦   ¦   pantalla_tienda.dart
+¦   ¦   
+¦   +---admin
+¦   ¦   ¦   pantalla_admin_asistencia.dart
+¦   ¦   ¦   pantalla_admin_aviso_entrada.dart
+¦   ¦   ¦   pantalla_admin_calendario.dart
+¦   ¦   ¦   pantalla_admin_config_club.dart
+¦   ¦   ¦   pantalla_admin_espacios.dart
+¦   ¦   ¦   pantalla_admin_finanzas.dart
+¦   ¦   ¦   pantalla_admin_formulario_familia.dart
+¦   ¦   ¦   pantalla_admin_formulario_producto.dart
+¦   ¦   ¦   pantalla_admin_formulario_sorteo.dart
+¦   ¦   ¦   pantalla_admin_gestion_numeros.dart
+¦   ¦   ¦   pantalla_admin_matriz_permisos.dart
+¦   ¦   ¦   pantalla_admin_minuto.dart
+¦   ¦   ¦   pantalla_admin_pagos_config.dart
+¦   ¦   ¦   pantalla_admin_precios.dart
+¦   ¦   ¦   pantalla_admin_realizar_sorteo.dart
+¦   ¦   ¦   pantalla_admin_rivales.dart
+¦   ¦   ¦   pantalla_admin_scanner.dart
+¦   ¦   ¦   pantalla_admin_socios.dart
+¦   ¦   ¦   pantalla_admin_sorteos.dart
+¦   ¦   ¦   pantalla_admin_stream.dart
+¦   ¦   ¦   pantalla_admin_tienda.dart
+¦   ¦   ¦   pantalla_admin_usuarios.dart
+¦   ¦   ¦   
+¦   ¦   +---prode
+¦   ¦   ¦       pantalla_admin_detalle_fecha.dart
+¦   ¦   ¦       pantalla_admin_prode.dart
+¦   ¦   ¦       
+¦   ¦   +---votacion
+¦   ¦           pantalla_admin_votacion.dart
+¦   ¦           
+¦   +---desktop
+¦   ¦       pantalla_admin_desktop.dart
+¦   ¦       
+¦   +---prode
+¦   ¦       pantalla_prode_usuario.dart
+¦   ¦       
+¦   +---socios
+¦   ¦       pantalla_acceso_socio.dart
+¦   ¦       pantalla_dashboard_socio.dart
+¦   ¦       
+¦   +---votacion
+¦           pantalla_votacion_usuario.dart
+¦           
++---servicios
+¦       notificaciones_service.dart
+¦       servicio_actividades.dart
+¦       servicio_aviso_entrada.dart
+¦       servicio_firebase.dart
+¦       servicio_notificaciones_topics.dart
+¦       servicio_version.dart
+¦       
++---widgets
+        banner_publicidad.dart
+        boton_menu.dart
+        dialogo_sugerencias.dart
+        estado_carga.dart
+        etiqueta_version.dart
+        input_imagen.dart
+        selector_tira_bottom_sheet.dart
+        

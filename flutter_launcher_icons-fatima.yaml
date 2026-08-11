@@ -1,0 +1,7 @@
+flutter_launcher_icons:
+  android: "launcher_icon"
+  ios: false
+  image_path: "assets/logo_fatima.png"
+  flavor: fatima
+  adaptive_icon_background: "#000000"          # <--- Fondo negro (o el color que prefieras)
+  adaptive_icon_foreground: "assets/logo_fatima.png" # <--- El escudo al frente

@@ -1,7 +1,18 @@
+import 'dart:io';
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:intl/intl.dart';
+import 'package:excel/excel.dart' hide Border;
+import 'package:path_provider/path_provider.dart';
+import 'package:share_plus/share_plus.dart';
+import 'package:file_picker/file_picker.dart';
+import 'dart:typed_data';
+import 'package:pdf/pdf.dart';
+import 'package:pdf/widgets.dart' as pw;
 import '../../configuracion/configuracion_app.dart';
+import 'package:file_saver/file_saver.dart';
 
 class PantallaAdminFinanzas extends StatefulWidget {
   final ConfiguracionApp config;
@@ -15,7 +26,6 @@ class _PantallaAdminFinanzasState extends State<PantallaAdminFinanzas>
     with SingleTickerProviderStateMixin {
   late TabController _tabController;
 
-  // Filtros de fecha (por defecto mes actual)
   DateTime _fechaInicio = DateTime(
     DateTime.now().year,
     DateTime.now().month,
@@ -23,13 +33,15 @@ class _PantallaAdminFinanzasState extends State<PantallaAdminFinanzas>
   );
   DateTime _fechaFin = DateTime.now();
 
+  String? _filtroCategoria;
+  String _filtroTexto = "";
+
   @override
   void initState() {
     super.initState();
-    _tabController = TabController(length: 2, vsync: this);
+    _tabController = TabController(length: 3, vsync: this);
   }
 
-  // Selector de rango de fechas
   Future<void> _seleccionarRangoFecha() async {
     final picked = await showDateRangePicker(
       context: context,
@@ -52,25 +64,112 @@ class _PantallaAdminFinanzasState extends State<PantallaAdminFinanzas>
     if (picked != null) {
       setState(() {
         _fechaInicio = picked.start;
-        _fechaFin = picked.end.add(
-          const Duration(hours: 23, minutes: 59),
-        ); // Final del día
+        _fechaFin = picked.end.add(const Duration(hours: 23, minutes: 59));
       });
     }
+  }
+
+  void _mostrarFiltrosAvanzados() {
+    showDialog(
+      context: context,
+      builder: (ctx) {
+        String? catTemp = _filtroCategoria;
+        String txtTemp = _filtroTexto;
+        return StatefulBuilder(
+          builder: (context, setStateDialog) {
+            return AlertDialog(
+              title: const Text("Filtros de Reporte"),
+              content: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  TextField(
+                    decoration: const InputDecoration(
+                      labelText: "Buscar (Nombre o Actividad)",
+                      hintText: "Ej: Futbol, Perez...",
+                      prefixIcon: Icon(Icons.search),
+                    ),
+                    controller: TextEditingController(text: _filtroTexto),
+                    onChanged: (v) => txtTemp = v,
+                  ),
+                  const SizedBox(height: 15),
+                  DropdownButtonFormField<String>(
+                    value: catTemp,
+                    decoration: const InputDecoration(
+                      labelText: "Categoría",
+                      border: OutlineInputBorder(),
+                    ),
+                    items:
+                        [
+                              'Todas',
+                              'Alquileres',
+                              'Cuotas',
+                              'Mantenimiento',
+                              'Servicios',
+                              'Materiales',
+                              'Torneos',
+                              'Sueldos',
+                            ]
+                            .map(
+                              (c) => DropdownMenuItem(
+                                value: c == 'Todas' ? null : c,
+                                child: Text(c),
+                              ),
+                            )
+                            .toList(),
+                    onChanged: (v) => setStateDialog(() => catTemp = v),
+                  ),
+                ],
+              ),
+              actions: [
+                TextButton(
+                  onPressed: () {
+                    setState(() {
+                      _filtroCategoria = null;
+                      _filtroTexto = "";
+                    });
+                    Navigator.pop(ctx);
+                  },
+                  child: const Text("LIMPIAR"),
+                ),
+                ElevatedButton(
+                  onPressed: () {
+                    setState(() {
+                      _filtroCategoria = catTemp;
+                      _filtroTexto = txtTemp;
+                    });
+                    Navigator.pop(ctx);
+                  },
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: widget.config.colorPrimario,
+                    foregroundColor: Colors.white,
+                  ),
+                  child: const Text("APLICAR"),
+                ),
+              ],
+            );
+          },
+        );
+      },
+    );
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text("Caja y Finanzas"),
+        title: const Text("Caja y Reportes"),
         backgroundColor: Colors.grey[900],
         foregroundColor: Colors.white,
         actions: [
           IconButton(
+            icon: const Icon(Icons.filter_list_alt),
+            onPressed: _mostrarFiltrosAvanzados,
+            tooltip: "Filtros",
+          ),
+          IconButton(
             icon: const Icon(Icons.calendar_month),
             onPressed: _seleccionarRangoFecha,
-            tooltip: "Filtrar Fechas",
+            tooltip: "Fechas",
           ),
         ],
         bottom: TabBar(
@@ -78,9 +177,11 @@ class _PantallaAdminFinanzasState extends State<PantallaAdminFinanzas>
           labelColor: widget.config.colorPrimario,
           unselectedLabelColor: Colors.grey,
           indicatorColor: widget.config.colorPrimario,
+          isScrollable: true,
           tabs: const [
             Tab(text: "Movimientos"),
-            Tab(text: "Nuevo Gasto/Ingreso"),
+            Tab(text: "Liquidación"),
+            Tab(text: "Nuevo Registro"),
           ],
         ),
       ),
@@ -91,12 +192,19 @@ class _PantallaAdminFinanzasState extends State<PantallaAdminFinanzas>
             config: widget.config,
             fechaInicio: _fechaInicio,
             fechaFin: _fechaFin,
+            filtroCategoria: _filtroCategoria,
+            filtroTexto: _filtroTexto,
+          ),
+          _TabRecaudacionActividad(
+            config: widget.config,
+            fechaInicio: _fechaInicio,
+            fechaFin: _fechaFin,
           ),
           _TabNuevoMovimiento(
             config: widget.config,
             alGuardar: () {
               _tabController.animateTo(0);
-              setState(() {}); // Forzar recarga visual
+              setState(() {});
             },
           ),
         ],
@@ -105,50 +213,67 @@ class _PantallaAdminFinanzasState extends State<PantallaAdminFinanzas>
   }
 }
 
-// --- TAB 1: LISTADO Y BALANCE ---
+// =========================================================================
+// TAB 1: LISTADO Y REPORTES
+// =========================================================================
 class _TabMovimientos extends StatelessWidget {
   final ConfiguracionApp config;
   final DateTime fechaInicio;
   final DateTime fechaFin;
+  final String? filtroCategoria;
+  final String filtroTexto;
 
   const _TabMovimientos({
     required this.config,
     required this.fechaInicio,
     required this.fechaFin,
+    this.filtroCategoria,
+    required this.filtroTexto,
   });
 
-  // Función para borrar movimiento
   Future<void> _borrarMovimiento(
     BuildContext context,
     String id,
     Map<String, dynamic> data,
   ) async {
-    bool esCuota = data['concepto'].toString().toLowerCase().contains('cuota');
+    final motivoCtrl = TextEditingController();
+    final usuarioCtrl = TextEditingController();
 
     bool confirmar =
         await showDialog(
           context: context,
+          barrierDismissible: false,
           builder: (ctx) => AlertDialog(
-            title: const Text("¿Anular Movimiento?"),
-            content: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  "Se eliminará el registro de \$${data['monto']} de la caja.",
-                ),
-                if (esCuota) ...[
+            title: const Text("Anular Movimiento"),
+            content: SingleChildScrollView(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(
+                    "Vas a anular el registro de \$${data['monto']}. Quedará guardado en el historial de eliminados por seguridad.",
+                  ),
+                  const SizedBox(height: 15),
+                  TextField(
+                    controller: usuarioCtrl,
+                    decoration: const InputDecoration(
+                      labelText: "Tu Usuario / Nombre",
+                      hintText: "Ej: Juan Perez",
+                      border: OutlineInputBorder(),
+                      isDense: true,
+                    ),
+                  ),
                   const SizedBox(height: 10),
-                  const Text(
-                    "⚠ ATENCIÓN: Estás borrando un cobro de cuota. Esto ajustará la caja pero NO cambiará la fecha de vencimiento en el carnet del socio. Deberás ajustarla manualmente si corresponde.",
-                    style: TextStyle(
-                      color: Colors.orange,
-                      fontSize: 12,
-                      fontStyle: FontStyle.italic,
+                  TextField(
+                    controller: motivoCtrl,
+                    decoration: const InputDecoration(
+                      labelText: "Motivo de la anulación",
+                      hintText: "Ej: Me equivoqué de monto",
+                      border: OutlineInputBorder(),
+                      isDense: true,
                     ),
                   ),
                 ],
-              ],
+              ),
             ),
             actions: [
               TextButton(
@@ -156,9 +281,22 @@ class _TabMovimientos extends StatelessWidget {
                 child: const Text("CANCELAR"),
               ),
               TextButton(
-                onPressed: () => Navigator.pop(ctx, true),
+                onPressed: () {
+                  if (usuarioCtrl.text.trim().isEmpty ||
+                      motivoCtrl.text.trim().isEmpty) {
+                    ScaffoldMessenger.of(ctx).showSnackBar(
+                      const SnackBar(
+                        content: Text(
+                          "Debes completar tu nombre y el motivo para continuar",
+                        ),
+                      ),
+                    );
+                    return;
+                  }
+                  Navigator.pop(ctx, true);
+                },
                 child: const Text(
-                  "ELIMINAR",
+                  "ANULAR REGISTRO",
                   style: TextStyle(
                     color: Colors.red,
                     fontWeight: FontWeight.bold,
@@ -171,14 +309,161 @@ class _TabMovimientos extends StatelessWidget {
         false;
 
     if (confirmar) {
-      await FirebaseFirestore.instance
-          .collection('movimientos')
-          .doc(id)
-          .delete();
-      if (context.mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text("Movimiento eliminado correctamente")),
+      try {
+        await FirebaseFirestore.instance
+            .collection('movimientos_eliminados')
+            .doc(id)
+            .set({
+              ...data,
+              'motivo_eliminacion': motivoCtrl.text.trim(),
+              'usuario_elimino': usuarioCtrl.text.trim(),
+              'fecha_eliminacion': FieldValue.serverTimestamp(),
+            });
+
+        await FirebaseFirestore.instance
+            .collection('movimientos')
+            .doc(id)
+            .delete();
+
+        if (context.mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text("Movimiento anulado y auditado correctamente"),
+              backgroundColor: Colors.green,
+            ),
+          );
+        }
+      } catch (e) {
+        if (context.mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text("Error al anular: $e"),
+              backgroundColor: Colors.red,
+            ),
+          );
+        }
+      }
+    }
+  }
+
+  Future<void> _exportarExcel(
+    BuildContext context,
+    List<QueryDocumentSnapshot> docs,
+  ) async {
+    try {
+      var excel = Excel.createExcel();
+      Sheet sheetObject = excel['Caja'];
+      excel.delete('Sheet1');
+
+      sheetObject.appendRow([
+        TextCellValue("Fecha"),
+        TextCellValue("Socio / Nombre"),
+        TextCellValue("Concepto / Actividad"),
+        TextCellValue("Categoría"),
+        TextCellValue("Ingreso (+)"),
+        TextCellValue("Egreso (-)"),
+      ]);
+
+      double totalIngresos = 0;
+      double totalEgresos = 0;
+
+      for (var doc in docs) {
+        var data = doc.data() as Map<String, dynamic>;
+
+        DateTime fecha =
+            (data['fecha'] as Timestamp?)?.toDate() ?? DateTime.now();
+        String fechaStr = DateFormat('dd/MM/yyyy HH:mm').format(fecha);
+        String socio = data['socio_nombre'] ?? '-';
+        String concepto = data['concepto'] ?? '';
+        String categoria = data['categoria'] ?? 'Varios';
+        double monto = (data['monto'] ?? 0).toDouble();
+        String tipo = (data['tipo'] ?? '').toString().toLowerCase();
+
+        double ingreso = 0;
+        double egreso = 0;
+
+        if (tipo == 'ingreso') {
+          ingreso = monto;
+          totalIngresos += monto;
+        } else {
+          egreso = monto;
+          totalEgresos += monto;
+        }
+
+        sheetObject.appendRow([
+          TextCellValue(fechaStr),
+          TextCellValue(socio),
+          TextCellValue(concepto),
+          TextCellValue(categoria),
+          DoubleCellValue(ingreso),
+          DoubleCellValue(egreso),
+        ]);
+      }
+
+      sheetObject.appendRow([
+        TextCellValue(""),
+        TextCellValue(""),
+        TextCellValue("TOTALES"),
+        TextCellValue(""),
+        DoubleCellValue(totalIngresos),
+        DoubleCellValue(totalEgresos),
+      ]);
+
+      sheetObject.appendRow([
+        TextCellValue(""),
+        TextCellValue(""),
+        TextCellValue("RESULTADO NETO"),
+        TextCellValue(""),
+        DoubleCellValue(totalIngresos - totalEgresos),
+        TextCellValue(""),
+      ]);
+
+      var fileBytes = excel.save();
+      String nombreArchivo =
+          "Reporte_Caja_${DateFormat('dd-MM').format(fechaInicio)}_al_${DateFormat('dd-MM').format(fechaFin)}.xlsx";
+
+      if (kIsWeb) {
+        await Share.shareXFiles([
+          XFile.fromData(Uint8List.fromList(fileBytes!), name: nombreArchivo),
+        ], text: "Reporte de Caja");
+      } else if (Platform.isWindows || Platform.isMacOS || Platform.isLinux) {
+        String? rutaSalida = await FilePicker.platform.saveFile(
+          dialogTitle: 'Guardar Excel de Caja',
+          fileName: nombreArchivo,
+          type: FileType.custom,
+          allowedExtensions: ['xlsx'],
         );
+
+        if (rutaSalida != null) {
+          File(rutaSalida)
+            ..createSync(recursive: true)
+            ..writeAsBytesSync(fileBytes!);
+
+          if (context.mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(
+                content: Text("✅ Excel guardado exitosamente"),
+                backgroundColor: Colors.green,
+              ),
+            );
+          }
+        }
+      } else {
+        final directory = await getApplicationDocumentsDirectory();
+        final path = "${directory.path}/$nombreArchivo";
+        File(path)
+          ..createSync(recursive: true)
+          ..writeAsBytesSync(fileBytes!);
+
+        await Share.shareXFiles([
+          XFile(path),
+        ], text: "Reporte de Caja $nombreArchivo");
+      }
+    } catch (e) {
+      if (context.mounted) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text("Error al exportar: $e")));
       }
     }
   }
@@ -189,140 +474,147 @@ class _TabMovimientos extends StatelessWidget {
       stream: FirebaseFirestore.instance
           .collection('movimientos')
           .orderBy('fecha', descending: true)
-          .limit(200)
           .snapshots(),
       builder: (context, snapshot) {
         if (!snapshot.hasData)
           return const Center(child: CircularProgressIndicator());
 
-        // Filtrado en memoria
         final allDocs = snapshot.data!.docs;
+
         final docs = allDocs.where((doc) {
           final data = doc.data() as Map<String, dynamic>;
+
           if (data['fecha'] == null) return false;
           DateTime fechaDoc = (data['fecha'] as Timestamp).toDate();
-          return fechaDoc.isAfter(
-                fechaInicio.subtract(const Duration(seconds: 1)),
-              ) &&
-              fechaDoc.isBefore(fechaFin.add(const Duration(seconds: 1)));
+          if (fechaDoc.isBefore(fechaInicio) || fechaDoc.isAfter(fechaFin)) {
+            return false;
+          }
+
+          if (filtroCategoria != null) {
+            if ((data['categoria'] ?? '') != filtroCategoria) return false;
+          }
+
+          if (filtroTexto.isNotEmpty) {
+            String concepto = (data['concepto'] ?? '').toString().toLowerCase();
+            String socioNombre = (data['socio_nombre'] ?? '')
+                .toString()
+                .toLowerCase();
+            String busqueda = filtroTexto.toLowerCase();
+
+            if (!concepto.contains(busqueda) &&
+                !socioNombre.contains(busqueda)) {
+              return false;
+            }
+          }
+
+          return true;
         }).toList();
 
-        // Calculamos totales
         double ingresos = 0;
         double egresos = 0;
-        double efectivo = 0;
-        double digital = 0;
-
         for (var doc in docs) {
           final data = doc.data() as Map<String, dynamic>;
-          final monto = (data['monto'] ?? 0).toDouble();
-          final tipo = (data['tipo'] ?? '').toString().toLowerCase();
-          final metodo = (data['metodo'] ?? 'Efectivo').toString();
-
-          if (tipo == 'ingreso') {
-            ingresos += monto;
-            if (metodo == 'Efectivo')
-              efectivo += monto;
-            else
-              digital += monto;
-          } else {
-            egresos += monto;
-            if (metodo == 'Efectivo')
-              efectivo -= monto;
-            else
-              digital -= monto;
-          }
+          double m = (data['monto'] ?? 0).toDouble();
+          if ((data['tipo'] ?? '') == 'ingreso')
+            ingresos += m;
+          else
+            egresos += m;
         }
 
         return Column(
           children: [
-            // TARJETA DE BALANCE GENERAL
             Container(
-              margin: const EdgeInsets.fromLTRB(15, 15, 15, 5),
+              padding: const EdgeInsets.all(12),
+              color: Colors.grey[100],
+              child: Row(
+                children: [
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          "Periodo: ${DateFormat('dd/MM').format(fechaInicio)} - ${DateFormat('dd/MM').format(fechaFin)}",
+                          style: const TextStyle(fontSize: 12),
+                        ),
+                        if (filtroTexto.isNotEmpty)
+                          Text(
+                            "Filtro: \"$filtroTexto\"",
+                            style: TextStyle(
+                              fontSize: 12,
+                              color: config.colorPrimario,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                        Text(
+                          "Registros: ${docs.length}",
+                          style: const TextStyle(fontSize: 12),
+                        ),
+                      ],
+                    ),
+                  ),
+                  ElevatedButton.icon(
+                    onPressed: docs.isEmpty
+                        ? null
+                        : () => _exportarExcel(context, docs),
+                    icon: const Icon(Icons.file_download, size: 18),
+                    label: const Text("EXCEL"),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: Colors.green[700],
+                      foregroundColor: Colors.white,
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 10,
+                        vertical: 5,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+
+            Container(
+              margin: const EdgeInsets.all(10),
               padding: const EdgeInsets.all(15),
               decoration: BoxDecoration(
                 color: Colors.white,
-                borderRadius: BorderRadius.circular(15),
-                boxShadow: [BoxShadow(color: Colors.black12, blurRadius: 10)],
+                borderRadius: BorderRadius.circular(10),
+                boxShadow: const [
+                  BoxShadow(color: Colors.black12, blurRadius: 5),
+                ],
+                border: Border.all(color: Colors.grey[300]!),
               ),
               child: Row(
                 mainAxisAlignment: MainAxisAlignment.spaceAround,
                 children: [
                   _InfoBalance("Ingresos", ingresos, Colors.green),
-                  Container(width: 1, height: 40, color: Colors.grey[300]),
-                  _InfoBalance("Gastos", egresos, Colors.red),
-                  Container(width: 1, height: 40, color: Colors.grey[300]),
-                  _InfoBalance(
-                    "Saldo",
-                    ingresos - egresos,
-                    (ingresos - egresos) >= 0 ? Colors.blue : Colors.orange,
-                  ),
+                  _InfoBalance("Egresos", egresos, Colors.red),
+                  _InfoBalance("Neto", ingresos - egresos, Colors.blue),
                 ],
               ),
             ),
 
-            // TARJETA DE ARQUEO
-            Container(
-              margin: const EdgeInsets.symmetric(horizontal: 15, vertical: 5),
-              padding: const EdgeInsets.symmetric(horizontal: 15, vertical: 10),
-              decoration: BoxDecoration(
-                color: Colors.grey[100],
-                borderRadius: BorderRadius.circular(10),
-                border: Border.all(color: Colors.grey[300]!),
-              ),
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  Text(
-                    "En Caja Física: \$${efectivo.toStringAsFixed(0)}",
-                    style: const TextStyle(
-                      fontWeight: FontWeight.bold,
-                      color: Colors.black54,
-                    ),
-                  ),
-                  Text(
-                    "Digital/Bancos: \$${digital.toStringAsFixed(0)}",
-                    style: const TextStyle(
-                      fontWeight: FontWeight.bold,
-                      color: Colors.black54,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-
-            const Divider(),
-
-            // LISTA DE MOVIMIENTOS
             Expanded(
               child: docs.isEmpty
                   ? const Center(
-                      child: Text("No hay movimientos en este rango."),
+                      child: Text("No hay movimientos con estos filtros."),
                     )
                   : ListView.separated(
                       itemCount: docs.length,
                       separatorBuilder: (c, i) => const Divider(height: 1),
                       itemBuilder: (context, index) {
                         final data = docs[index].data() as Map<String, dynamic>;
-                        final id = docs[index].id;
-                        final tipo = (data['tipo'] ?? '')
-                            .toString()
-                            .toLowerCase();
-                        final bool esIngreso = tipo == 'ingreso';
-                        final fecha =
-                            (data['fecha'] as Timestamp?)?.toDate() ??
-                            DateTime.now();
-                        final metodo = data['metodo'] ?? 'Automático';
+                        final bool esIngreso = data['tipo'] == 'ingreso';
 
-                        IconData icon = esIngreso
-                            ? Icons.arrow_downward
-                            : Icons.arrow_upward;
-                        if (data['concepto'].toString().contains('Cuota'))
-                          icon = Icons.receipt_long;
-                        if (data['categoria'] == 'Mantenimiento')
-                          icon = Icons.build;
+                        IconData icon = Icons.attach_money;
+                        String cat = data['categoria'] ?? '';
+                        if (cat == 'Alquileres') icon = Icons.sports_soccer;
+                        if (cat == 'Cuotas') icon = Icons.receipt_long;
+                        if (cat == 'Mantenimiento') icon = Icons.build;
 
                         return ListTile(
+                          contentPadding: const EdgeInsets.symmetric(
+                            horizontal: 10,
+                            vertical: 5,
+                          ),
                           leading: CircleAvatar(
                             backgroundColor: esIngreso
                                 ? Colors.green[50]
@@ -334,53 +626,77 @@ class _TabMovimientos extends StatelessWidget {
                             ),
                           ),
                           title: Text(
-                            data['concepto'] ?? '-',
+                            data['concepto'] ?? '',
                             style: const TextStyle(
                               fontWeight: FontWeight.bold,
-                              fontSize: 14,
+                              fontSize: 13,
                             ),
                           ),
-                          subtitle: Row(
+                          subtitle: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              if (data['socio_nombre'] != null)
+                                Text(
+                                  "Socio: ${data['socio_nombre']}",
+                                  style: TextStyle(
+                                    fontSize: 11,
+                                    color: Colors.blue[800],
+                                  ),
+                                ),
+                              Text(
+                                "${DateFormat('dd/MM HH:mm').format((data['fecha'] as Timestamp).toDate())} • $cat",
+                                style: const TextStyle(fontSize: 11),
+                              ),
+                            ],
+                          ),
+                          trailing: Row(
+                            mainAxisSize: MainAxisSize.min,
                             children: [
                               Text(
-                                DateFormat('dd/MM HH:mm').format(fecha),
-                                style: const TextStyle(fontSize: 12),
+                                "${esIngreso ? '+' : '-'} \$${data['monto']}",
+                                style: TextStyle(
+                                  color: esIngreso
+                                      ? Colors.green[800]
+                                      : Colors.red[800],
+                                  fontWeight: FontWeight.bold,
+                                  fontSize: 15,
+                                ),
                               ),
-                              const SizedBox(width: 10),
-                              Container(
-                                padding: const EdgeInsets.symmetric(
-                                  horizontal: 6,
-                                  vertical: 2,
+                              const SizedBox(width: 5),
+                              IconButton(
+                                icon: const Icon(
+                                  Icons.print,
+                                  color: Colors.blue,
                                 ),
-                                decoration: BoxDecoration(
-                                  color: Colors.grey[200],
-                                  borderRadius: BorderRadius.circular(4),
+                                tooltip: "Ver Comprobante",
+                                onPressed: () {
+                                  generarComprobantePDF(
+                                    context,
+                                    config,
+                                    data['tipo'] ?? 'ingreso',
+                                    (data['monto'] ?? 0).toDouble(),
+                                    data['concepto'] ?? '',
+                                    data['metodo'] ?? 'Efectivo',
+                                    cat,
+                                    (data['fecha'] as Timestamp).toDate(),
+                                    data['socio_nombre'],
+                                  );
+                                },
+                              ),
+                              IconButton(
+                                icon: const Icon(
+                                  Icons.delete,
+                                  color: Colors.red,
                                 ),
-                                child: Text(
-                                  metodo,
-                                  style: const TextStyle(
-                                    fontSize: 10,
-                                    color: Colors.black87,
-                                  ),
+                                tooltip: "Anular Registro",
+                                onPressed: () => _borrarMovimiento(
+                                  context,
+                                  docs[index].id,
+                                  data,
                                 ),
                               ),
                             ],
                           ),
-                          trailing: Text(
-                            "${esIngreso ? '+' : '-'} \$${data['monto']}",
-                            style: TextStyle(
-                              color: esIngreso
-                                  ? Colors.green[700]
-                                  : Colors.red[700],
-                              fontWeight: FontWeight.bold,
-                              fontSize: 15,
-                            ),
-                          ),
-                          onTap: () => _borrarMovimiento(
-                            context,
-                            id,
-                            data,
-                          ), // AHORA SÍ HACE ALGO
                         );
                       },
                     ),
@@ -401,8 +717,7 @@ class _InfoBalance extends StatelessWidget {
   Widget build(BuildContext context) {
     return Column(
       children: [
-        Text(label, style: const TextStyle(color: Colors.grey, fontSize: 12)),
-        const SizedBox(height: 5),
+        Text(label, style: const TextStyle(fontSize: 11, color: Colors.grey)),
         Text(
           "\$${valor.toStringAsFixed(0)}",
           style: TextStyle(
@@ -416,7 +731,499 @@ class _InfoBalance extends StatelessWidget {
   }
 }
 
-// --- TAB 2: NUEVO REGISTRO (MANUAL) ---
+// =========================================================================
+// TAB 2: LIQUIDACIÓN DESPLEGABLE CON REPORTE EXCEL
+// =========================================================================
+class _TabRecaudacionActividad extends StatefulWidget {
+  final ConfiguracionApp config;
+  final DateTime fechaInicio;
+  final DateTime fechaFin;
+
+  const _TabRecaudacionActividad({
+    required this.config,
+    required this.fechaInicio,
+    required this.fechaFin,
+  });
+
+  @override
+  State<_TabRecaudacionActividad> createState() =>
+      _TabRecaudacionActividadState();
+}
+
+class _TabRecaudacionActividadState extends State<_TabRecaudacionActividad> {
+  String? _actSeleccionada;
+  Map<String, double> _preciosCache = {};
+  List<String> _actividadesDisponibles = [];
+  bool _cargandoPrecios = true;
+
+  @override
+  void initState() {
+    super.initState();
+    _cargarPrecios();
+  }
+
+  Future<void> _cargarPrecios() async {
+    try {
+      final doc = await FirebaseFirestore.instance
+          .collection('configuracion')
+          .doc('precios')
+          .get();
+      if (doc.exists) {
+        final data = doc.data() ?? {};
+        Map<String, dynamic> mapaPrecios = data['precios_cuotas'] ?? data;
+
+        _preciosCache.clear();
+        _actividadesDisponibles.clear();
+
+        mapaPrecios.forEach((key, value) {
+          if (!key.contains('_') && key != 'fecha_actualizacion') {
+            _actividadesDisponibles.add(key);
+            if (value is num) _preciosCache[key] = value.toDouble();
+            if (value is String) {
+              _preciosCache[key] = double.tryParse(value) ?? 0;
+            }
+          }
+        });
+
+        _actividadesDisponibles.sort();
+      }
+    } catch (e) {
+      print("Error cargando precios: $e");
+    } finally {
+      if (mounted) setState(() => _cargandoPrecios = false);
+    }
+  }
+
+  Future<void> _exportarExcelLiquidacion(
+    BuildContext context,
+    List<Map<String, dynamic>> items,
+    double total,
+    int cuotas,
+  ) async {
+    try {
+      var excel = Excel.createExcel();
+      Sheet sheetObject = excel['Liquidacion'];
+      excel.delete('Sheet1');
+
+      sheetObject.appendRow([
+        TextCellValue("Actividad: $_actSeleccionada"),
+        TextCellValue(""),
+        TextCellValue(""),
+        TextCellValue(""),
+      ]);
+      sheetObject.appendRow([
+        TextCellValue(
+          "Periodo: ${DateFormat('dd/MM/yyyy').format(widget.fechaInicio)} al ${DateFormat('dd/MM/yyyy').format(widget.fechaFin)}",
+        ),
+      ]);
+      sheetObject.appendRow([]);
+
+      sheetObject.appendRow([
+        TextCellValue("Fecha"),
+        TextCellValue("Socio"),
+        TextCellValue("Concepto"),
+        TextCellValue("Valor Ticket"),
+        TextCellValue("Cant. Meses"),
+        TextCellValue("Subtotal Liquidado"),
+      ]);
+
+      for (var item in items) {
+        sheetObject.appendRow([
+          TextCellValue(DateFormat('dd/MM/yyyy HH:mm').format(item['fecha'])),
+          TextCellValue(item['socio']),
+          TextCellValue(item['concepto']),
+          DoubleCellValue(item['monto_total_ticket']),
+          IntCellValue(item['ocurrencias']),
+          DoubleCellValue(item['porcion_actividad']),
+        ]);
+      }
+
+      sheetObject.appendRow([]);
+      sheetObject.appendRow([
+        TextCellValue(""),
+        TextCellValue(""),
+        TextCellValue(""),
+        TextCellValue(""),
+        TextCellValue("TOTAL CUOTAS:"),
+        IntCellValue(cuotas),
+      ]);
+      sheetObject.appendRow([
+        TextCellValue(""),
+        TextCellValue(""),
+        TextCellValue(""),
+        TextCellValue(""),
+        TextCellValue("TOTAL A RENDIR:"),
+        DoubleCellValue(total),
+      ]);
+
+      var fileBytes = excel.save();
+      String nombreArchivo =
+          "Liquidacion_${_actSeleccionada}_${DateFormat('dd-MM').format(widget.fechaInicio)}.xlsx";
+
+      if (kIsWeb) {
+        await Share.shareXFiles([
+          XFile.fromData(Uint8List.fromList(fileBytes!), name: nombreArchivo),
+        ], text: "Reporte de Liquidación");
+      } else {
+        final directory = await getApplicationDocumentsDirectory();
+        final path = "${directory.path}/$nombreArchivo";
+        File(path)
+          ..createSync(recursive: true)
+          ..writeAsBytesSync(fileBytes!);
+        await Share.shareXFiles([
+          XFile(path),
+        ], text: "Liquidación $_actSeleccionada");
+      }
+    } catch (e) {
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text("Error al exportar liquidación: $e")),
+        );
+      }
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    if (_cargandoPrecios) {
+      return const Center(child: CircularProgressIndicator());
+    }
+
+    return Column(
+      children: [
+        Container(
+          padding: const EdgeInsets.all(15),
+          color: Colors.white,
+          child: DropdownButtonFormField<String>(
+            value: _actSeleccionada,
+            decoration: InputDecoration(
+              labelText: "Seleccionar Actividad a Liquidar",
+              border: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(10),
+              ),
+              prefixIcon: Icon(
+                Icons.sports_score,
+                color: widget.config.colorPrimario,
+              ),
+            ),
+            hint: const Text("Ej: Patin, Futbol, Zumba..."),
+            items: _actividadesDisponibles.map((a) {
+              return DropdownMenuItem(
+                value: a,
+                child: Text(
+                  a,
+                  style: const TextStyle(fontWeight: FontWeight.bold),
+                ),
+              );
+            }).toList(),
+            onChanged: (val) {
+              setState(() {
+                _actSeleccionada = val;
+              });
+            },
+          ),
+        ),
+
+        const Divider(height: 1),
+
+        if (_actSeleccionada == null)
+          const Expanded(
+            child: Center(
+              child: Text(
+                "Seleccioná una actividad arriba\npara calcular lo que le corresponde al profe.",
+                textAlign: TextAlign.center,
+                style: TextStyle(color: Colors.grey, fontSize: 16),
+              ),
+            ),
+          )
+        else
+          Expanded(
+            child: StreamBuilder<QuerySnapshot>(
+              stream: FirebaseFirestore.instance
+                  .collection('movimientos')
+                  .orderBy('fecha', descending: true)
+                  .snapshots(),
+              builder: (context, snapshot) {
+                if (!snapshot.hasData) {
+                  return const Center(child: CircularProgressIndicator());
+                }
+
+                List<Map<String, dynamic>> movimientosFiltrados = [];
+                double totalLiquidacionActividad = 0;
+                int totalCuotasCobradas = 0;
+
+                double precioActualActividad =
+                    _preciosCache[_actSeleccionada!] ?? 0;
+
+                for (var doc in snapshot.data!.docs) {
+                  final data = doc.data() as Map<String, dynamic>;
+
+                  if (data['fecha'] == null) continue;
+                  DateTime fechaDoc = (data['fecha'] as Timestamp).toDate();
+                  if (fechaDoc.isBefore(widget.fechaInicio) ||
+                      fechaDoc.isAfter(widget.fechaFin)) {
+                    continue;
+                  }
+
+                  if (data['tipo'] == 'ingreso') {
+                    String concepto = (data['concepto'] ?? '').toString();
+                    int ocurrencias = 0;
+
+                    if (data['origen'] == 'manual') {
+                      bool tieneLinkManual =
+                          data['actividad_manual'] != null ||
+                          data['actividad_manual_2'] != null;
+
+                      if (tieneLinkManual) {
+                        if (data['actividad_manual'] == _actSeleccionada) {
+                          int m1 = data['meses_manual'] is num
+                              ? (data['meses_manual'] as num).toInt()
+                              : 1;
+                          ocurrencias += m1;
+                        }
+                        if (data['actividad_manual_2'] == _actSeleccionada) {
+                          int m2 = data['meses_manual_2'] is num
+                              ? (data['meses_manual_2'] as num).toInt()
+                              : 1;
+                          ocurrencias += m2;
+                        }
+                      } else {
+                        // --- LÓGICA DE COINCIDENCIA MÁS LARGA PARA INGRESOS MANUALES VIEJOS ---
+                        String actividadDetectada = "";
+                        for (String act in _actividadesDisponibles) {
+                          if (concepto.contains(act) &&
+                              act.length > actividadDetectada.length) {
+                            actividadDetectada = act;
+                          }
+                        }
+                        if (actividadDetectada == _actSeleccionada) {
+                          ocurrencias =
+                              concepto.split(actividadDetectada).length - 1;
+                        }
+                      }
+                    } else {
+                      // --- LÓGICA DE COINCIDENCIA MÁS LARGA PARA INGRESOS AUTOMÁTICOS ---
+                      String actividadDetectada = "";
+                      for (String act in _actividadesDisponibles) {
+                        if (concepto.contains(act) &&
+                            act.length > actividadDetectada.length) {
+                          actividadDetectada = act;
+                        }
+                      }
+
+                      if (actividadDetectada == _actSeleccionada) {
+                        ocurrencias =
+                            concepto.split(actividadDetectada).length - 1;
+
+                        RegExp regExpMeses = RegExp(r'adelantado de (\d+) mes');
+                        var matchMeses = regExpMeses.firstMatch(concepto);
+                        if (matchMeses != null) {
+                          int mesesExtraidos =
+                              int.tryParse(matchMeses.group(1) ?? '1') ?? 1;
+                          if (mesesExtraidos > 0) {
+                            ocurrencias = mesesExtraidos;
+                          }
+                        }
+                      }
+                    }
+
+                    if (ocurrencias > 0) {
+                      double porcionActividad =
+                          ocurrencias * precioActualActividad;
+                      double montoTotalTicket = (data['monto'] ?? 0).toDouble();
+
+                      double porcentajeDescuento = 0;
+                      if (concepto.contains('% OFF')) {
+                        RegExp regExp = RegExp(r'\((\d+)%\s*OFF\)');
+                        var match = regExp.firstMatch(concepto);
+                        if (match != null) {
+                          porcentajeDescuento =
+                              double.tryParse(match.group(1) ?? '0') ?? 0;
+                        }
+                      }
+
+                      if (montoTotalTicket == 0 || porcentajeDescuento >= 100) {
+                        porcionActividad = 0;
+                      } else if (porcentajeDescuento > 0) {
+                        porcionActividad =
+                            porcionActividad -
+                            (porcionActividad * (porcentajeDescuento / 100));
+                      } else if (porcionActividad > montoTotalTicket) {
+                        porcionActividad = montoTotalTicket;
+                      }
+
+                      totalLiquidacionActividad += porcionActividad;
+                      totalCuotasCobradas += ocurrencias;
+
+                      movimientosFiltrados.add({
+                        'docId': doc.id,
+                        'fecha': fechaDoc,
+                        'socio': data['socio_nombre'] ?? 'Desconocido',
+                        'concepto': concepto,
+                        'monto_total_ticket': montoTotalTicket,
+                        'ocurrencias': ocurrencias,
+                        'porcion_actividad': porcionActividad,
+                        'es_becado': porcionActividad == 0,
+                      });
+                    }
+                  }
+                }
+
+                return Column(
+                  children: [
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 20,
+                        vertical: 15,
+                      ),
+                      color: widget.config.colorPrimario.withOpacity(0.1),
+                      child: Row(
+                        children: [
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  "A Rendir por: $_actSeleccionada",
+                                  style: const TextStyle(
+                                    fontSize: 16,
+                                    fontWeight: FontWeight.bold,
+                                  ),
+                                ),
+                                const SizedBox(height: 5),
+                                Text(
+                                  "$totalCuotasCobradas cuotas en este periodo.",
+                                  style: TextStyle(
+                                    fontSize: 12,
+                                    color: Colors.grey[700],
+                                  ),
+                                ),
+                                Text(
+                                  "(Calculado a \$${precioActualActividad.toStringAsFixed(0)} c/u descontando becas)",
+                                  style: TextStyle(
+                                    fontSize: 11,
+                                    color: Colors.grey[700],
+                                    fontStyle: FontStyle.italic,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                          if (movimientosFiltrados.isNotEmpty)
+                            IconButton(
+                              onPressed: () => _exportarExcelLiquidacion(
+                                context,
+                                movimientosFiltrados,
+                                totalLiquidacionActividad,
+                                totalCuotasCobradas,
+                              ),
+                              icon: const Icon(
+                                Icons.file_download,
+                                color: Colors.green,
+                              ),
+                              tooltip: "Exportar Liquidación",
+                            ),
+                          const SizedBox(width: 10),
+                          Text(
+                            "\$${totalLiquidacionActividad.toStringAsFixed(0)}",
+                            style: TextStyle(
+                              fontSize: 28,
+                              fontWeight: FontWeight.bold,
+                              color: widget.config.colorPrimario,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+
+                    const Divider(height: 1),
+
+                    Expanded(
+                      child: movimientosFiltrados.isEmpty
+                          ? const Center(
+                              child: Text(
+                                "No se encontraron cobros para esta actividad en estas fechas.",
+                                style: TextStyle(color: Colors.grey),
+                                textAlign: TextAlign.center,
+                              ),
+                            )
+                          : ListView.separated(
+                              itemCount: movimientosFiltrados.length,
+                              separatorBuilder: (c, i) =>
+                                  const Divider(height: 1),
+                              itemBuilder: (context, index) {
+                                final item = movimientosFiltrados[index];
+                                final bool esBecado = item['es_becado'];
+
+                                return ListTile(
+                                  leading: CircleAvatar(
+                                    backgroundColor: esBecado
+                                        ? Colors.grey[200]
+                                        : Colors.blue[50],
+                                    child: Icon(
+                                      esBecado
+                                          ? Icons.money_off
+                                          : Icons.receipt_long,
+                                      color: esBecado
+                                          ? Colors.grey
+                                          : Colors.blue,
+                                      size: 20,
+                                    ),
+                                  ),
+                                  title: Text(
+                                    item['concepto'],
+                                    style: TextStyle(
+                                      fontSize: 12,
+                                      fontWeight: FontWeight.bold,
+                                      color: esBecado
+                                          ? Colors.grey[600]
+                                          : Colors.black,
+                                    ),
+                                  ),
+                                  subtitle: Text(
+                                    "${DateFormat('dd/MM HH:mm').format(item['fecha'])} • Socio: ${item['socio']}\nTicket Entero: \$${item['monto_total_ticket'].toStringAsFixed(0)}",
+                                    style: const TextStyle(fontSize: 11),
+                                  ),
+                                  trailing: Column(
+                                    mainAxisAlignment: MainAxisAlignment.center,
+                                    crossAxisAlignment: CrossAxisAlignment.end,
+                                    children: [
+                                      Text(
+                                        esBecado ? "Becado" : "Rinde",
+                                        style: const TextStyle(
+                                          fontSize: 10,
+                                          color: Colors.grey,
+                                        ),
+                                      ),
+                                      Text(
+                                        "+\$${item['porcion_actividad'].toStringAsFixed(0)}",
+                                        style: TextStyle(
+                                          color: esBecado
+                                              ? Colors.grey
+                                              : Colors.green,
+                                          fontWeight: FontWeight.bold,
+                                          fontSize: 15,
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                );
+                              },
+                            ),
+                    ),
+                  ],
+                );
+              },
+            ),
+          ),
+      ],
+    );
+  }
+}
+
+// =========================================================================
+// TAB 3: NUEVO REGISTRO (MANUAL)
+// =========================================================================
 class _TabNuevoMovimiento extends StatefulWidget {
   final ConfiguracionApp config;
   final VoidCallback alGuardar;
@@ -430,80 +1237,307 @@ class _TabNuevoMovimientoState extends State<_TabNuevoMovimiento> {
   final _montoCtrl = TextEditingController();
   final _conceptoCtrl = TextEditingController();
   String _metodo = 'Efectivo';
-  String _categoria = 'Varios';
+  String _categoria = 'Cuotas';
   bool _guardando = false;
+
+  DateTime _fechaMovimiento = DateTime.now();
 
   String? _socioVinculadoId;
   String? _socioVinculadoNombre;
 
+  List<String> _actividadesDisponibles = [];
+
+  String? _actividadManual;
+  int _cuotasManual = 1;
+
+  String? _actividadManual2;
+  int _cuotasManual2 = 1;
+
+  @override
+  void initState() {
+    super.initState();
+    _cargarActividades();
+  }
+
+  Future<void> _cargarActividades() async {
+    try {
+      final doc = await FirebaseFirestore.instance
+          .collection('configuracion')
+          .doc('precios')
+          .get();
+      if (doc.exists) {
+        final data = doc.data() ?? {};
+        Map<String, dynamic> mapaPrecios = data['precios_cuotas'] ?? data;
+        List<String> acts = [];
+        mapaPrecios.forEach((key, value) {
+          if (!key.contains('_') && key != 'fecha_actualizacion') {
+            acts.add(key);
+          }
+        });
+        acts.sort();
+        if (mounted) setState(() => _actividadesDisponibles = acts);
+      }
+    } catch (e) {
+      print("Error cargando actividades: $e");
+    }
+  }
+
+  Future<void> _seleccionarFechaMovimiento() async {
+    final picked = await showDatePicker(
+      context: context,
+      initialDate: _fechaMovimiento,
+      firstDate: DateTime(2023),
+      lastDate: DateTime.now().add(const Duration(days: 30)),
+      builder: (context, child) {
+        return Theme(
+          data: ThemeData.light().copyWith(
+            primaryColor: widget.config.colorPrimario,
+            colorScheme: ColorScheme.light(
+              primary: widget.config.colorPrimario,
+            ),
+          ),
+          child: child!,
+        );
+      },
+    );
+    if (picked != null) {
+      setState(() {
+        _fechaMovimiento = DateTime(
+          picked.year,
+          picked.month,
+          picked.day,
+          DateTime.now().hour,
+          DateTime.now().minute,
+        );
+      });
+    }
+  }
+
   Future<void> _seleccionarSocio() async {
+    String filtroBusqueda = "";
+
     showDialog(
       context: context,
-      builder: (ctx) => AlertDialog(
-        title: const Text("Vincular Socio"),
-        content: SizedBox(
-          width: double.maxFinite,
-          height: 400,
-          child: Column(
-            children: [
-              const Padding(
-                padding: EdgeInsets.all(8.0),
-                child: Text(
-                  "Selecciona si este movimiento está asociado a alguien.",
-                  style: TextStyle(fontSize: 12, color: Colors.grey),
-                ),
-              ),
-              Expanded(
-                child: StreamBuilder<QuerySnapshot>(
-                  stream: FirebaseFirestore.instance
-                      .collection('socios')
-                      .orderBy('apellido')
-                      .limit(50)
-                      .snapshots(),
-                  builder: (ctx, snap) {
-                    if (!snap.hasData)
-                      return const Center(child: CircularProgressIndicator());
-                    final socios = snap.data!.docs;
-                    if (socios.isEmpty)
-                      return const Center(child: Text("No hay socios."));
-
-                    return ListView.separated(
-                      separatorBuilder: (c, i) => const Divider(height: 1),
-                      itemCount: socios.length,
-                      itemBuilder: (ctx, i) {
-                        final d = socios[i].data() as Map<String, dynamic>;
-                        return ListTile(
-                          leading: const Icon(Icons.person),
-                          title: Text("${d['apellido']}, ${d['nombre']}"),
-                          subtitle: Text(d['actividad'] ?? ''),
-                          onTap: () {
-                            setState(() {
-                              _socioVinculadoId = socios[i].id;
-                              _socioVinculadoNombre =
-                                  "${d['apellido']} ${d['nombre']}";
-                            });
-                            Navigator.pop(ctx);
-                          },
-                        );
+      builder: (ctx) {
+        return StatefulBuilder(
+          builder: (context, setStateDialog) {
+            return AlertDialog(
+              title: const Text("Vincular Socio"),
+              content: SizedBox(
+                width: double.maxFinite,
+                height: 400,
+                child: Column(
+                  children: [
+                    TextField(
+                      decoration: const InputDecoration(
+                        labelText: "Buscar por Apellido o DNI...",
+                        prefixIcon: Icon(Icons.search),
+                        border: OutlineInputBorder(),
+                        isDense: true,
+                      ),
+                      onChanged: (val) {
+                        setStateDialog(() {
+                          filtroBusqueda = val.toLowerCase();
+                        });
                       },
-                    );
-                  },
+                    ),
+                    const SizedBox(height: 10),
+                    Expanded(
+                      child: StreamBuilder<QuerySnapshot>(
+                        stream: FirebaseFirestore.instance
+                            .collection('socios')
+                            .orderBy('apellido')
+                            .snapshots(),
+                        builder: (ctx, snap) {
+                          if (!snap.hasData) {
+                            return const Center(
+                              child: CircularProgressIndicator(),
+                            );
+                          }
+
+                          var socios = snap.data!.docs;
+
+                          if (filtroBusqueda.isNotEmpty) {
+                            socios = socios.where((doc) {
+                              final d = doc.data() as Map<String, dynamic>;
+                              final busquedaStr =
+                                  "${d['nombre']} ${d['apellido']} ${d['dni']} ${d['busqueda']}"
+                                      .toLowerCase();
+                              return busquedaStr.contains(filtroBusqueda);
+                            }).toList();
+                          } else {
+                            if (socios.length > 50) {
+                              socios = socios.take(50).toList();
+                            }
+                          }
+
+                          if (socios.isEmpty) {
+                            return const Center(
+                              child: Text("No se encontraron coincidencias."),
+                            );
+                          }
+
+                          return ListView.separated(
+                            separatorBuilder: (c, i) =>
+                                const Divider(height: 1),
+                            itemCount: socios.length,
+                            itemBuilder: (ctx, i) {
+                              final d =
+                                  socios[i].data() as Map<String, dynamic>;
+                              return ListTile(
+                                leading: const Icon(Icons.person),
+                                title: Text("${d['apellido']}, ${d['nombre']}"),
+                                subtitle: Text(
+                                  "DNI: ${d['dni']} - Act: ${d['actividad'] ?? ''}",
+                                ),
+                                onTap: () {
+                                  setState(() {
+                                    _socioVinculadoId = socios[i].id;
+                                    _socioVinculadoNombre =
+                                        "${d['apellido']} ${d['nombre']}";
+                                  });
+                                  Navigator.pop(ctx);
+                                },
+                              );
+                            },
+                          );
+                        },
+                      ),
+                    ),
+                  ],
                 ),
               ),
-            ],
-          ),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx),
-            child: const Text("Cancelar"),
-          ),
-        ],
-      ),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.pop(ctx),
+                  child: const Text("Cancelar"),
+                ),
+              ],
+            );
+          },
+        );
+      },
     );
   }
 
-  Future<void> _guardar() async {
+  Future<void> _pedirClaveParaGasto() async {
+    final TextEditingController _claveCtrl = TextEditingController();
+    bool verificandoBD = false;
+
+    bool autorizado =
+        await showDialog(
+          context: context,
+          barrierDismissible: false,
+          builder: (ctx) => StatefulBuilder(
+            builder: (context, setStateDialog) {
+              return AlertDialog(
+                title: const Row(
+                  children: [
+                    Icon(Icons.lock, color: Colors.red),
+                    SizedBox(width: 10),
+                    Text("Autorización Requerida"),
+                  ],
+                ),
+                content: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Text(
+                      "Para registrar una salida de dinero (Egreso), debes ingresar la clave administrativa.",
+                      style: TextStyle(fontSize: 13),
+                    ),
+                    const SizedBox(height: 15),
+                    TextField(
+                      controller: _claveCtrl,
+                      obscureText: true,
+                      decoration: const InputDecoration(
+                        labelText: "Contraseña",
+                        border: OutlineInputBorder(),
+                        prefixIcon: Icon(Icons.key),
+                      ),
+                    ),
+                  ],
+                ),
+                actions: [
+                  TextButton(
+                    onPressed: verificandoBD
+                        ? null
+                        : () => Navigator.pop(ctx, false),
+                    child: const Text(
+                      "CANCELAR",
+                      style: TextStyle(color: Colors.grey),
+                    ),
+                  ),
+                  ElevatedButton(
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: Colors.red,
+                      foregroundColor: Colors.white,
+                    ),
+                    onPressed: verificandoBD
+                        ? null
+                        : () async {
+                            setStateDialog(() => verificandoBD = true);
+                            try {
+                              final docRef = FirebaseFirestore.instance
+                                  .collection('configuracion')
+                                  .doc('seguridad');
+                              final doc = await docRef.get();
+
+                              String claveReal = "admin123";
+
+                              if (doc.exists &&
+                                  doc.data()!.containsKey('clave_egresos')) {
+                                claveReal = doc.data()!['clave_egresos'];
+                              } else {
+                                await docRef.set({
+                                  'clave_egresos': 'admin123',
+                                }, SetOptions(merge: true));
+                              }
+
+                              if (_claveCtrl.text == claveReal) {
+                                Navigator.pop(ctx, true);
+                              } else {
+                                setStateDialog(() => verificandoBD = false);
+                                ScaffoldMessenger.of(ctx).showSnackBar(
+                                  const SnackBar(
+                                    content: Text("❌ Contraseña incorrecta"),
+                                    backgroundColor: Colors.red,
+                                  ),
+                                );
+                              }
+                            } catch (e) {
+                              setStateDialog(() => verificandoBD = false);
+                              ScaffoldMessenger.of(ctx).showSnackBar(
+                                const SnackBar(
+                                  content: Text("Error al verificar clave"),
+                                ),
+                              );
+                            }
+                          },
+                    child: verificandoBD
+                        ? const SizedBox(
+                            width: 15,
+                            height: 15,
+                            child: CircularProgressIndicator(
+                              color: Colors.white,
+                              strokeWidth: 2,
+                            ),
+                          )
+                        : const Text("CONFIRMAR"),
+                  ),
+                ],
+              );
+            },
+          ),
+        ) ??
+        false;
+
+    if (autorizado) {
+      _guardar();
+    }
+  }
+
+  Future<void> _verificarYGuardar() async {
     if (_montoCtrl.text.isEmpty || _conceptoCtrl.text.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text("Completa Monto y Concepto")),
@@ -511,7 +1545,24 @@ class _TabNuevoMovimientoState extends State<_TabNuevoMovimiento> {
       return;
     }
 
+    if (_tipo == 'egreso') {
+      await _pedirClaveParaGasto();
+    } else {
+      await _guardar();
+    }
+  }
+
+  Future<void> _guardar() async {
     setState(() => _guardando = true);
+
+    double montoPdf = double.parse(_montoCtrl.text);
+    String conceptoPdf = _conceptoCtrl.text;
+    String metodoPdf = _metodo;
+    String categoriaPdf = _categoria;
+    String tipoPdf = _tipo;
+    DateTime fechaPdf = _fechaMovimiento;
+    String? socioPdf = _socioVinculadoNombre;
+
     try {
       await FirebaseFirestore.instance.collection('movimientos').add({
         'tipo': _tipo,
@@ -519,23 +1570,73 @@ class _TabNuevoMovimientoState extends State<_TabNuevoMovimiento> {
         'concepto': _conceptoCtrl.text,
         'metodo': _metodo,
         'categoria': _categoria,
-        'fecha': FieldValue.serverTimestamp(),
+        'fecha': Timestamp.fromDate(_fechaMovimiento),
         'socio_id': _socioVinculadoId,
         'socio_nombre': _socioVinculadoNombre,
         'origen': 'manual',
+        'actividad_manual': (_tipo == 'ingreso') ? _actividadManual : null,
+        'meses_manual': (_tipo == 'ingreso' && _actividadManual != null)
+            ? _cuotasManual
+            : null,
+        'actividad_manual_2': (_tipo == 'ingreso') ? _actividadManual2 : null,
+        'meses_manual_2': (_tipo == 'ingreso' && _actividadManual2 != null)
+            ? _cuotasManual2
+            : null,
       });
 
       _montoCtrl.clear();
       _conceptoCtrl.clear();
       _socioVinculadoId = null;
       _socioVinculadoNombre = null;
-      _categoria = 'Varios';
-
-      widget.alGuardar();
+      _actividadManual = null;
+      _actividadManual2 = null;
+      _cuotasManual = 1;
+      _cuotasManual2 = 1;
+      _categoria = 'Cuotas';
+      _fechaMovimiento = DateTime.now();
 
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text("Movimiento registrado correctamente")),
+        showDialog(
+          context: context,
+          barrierDismissible: false,
+          builder: (ctx) => AlertDialog(
+            title: const Text("¡Registro Exitoso!"),
+            content: const Text(
+              "El movimiento se guardó correctamente en la caja del club.",
+            ),
+            actions: [
+              TextButton(
+                onPressed: () {
+                  Navigator.pop(ctx);
+                  widget.alGuardar();
+                },
+                child: const Text("CERRAR"),
+              ),
+              ElevatedButton.icon(
+                icon: const Icon(Icons.picture_as_pdf),
+                label: const Text("DESCARGAR COMPROBANTE"),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: widget.config.colorPrimario,
+                  foregroundColor: Colors.white,
+                ),
+                onPressed: () async {
+                  Navigator.pop(ctx);
+                  await generarComprobantePDF(
+                    context,
+                    widget.config,
+                    tipoPdf,
+                    montoPdf,
+                    conceptoPdf,
+                    metodoPdf,
+                    categoriaPdf,
+                    fechaPdf,
+                    socioPdf,
+                  );
+                  widget.alGuardar();
+                },
+              ),
+            ],
+          ),
         );
       }
     } catch (e) {
@@ -574,14 +1675,40 @@ class _TabNuevoMovimientoState extends State<_TabNuevoMovimiento> {
               ),
             ],
           ),
-          const SizedBox(height: 25),
+          const SizedBox(height: 15),
+
+          ListTile(
+            contentPadding: const EdgeInsets.symmetric(
+              horizontal: 15,
+              vertical: 0,
+            ),
+            title: Text(
+              "Fecha: ${DateFormat('dd/MM/yyyy').format(_fechaMovimiento)}",
+              style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
+            ),
+            subtitle: const Text(
+              "Toca para imputar a otro mes",
+              style: TextStyle(fontSize: 11),
+            ),
+            leading: Icon(
+              Icons.calendar_today,
+              color: widget.config.colorPrimario,
+            ),
+            trailing: const Icon(Icons.edit, size: 18),
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(10),
+              side: BorderSide(color: Colors.grey[300]!),
+            ),
+            onTap: _seleccionarFechaMovimiento,
+          ),
+          const SizedBox(height: 15),
 
           TextField(
             controller: _montoCtrl,
             keyboardType: TextInputType.number,
             style: const TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
             decoration: const InputDecoration(
-              labelText: "Monto",
+              labelText: "Monto Total",
               prefixText: "\$ ",
               border: OutlineInputBorder(),
               contentPadding: EdgeInsets.symmetric(
@@ -591,18 +1718,16 @@ class _TabNuevoMovimientoState extends State<_TabNuevoMovimiento> {
             ),
           ),
           const SizedBox(height: 15),
-
           TextField(
             controller: _conceptoCtrl,
             decoration: const InputDecoration(
               labelText: "Concepto / Descripción",
-              hintText: "Ej: Pago Luz, Compra Pelotas, Venta de Camiseta...",
+              hintText: "Ej: Pago Luz, Compra Pelotas, Deuda...",
               border: OutlineInputBorder(),
               prefixIcon: Icon(Icons.description),
             ),
           ),
           const SizedBox(height: 15),
-
           Row(
             children: [
               Expanded(
@@ -639,8 +1764,8 @@ class _TabNuevoMovimientoState extends State<_TabNuevoMovimiento> {
                   ),
                   items:
                       [
-                            'Varios',
                             'Cuotas',
+                            'Alquileres',
                             'Mantenimiento',
                             'Servicios',
                             'Materiales',
@@ -662,9 +1787,7 @@ class _TabNuevoMovimientoState extends State<_TabNuevoMovimiento> {
               ),
             ],
           ),
-
           const SizedBox(height: 15),
-
           ListTile(
             contentPadding: const EdgeInsets.symmetric(
               horizontal: 10,
@@ -692,6 +1815,10 @@ class _TabNuevoMovimientoState extends State<_TabNuevoMovimiento> {
                     onPressed: () => setState(() {
                       _socioVinculadoId = null;
                       _socioVinculadoNombre = null;
+                      _actividadManual = null;
+                      _actividadManual2 = null;
+                      _cuotasManual = 1;
+                      _cuotasManual2 = 1;
                     }),
                   ),
             onTap: _seleccionarSocio,
@@ -701,13 +1828,110 @@ class _TabNuevoMovimientoState extends State<_TabNuevoMovimiento> {
             ),
           ),
 
-          const SizedBox(height: 30),
+          if (_tipo == 'ingreso' && _socioVinculadoId != null) ...[
+            const SizedBox(height: 15),
+            Container(
+              padding: const EdgeInsets.all(15),
+              decoration: BoxDecoration(
+                color: Colors.blue[50],
+                borderRadius: BorderRadius.circular(10),
+                border: Border.all(color: Colors.blue[200]!),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text(
+                    "Opciones de Liquidación (Para separar el dinero)",
+                    style: TextStyle(
+                      fontWeight: FontWeight.bold,
+                      color: Colors.blue,
+                    ),
+                  ),
+                  const SizedBox(height: 15),
 
+                  DropdownButtonFormField<String>(
+                    value: _actividadManual,
+                    decoration: const InputDecoration(
+                      labelText: "Actividad Principal",
+                      border: OutlineInputBorder(),
+                      filled: true,
+                      fillColor: Colors.white,
+                    ),
+                    items: [
+                      const DropdownMenuItem(
+                        value: null,
+                        child: Text("Ninguna (Ingreso general)"),
+                      ),
+                      ..._actividadesDisponibles.map(
+                        (a) => DropdownMenuItem(value: a, child: Text(a)),
+                      ),
+                    ],
+                    onChanged: (v) => setState(() => _actividadManual = v),
+                  ),
+                  if (_actividadManual != null) ...[
+                    const SizedBox(height: 10),
+                    TextFormField(
+                      initialValue: _cuotasManual.toString(),
+                      keyboardType: TextInputType.number,
+                      decoration: const InputDecoration(
+                        labelText: "Cantidad de meses",
+                        border: OutlineInputBorder(),
+                        filled: true,
+                        fillColor: Colors.white,
+                        prefixIcon: Icon(Icons.calendar_month, size: 20),
+                      ),
+                      onChanged: (v) => _cuotasManual = int.tryParse(v) ?? 1,
+                    ),
+
+                    const Divider(height: 30, color: Colors.blue),
+
+                    DropdownButtonFormField<String>(
+                      value: _actividadManual2,
+                      decoration: const InputDecoration(
+                        labelText: "Segunda Actividad (Opcional)",
+                        hintText: "Ej: Cuota Social",
+                        border: OutlineInputBorder(),
+                        filled: true,
+                        fillColor: Colors.white,
+                      ),
+                      items: [
+                        const DropdownMenuItem(
+                          value: null,
+                          child: Text("Ninguna"),
+                        ),
+                        ..._actividadesDisponibles.map(
+                          (a) => DropdownMenuItem(value: a, child: Text(a)),
+                        ),
+                      ],
+                      onChanged: (v) => setState(() => _actividadManual2 = v),
+                    ),
+                    if (_actividadManual2 != null) ...[
+                      const SizedBox(height: 10),
+                      TextFormField(
+                        initialValue: _cuotasManual2.toString(),
+                        keyboardType: TextInputType.number,
+                        decoration: const InputDecoration(
+                          labelText: "Cantidad de meses",
+                          border: OutlineInputBorder(),
+                          filled: true,
+                          fillColor: Colors.white,
+                          prefixIcon: Icon(Icons.calendar_month, size: 20),
+                        ),
+                        onChanged: (v) => _cuotasManual2 = int.tryParse(v) ?? 1,
+                      ),
+                    ],
+                  ],
+                ],
+              ),
+            ),
+          ],
+
+          const SizedBox(height: 30),
           SizedBox(
             width: double.infinity,
             height: 55,
             child: ElevatedButton(
-              onPressed: _guardando ? null : _guardar,
+              onPressed: _guardando ? null : _verificarYGuardar,
               style: ElevatedButton.styleFrom(
                 backgroundColor: _tipo == 'ingreso' ? Colors.green : Colors.red,
                 foregroundColor: Colors.white,
@@ -761,5 +1985,192 @@ class _BotonTipo extends StatelessWidget {
         ),
       ),
     );
+  }
+}
+
+Future<void> generarComprobantePDF(
+  BuildContext context,
+  ConfiguracionApp config,
+  String tipo,
+  double monto,
+  String concepto,
+  String metodo,
+  String categoria,
+  DateTime fecha,
+  String? socioNombre,
+) async {
+  try {
+    final pdf = pw.Document();
+    final fechaActual = DateFormat('dd/MM/yyyy HH:mm').format(fecha);
+
+    String tipoTexto = tipo == 'ingreso'
+        ? 'RECIBO DE INGRESO'
+        : 'COMPROBANTE DE EGRESO';
+    PdfColor colorPrincipal = tipo == 'ingreso'
+        ? PdfColors.green800
+        : PdfColors.red800;
+
+    pw.ImageProvider? logoProvider;
+    try {
+      final ByteData bytes = await rootBundle.load(config.rutaLogo);
+      logoProvider = pw.MemoryImage(bytes.buffer.asUint8List());
+    } catch (e) {
+      print("Error cargando logo para PDF: $e");
+    }
+
+    pdf.addPage(
+      pw.Page(
+        pageFormat: PdfPageFormat.a5,
+        build: (pw.Context ctx) {
+          return pw.Container(
+            padding: const pw.EdgeInsets.all(20),
+            decoration: pw.BoxDecoration(
+              border: pw.Border.all(color: PdfColors.grey, width: 2),
+              borderRadius: const pw.BorderRadius.all(pw.Radius.circular(10)),
+            ),
+            child: pw.Column(
+              crossAxisAlignment: pw.CrossAxisAlignment.start,
+              children: [
+                if (logoProvider != null)
+                  pw.Center(
+                    child: pw.Container(
+                      height: 50,
+                      margin: const pw.EdgeInsets.only(bottom: 10),
+                      child: pw.Image(logoProvider),
+                    ),
+                  ),
+                pw.Center(
+                  child: pw.Text(
+                    config.nombreApp.toUpperCase(),
+                    style: pw.TextStyle(
+                      fontSize: 20,
+                      fontWeight: pw.FontWeight.bold,
+                      color: PdfColors.blue900,
+                    ),
+                  ),
+                ),
+                pw.Center(
+                  child: pw.Text(
+                    tipoTexto,
+                    style: pw.TextStyle(
+                      fontSize: 16,
+                      fontWeight: pw.FontWeight.bold,
+                      color: colorPrincipal,
+                    ),
+                  ),
+                ),
+                pw.SizedBox(height: 20),
+                pw.Divider(),
+                pw.SizedBox(height: 10),
+                pw.Text(
+                  "DETALLES DEL MOVIMIENTO",
+                  style: pw.TextStyle(
+                    fontWeight: pw.FontWeight.bold,
+                    fontSize: 12,
+                  ),
+                ),
+                pw.SizedBox(height: 5),
+                pw.Text("Fecha de registro: $fechaActual"),
+                pw.Text("Categoría: $categoria"),
+                pw.Text("Método de pago: $metodo"),
+                if (socioNombre != null && socioNombre.isNotEmpty)
+                  pw.Text("Socio Vinculado: $socioNombre"),
+                pw.SizedBox(height: 15),
+                pw.Text(
+                  "Concepto:",
+                  style: pw.TextStyle(fontWeight: pw.FontWeight.bold),
+                ),
+                pw.Text(concepto),
+                pw.SizedBox(height: 20),
+                pw.Divider(),
+                pw.SizedBox(height: 10),
+                pw.Row(
+                  mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
+                  children: [
+                    pw.Text(
+                      "TOTAL:",
+                      style: pw.TextStyle(
+                        fontSize: 18,
+                        fontWeight: pw.FontWeight.bold,
+                      ),
+                    ),
+                    pw.Text(
+                      "\$${monto.toStringAsFixed(0)}",
+                      style: pw.TextStyle(
+                        fontSize: 18,
+                        fontWeight: pw.FontWeight.bold,
+                        color: colorPrincipal,
+                      ),
+                    ),
+                  ],
+                ),
+                pw.Spacer(),
+                pw.Divider(color: PdfColors.grey300),
+                pw.Center(
+                  child: pw.Text(
+                    "Documento generado administrativamente.\n${config.nombreApp}",
+                    textAlign: pw.TextAlign.center,
+                    style: const pw.TextStyle(
+                      fontSize: 10,
+                      color: PdfColors.grey600,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          );
+        },
+      ),
+    );
+
+    final bytes = await pdf.save();
+    String nombreArchivo =
+        "Comprobante_${tipo}_${fecha.millisecondsSinceEpoch}.pdf";
+
+    if (kIsWeb) {
+      await FileSaver.instance.saveFile(
+        name: nombreArchivo,
+        bytes: bytes,
+        mimeType: MimeType.pdf,
+      );
+    } else if (Platform.isWindows || Platform.isMacOS || Platform.isLinux) {
+      String? rutaSalida = await FilePicker.platform.saveFile(
+        dialogTitle: 'Guardar Comprobante',
+        fileName: nombreArchivo,
+        type: FileType.custom,
+        allowedExtensions: ['pdf'],
+      );
+
+      if (rutaSalida != null) {
+        File(rutaSalida)
+          ..createSync(recursive: true)
+          ..writeAsBytesSync(bytes);
+        if (context.mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text("Comprobante guardado exitosamente.")),
+          );
+        }
+      }
+    } else {
+      final directory = await getApplicationDocumentsDirectory();
+      final path = "${directory.path}/$nombreArchivo";
+      File(path)
+        ..createSync(recursive: true)
+        ..writeAsBytesSync(bytes);
+
+      await Share.shareXFiles([
+        XFile(path),
+      ], text: "Comprobante de $tipo - ${config.nombreApp}");
+    }
+  } catch (e) {
+    print("Error generando PDF: $e");
+    if (context.mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text("Error generando PDF: $e"),
+          backgroundColor: Colors.red,
+        ),
+      );
+    }
   }
 }

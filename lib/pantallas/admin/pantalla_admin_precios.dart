@@ -74,7 +74,7 @@ class _PantallaAdminPreciosState extends State<PantallaAdminPrecios> {
     }
   }
 
-  // Borrar actividad
+  // --- ACÁ ESTÁ LA MAGIA DE LA DESTRUCCIÓN DEFINITIVA ---
   Future<void> _borrarActividad(String actividad) async {
     bool confirmar =
         await showDialog(
@@ -101,14 +101,29 @@ class _PantallaAdminPreciosState extends State<PantallaAdminPrecios> {
 
     if (!confirmar) return;
 
+    // 1. Lo borramos visualmente de la pantalla al instante
     setState(() {
       _precios.remove(actividad);
     });
 
-    await FirebaseFirestore.instance
-        .collection('configuracion')
-        .doc('precios')
-        .set({'precios_cuotas': _precios}, SetOptions(merge: true));
+    // 2. Le damos la orden EXACTA a Firebase de fulminar esta llave
+    try {
+      await FirebaseFirestore.instance
+          .collection('configuracion')
+          .doc('precios')
+          .set({
+            'precios_cuotas': {
+              actividad: FieldValue.delete(), // ¡EL MISIL!
+            },
+            'ultima_actualizacion': FieldValue.serverTimestamp(),
+          }, SetOptions(merge: true));
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text("Error al borrar en la nube: $e")),
+        );
+      }
+    }
   }
 
   // Diálogo para Agregar/Editar

@@ -1,0 +1,48 @@
+{
+  "project_info": {
+    "project_number": "209153364414",
+    "project_id": "club-guemes-2",
+    "storage_bucket": "club-guemes-2.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:209153364414:android:0b4a5cac4ccd0673d129ef",
+        "android_client_info": {
+          "package_name": "com.example.clubes_app_base"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyAvV_LrwQmthHh7uTIuGr74ieTCcqLleBc"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    },
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:209153364414:android:be49070caf61d4ddd129ef",
+        "android_client_info": {
+          "package_name": "com.martinguemesfutbol.app"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyAvV_LrwQmthHh7uTIuGr74ieTCcqLleBc"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

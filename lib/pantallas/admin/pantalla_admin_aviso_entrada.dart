@@ -49,8 +49,9 @@ class _PantallaAdminAvisoEntradaState extends State<PantallaAdminAvisoEntrada> {
       await FirebaseFirestore.instance.collection('configuracion').doc('aviso_entrada').set({
         'titulo': _tituloController.text.trim(),
         'mensaje': _mensajeController.text.trim(),
-        'imagen_url': _imagenController.text.trim(), // Si está vacío, se guarda vacío
+        'imagen_url': _imagenController.text.trim(),
         'activo': _activo,
+        'actualizado_en': FieldValue.serverTimestamp(),
       });
 
       if (mounted) {

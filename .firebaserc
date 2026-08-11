@@ -1,8 +1,5 @@
 {
   "projects": {
-    "default": "club-generico",
-    "guemes": "club-guemes-2"
-  },
-  "targets": {},
-  "etags": {}
+    "default": "club-guemes-2"
+  }
 }

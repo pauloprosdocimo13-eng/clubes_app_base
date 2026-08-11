@@ -1,0 +1,48 @@
+{
+  "project_info": {
+    "project_number": "1030139180435",
+    "project_id": "club-fatima",
+    "storage_bucket": "club-fatima.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:1030139180435:android:6b51c7e3b6cb1da752a466",
+        "android_client_info": {
+          "package_name": "com.martinguemesfutbol.app"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyAQkHgV0AcZMDUR9byUi5Ae6OFpGh9GYYw"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    },
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:1030139180435:android:541831ed832321c252a466",
+        "android_client_info": {
+          "package_name": "com.prosdodigital.fatima"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyAQkHgV0AcZMDUR9byUi5Ae6OFpGh9GYYw"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

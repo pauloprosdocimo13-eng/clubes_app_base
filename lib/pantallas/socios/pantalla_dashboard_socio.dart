@@ -1,9 +1,10 @@
 import 'package:flutter/material.dart';
-import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:qr_flutter/qr_flutter.dart';
 import 'package:flutter/services.dart';
+import 'package:flutter/foundation.dart' show kIsWeb;
 import '../../configuracion/configuracion_app.dart';
+import '../../servicios/servicio_firebase.dart';
 
 class PantallaDashboardSocio extends StatefulWidget {
   final ConfiguracionApp config;
@@ -34,11 +35,17 @@ class _PantallaDashboardSocioState extends State<PantallaDashboardSocio>
   double _deudaAnterior = 0;
   double _montoTotalPagar = 0;
 
-  final _montoPagoManualCtrl = TextEditingController();
+  // Estado visual inteligente
+  bool _estadoAlDiaDinamico = true;
 
-  // Configuración de precios
+  // Listas para el desglose visual
+  List<Map<String, dynamic>> _desgloseMes = [];
+  List<Map<String, dynamic>> _desgloseAnterior = [];
+
+  // Configuración de precios y WhatsApp
   Map<String, double> _precios = {};
   Map<String, dynamic> _configPagos = {};
+  String _telefonoWsp = '5491100000000';
 
   @override
   void initState() {
@@ -50,98 +57,156 @@ class _PantallaDashboardSocioState extends State<PantallaDashboardSocio>
   @override
   void dispose() {
     _tabController.dispose();
-    _montoPagoManualCtrl.dispose();
     super.dispose();
   }
 
+  // --- FUNCIÓN REFACTORIZADA LIMPIA ---
   Future<void> _cargarDatosCompletos() async {
     try {
-      // 1. Cargar Precios y Configuración
-      final docPrecios = await FirebaseFirestore.instance
-          .collection('configuracion')
-          .doc('precios')
-          .get();
-      if (docPrecios.exists) {
-        final data = docPrecios.data() ?? {};
-        final mapPrecios = data['precios_cuotas'] ?? {};
-        mapPrecios.forEach((k, v) {
-          if (v is num) _precios[k] = v.toDouble();
-          if (v is String) _precios[k] = double.tryParse(v) ?? 0.0;
-        });
-      }
+      final servicio = ServicioFirebase();
 
-      final docPagos = await FirebaseFirestore.instance
-          .collection('configuracion')
-          .doc('pagos')
-          .get();
-      if (docPagos.exists) {
-        _configPagos = docPagos.data() ?? {};
-      }
+      // 1. Cargar Precios desde la capa de servicios
+      _precios = await servicio.obtenerPreciosCuotas();
 
-      // 2. Determinar Familia
+      // 2. Cargar Pagos desde la capa de servicios
+      _configPagos = await servicio.obtenerConfigPagos();
+
+      // 3. Cargar Teléfono WhatsApp desde la capa de servicios
+      _telefonoWsp = await servicio.obtenerTelefonoWsp(_configPagos);
+
+      // 4. Determinar Familia y traer miembros desde la capa de servicios
       String familiaId = widget.datosSocio['familia_id'] ?? widget.socioId;
+      List<Map<String, dynamic>> familiaTemp = await servicio.obtenerGrupoFamiliar(familiaId);
 
-      final queryFamilia = await FirebaseFirestore.instance
-          .collection('socios')
-          .where('familia_id', isEqualTo: familiaId)
-          .get();
-
-      List<Map<String, dynamic>> familiaTemp = [];
-
-      // Totales
       double sumaMes = 0;
       double sumaDeudaVieja = 0;
+      List<Map<String, dynamic>> tempDesgloseMes = [];
+      List<Map<String, dynamic>> tempDesgloseAnterior = [];
 
-      for (var doc in queryFamilia.docs) {
-        var data = doc.data();
-        familiaTemp.add(data);
-
-        // CALCULO DINÁMICO DE DEUDA
+      for (var data in familiaTemp) {
         final calculo = _calcularDeudaSocio(data);
-        sumaMes += calculo['mes']!;
-        sumaDeudaVieja += calculo['anterior']!;
+        sumaMes += calculo['mes'];
+        sumaDeudaVieja += calculo['anterior'];
+
+        tempDesgloseMes.addAll(calculo['desgloseMes']);
+        tempDesgloseAnterior.addAll(calculo['desgloseAnterior']);
       }
 
-      // Fallback si no encuentra familia (se usa a sí mismo)
+      // Fallback por si la query de familia falla o no devuelve datos
       if (familiaTemp.isEmpty) {
         familiaTemp.add(widget.datosSocio);
         final calculo = _calcularDeudaSocio(widget.datosSocio);
-        sumaMes += calculo['mes']!;
-        sumaDeudaVieja += calculo['anterior']!;
+        sumaMes += calculo['mes'];
+        sumaDeudaVieja += calculo['anterior'];
+        tempDesgloseMes.addAll(calculo['desgloseMes']);
+        tempDesgloseAnterior.addAll(calculo['desgloseAnterior']);
       }
 
-      setState(() {
-        _grupoFamiliar = familiaTemp;
-        _montoCuotaMes = sumaMes;
-        _deudaAnterior = sumaDeudaVieja;
-        _montoTotalPagar = sumaMes + sumaDeudaVieja;
+      if (mounted) {
+        // --- LÓGICA INTELIGENTE DEL ESTADO DEL CARNET ---
+        bool alDiaTemp = true;
 
-        // Sugerimos pagar el total, o al menos la cuota del mes si es muy alto
-        _montoPagoManualCtrl.text = _montoTotalPagar > 0
-            ? _montoTotalPagar.toStringAsFixed(0)
-            : "0";
+        // Si hay deuda matemática pendiente de pagar
+        if (sumaMes + sumaDeudaVieja > 0) {
+          // Si debe de meses anteriores, o si debe este mes y ya pasó el día 10
+          if (sumaDeudaVieja > 0 || DateTime.now().day > 10) {
+            alDiaTemp = false;
+          }
+        }
 
-        _cargando = false;
-      });
+        setState(() {
+          _grupoFamiliar = familiaTemp;
+          _montoCuotaMes = sumaMes;
+          _deudaAnterior = sumaDeudaVieja;
+          _montoTotalPagar = sumaMes + sumaDeudaVieja;
+
+          _desgloseMes = tempDesgloseMes;
+          _desgloseAnterior = tempDesgloseAnterior;
+
+          _estadoAlDiaDinamico = alDiaTemp;
+
+          _cargando = false;
+        });
+
+        // Alerta de Deuda Inteligente (Solo salta si matemáticamente debe plata y se venció el plazo)
+        if (!_estadoAlDiaDinamico) {
+          Future.delayed(const Duration(milliseconds: 600), () {
+            if (mounted) _mostrarAlertaDeuda();
+          });
+        }
+      }
     } catch (e) {
       print("Error cargando dashboard socio: $e");
-      setState(() => _cargando = false);
+      if (mounted) setState(() => _cargando = false);
     }
   }
 
-  // --- LÓGICA CORE: CALCULAR DEUDA REAL ---
-  Map<String, double> _calcularDeudaSocio(Map<String, dynamic> data) {
-    List<String> actividades = [];
-    if (data['actividades'] != null) {
-      actividades = List<String>.from(data['actividades']);
-    } else if (data['actividad'] != null && data['actividad'] != 'Ninguna') {
-      actividades = [data['actividad']];
+  void _mostrarAlertaDeuda() {
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(15)),
+        title: Row(
+          children: [
+            Icon(Icons.warning_amber_rounded, color: Colors.red[700], size: 28),
+            const SizedBox(width: 10),
+            const Text(
+              "Aviso de Deuda",
+              style: TextStyle(fontWeight: FontWeight.bold),
+            ),
+          ],
+        ),
+        content: const Text(
+          "Registramos pagos pendientes en tu cuenta.\n\n"
+          "Por favor, regularizá tu situación para mantener tu carnet habilitado y seguir disfrutando de las actividades del club.",
+          style: TextStyle(fontSize: 15),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text("CERRAR", style: TextStyle(color: Colors.grey)),
+          ),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Colors.red[700],
+              foregroundColor: Colors.white,
+            ),
+            onPressed: () {
+              Navigator.pop(ctx);
+              _tabController.animateTo(1);
+            },
+            child: const Text("PAGAR AHORA"),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Map<String, dynamic> _calcularDeudaSocio(Map<String, dynamic> data) {
+    Set<String> setActividades = {};
+    if (data['actividades'] != null && data['actividades'] is List) {
+      for (var a in data['actividades']) {
+        setActividades.addAll(
+          a.toString().split(RegExp(r'[,+]')).map((e) => e.trim()),
+        );
+      }
+    } else if (data['actividad'] != null) {
+      setActividades.addAll(
+        (data['actividad'] ?? '')
+            .toString()
+            .split(RegExp(r'[,+]'))
+            .map((e) => e.trim()),
+      );
     }
 
-    double costoMensualTotal = 0;
-    for (var act in actividades) {
-      costoMensualTotal += _precios[act] ?? 0;
+    setActividades.removeWhere((e) => e.isEmpty || e == 'Ninguna');
+    List<String> actividadesFinal = setActividades.toList();
+
+    if (actividadesFinal.isEmpty) {
+      actividadesFinal = ['Cuota Social'];
     }
+
+    int descuentoGlobalViejo = (data['porcentaje_descuento'] ?? 0).toInt();
 
     String ultimoMesPagoStr = data['ultimo_mes_pago'] ?? '';
     int mesesDeuda = 0;
@@ -152,9 +217,9 @@ class _PantallaDashboardSocioState extends State<PantallaDashboardSocio>
       try {
         DateTime ultimo = DateTime.parse("$ultimoMesPagoStr-01");
         DateTime ahora = DateTime.now();
-        int mesesUltimo = ultimo.year * 12 + ultimo.month;
-        int mesesAhora = ahora.year * 12 + ahora.month;
-        mesesDeuda = mesesAhora - mesesUltimo;
+        int diff =
+            (ahora.year * 12 + ahora.month) - (ultimo.year * 12 + ultimo.month);
+        mesesDeuda = diff;
       } catch (e) {
         mesesDeuda = 1;
       }
@@ -162,88 +227,136 @@ class _PantallaDashboardSocioState extends State<PantallaDashboardSocio>
 
     double debeMes = 0;
     double debeAnterior = 0;
+    List<Map<String, dynamic>> desgloseMesLocal = [];
+    List<Map<String, dynamic>> desgloseAnteriorLocal = [];
+
+    String nombreSocio = data['nombre'] ?? 'Socio';
 
     if (mesesDeuda > 0) {
-      debeMes = costoMensualTotal;
-      if (mesesDeuda > 1) {
-        debeAnterior = costoMensualTotal * (mesesDeuda - 1);
+      for (var act in actividadesFinal) {
+        double precioActividad = _precios[act] ?? 0;
+
+        if (descuentoGlobalViejo > 0) {
+          if (descuentoGlobalViejo >= 100) {
+            precioActividad = 0;
+          } else {
+            precioActividad =
+                precioActividad -
+                (precioActividad * (descuentoGlobalViejo / 100));
+          }
+        }
+
+        debeMes += precioActividad;
+
+        desgloseMesLocal.add({
+          'nombre': nombreSocio,
+          'concepto': precioActividad == 0 ? "$act (Becado)" : act,
+          'monto': precioActividad,
+        });
+
+        if (mesesDeuda > 1) {
+          double deudaAtrasadaActividad = precioActividad * (mesesDeuda - 1);
+          debeAnterior += deudaAtrasadaActividad;
+
+          if (deudaAtrasadaActividad > 0) {
+            desgloseAnteriorLocal.add({
+              'nombre': nombreSocio,
+              'concepto': "$act (${mesesDeuda - 1} mes/es atrasados)",
+              'monto': deudaAtrasadaActividad,
+            });
+          }
+        }
       }
     }
 
-    return {'mes': debeMes, 'anterior': debeAnterior};
+    return {
+      'mes': debeMes,
+      'anterior': debeAnterior,
+      'desgloseMes': desgloseMesLocal,
+      'desgloseAnterior': desgloseAnteriorLocal,
+    };
   }
 
-  // --- FUNCIONES DE PAGO MEJORADAS ---
-  Future<void> _abrirMercadoPago(double monto) async {
-    String url = _configPagos['link_mp'] ?? '';
+  Future<void> _abrirMercadoPagoTransferencia() async {
+    String aliasDelClub = _configPagos['alias_cbu'] ?? '';
 
-    if (url.isEmpty) {
+    if (aliasDelClub.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text("No hay link de pago configurado.")),
+        const SnackBar(
+          content: Text("Aún no hay un Alias configurado en el sistema."),
+        ),
       );
       return;
     }
 
-    // 1. Corrección automática de URL (si falta https://)
-    if (!url.startsWith("http://") && !url.startsWith("https://")) {
-      url = "https://$url";
-    }
+    await Clipboard.setData(ClipboardData(text: aliasDelClub));
 
-    // 2. Copiamos el monto al portapapeles (UX Truco)
-    await Clipboard.setData(ClipboardData(text: monto.toStringAsFixed(0)));
     if (mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(
-            "Monto \$${monto.toStringAsFixed(0)} copiado. Pegalo en MercadoPago.",
-          ),
+        const SnackBar(
+          content: Text("✅ Alias copiado. Abriendo Mercado Pago..."),
           backgroundColor: Colors.green,
-          duration: const Duration(seconds: 4),
+          duration: Duration(seconds: 3),
         ),
       );
     }
 
-    // 3. Intentamos abrir el link de forma robusta
-    final uri = Uri.parse(url);
+    final Uri webUrl = Uri.parse("https://www.mercadopago.com.ar");
+
     try {
-      // Primero probamos modo externo (abre la App de MP si está instalada)
-      if (!await launchUrl(uri, mode: LaunchMode.externalApplication)) {
-        // Si falla, probamos modo plataforma (navegador por defecto)
-        await launchUrl(uri, mode: LaunchMode.platformDefault);
+      if (kIsWeb) {
+        await launchUrl(webUrl);
+      } else {
+        final Uri appScheme = Uri.parse("mercadopago://");
+        try {
+          bool abrioApp = await launchUrl(
+            appScheme,
+            mode: LaunchMode.externalApplication,
+          );
+          if (!abrioApp) {
+            await launchUrl(webUrl, mode: LaunchMode.externalApplication);
+          }
+        } catch (e) {
+          await launchUrl(webUrl, mode: LaunchMode.externalApplication);
+        }
       }
     } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(SnackBar(content: Text("Error al abrir MP: $e")));
-      }
+      print("Error crítico al abrir MP: $e");
     }
   }
 
   Future<void> _informarPagoWsp() async {
-    String telefonoAdmin = _configPagos['telefono_wsp'] ?? '5491100000000';
+    String telefonoLimpio = _telefonoWsp.replaceAll(RegExp(r'[^0-9]'), '');
+
     String nombre =
         "${widget.datosSocio['nombre']} ${widget.datosSocio['apellido']}";
-    String monto = _montoPagoManualCtrl.text;
+    String monto = _montoTotalPagar.toStringAsFixed(0);
 
     String msj =
         "Hola! Soy $nombre (DNI ${widget.datosSocio['dni']}).\n"
-        "Quiero informar un pago de \$$monto.\n"
+        "Acabo de realizar una transferencia por \$$monto correspondiente a mi cuota.\n"
         "Adjunto el comprobante a continuación:";
 
-    final url = "https://wa.me/$telefonoAdmin?text=${Uri.encodeComponent(msj)}";
-    if (!await launchUrl(
-      Uri.parse(url),
-      mode: LaunchMode.externalApplication,
-    )) {
-      await launchUrl(Uri.parse(url), mode: LaunchMode.platformDefault);
+    final url =
+        "https://wa.me/$telefonoLimpio?text=${Uri.encodeComponent(msj)}";
+
+    try {
+      await launchUrl(Uri.parse(url), mode: LaunchMode.externalApplication);
+    } catch (e) {
+      try {
+        await launchUrl(Uri.parse(url), mode: LaunchMode.platformDefault);
+      } catch (e2) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text("No se pudo abrir WhatsApp.")),
+          );
+        }
+      }
     }
   }
 
   @override
   Widget build(BuildContext context) {
-    bool alDia = widget.datosSocio['al_dia'] ?? false;
-
     return Scaffold(
       backgroundColor: Colors.grey[100],
       appBar: AppBar(
@@ -268,24 +381,43 @@ class _PantallaDashboardSocioState extends State<PantallaDashboardSocio>
           ? const Center(child: CircularProgressIndicator())
           : TabBarView(
               controller: _tabController,
-              children: [_buildTabCarnet(alDia), _buildTabCuenta()],
+              children: [
+                _buildTabCarnet(_estadoAlDiaDinamico),
+                _buildTabCuenta(),
+              ],
             ),
     );
   }
 
-  // ... (El resto de _buildTabCarnet es igual, lo mantengo para consistencia visual)
-  Widget _buildTabCarnet(bool alDia) {
+  Widget _buildTabCarnet(bool alDiaDinamico) {
     final String nombre = widget.datosSocio['nombre'] ?? 'Socio';
     final String apellido = widget.datosSocio['apellido'] ?? '';
     final String dni = widget.datosSocio['dni'] ?? '';
     final String nroSocio = widget.datosSocio['nro_socio'] ?? '---';
     final String fotoUrl = widget.datosSocio['foto_url'] ?? '';
-    String rol = 'Socio';
+    final bool aptoFisico = widget.datosSocio['apto_fisico'] == true;
+
+    Set<String> setActsVisual = {};
     if (widget.datosSocio['actividades'] != null &&
-        (widget.datosSocio['actividades'] as List).isNotEmpty) {
-      rol = (widget.datosSocio['actividades'] as List).first;
-    } else {
-      rol = widget.datosSocio['actividad'] ?? 'Socio';
+        widget.datosSocio['actividades'] is List) {
+      for (var a in widget.datosSocio['actividades']) {
+        setActsVisual.addAll(
+          a.toString().split(RegExp(r'[,+]')).map((e) => e.trim()),
+        );
+      }
+    } else if (widget.datosSocio['actividad'] != null) {
+      setActsVisual.addAll(
+        (widget.datosSocio['actividad'] ?? '')
+            .toString()
+            .split(RegExp(r'[,+]'))
+            .map((e) => e.trim()),
+      );
+    }
+    setActsVisual.removeWhere((e) => e.isEmpty || e == 'Ninguna');
+
+    String rol = 'Socio';
+    if (setActsVisual.isNotEmpty) {
+      rol = setActsVisual.first;
     }
 
     return SingleChildScrollView(
@@ -366,13 +498,13 @@ class _PantallaDashboardSocioState extends State<PantallaDashboardSocio>
                               vertical: 5,
                             ),
                             decoration: BoxDecoration(
-                              color: alDia
+                              color: alDiaDinamico
                                   ? Colors.greenAccent
                                   : Colors.redAccent,
                               borderRadius: BorderRadius.circular(20),
                             ),
                             child: Text(
-                              alDia ? "HABILITADO" : "DEUDA",
+                              alDiaDinamico ? "HABILITADO" : "DEUDA",
                               style: const TextStyle(
                                 color: Colors.black,
                                 fontWeight: FontWeight.bold,
@@ -393,7 +525,7 @@ class _PantallaDashboardSocioState extends State<PantallaDashboardSocio>
                               shape: BoxShape.circle,
                             ),
                             child: CircleAvatar(
-                              radius: 35,
+                              radius: 50,
                               backgroundColor: Colors.grey[300],
                               backgroundImage: (fotoUrl.isNotEmpty)
                                   ? NetworkImage(fotoUrl)
@@ -401,7 +533,7 @@ class _PantallaDashboardSocioState extends State<PantallaDashboardSocio>
                               child: (fotoUrl.isEmpty)
                                   ? Icon(
                                       Icons.person,
-                                      size: 35,
+                                      size: 50,
                                       color: Colors.grey[600],
                                     )
                                   : null,
@@ -437,6 +569,33 @@ class _PantallaDashboardSocioState extends State<PantallaDashboardSocio>
                                     fontSize: 14,
                                   ),
                                 ),
+                                const SizedBox(height: 6),
+                                Row(
+                                  children: [
+                                    Icon(
+                                      aptoFisico
+                                          ? Icons.health_and_safety
+                                          : Icons.health_and_safety_outlined,
+                                      color: aptoFisico
+                                          ? Colors.greenAccent
+                                          : Colors.orangeAccent,
+                                      size: 14,
+                                    ),
+                                    const SizedBox(width: 4),
+                                    Text(
+                                      aptoFisico
+                                          ? "APTO FÍSICO AL DÍA"
+                                          : "FALTA APTO FÍSICO",
+                                      style: TextStyle(
+                                        color: aptoFisico
+                                            ? Colors.greenAccent
+                                            : Colors.orangeAccent,
+                                        fontSize: 10,
+                                        fontWeight: FontWeight.bold,
+                                      ),
+                                    ),
+                                  ],
+                                ),
                               ],
                             ),
                           ),
@@ -448,6 +607,60 @@ class _PantallaDashboardSocioState extends State<PantallaDashboardSocio>
               ],
             ),
           ),
+
+          if (!alDiaDinamico || _montoTotalPagar > 0)
+            Container(
+              margin: const EdgeInsets.only(top: 16),
+              padding: const EdgeInsets.all(16),
+              decoration: BoxDecoration(
+                color: alDiaDinamico ? Colors.green[50] : Colors.red[50],
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(
+                  color: alDiaDinamico ? Colors.green : Colors.red[300]!,
+                ),
+              ),
+              child: Row(
+                children: [
+                  Icon(
+                    alDiaDinamico ? Icons.check_circle : Icons.warning_amber_rounded,
+                    color: alDiaDinamico ? Colors.green : Colors.red[700],
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          alDiaDinamico ? 'Cuota al día' : 'Tenés pagos pendientes',
+                          style: TextStyle(
+                            fontWeight: FontWeight.bold,
+                            color: alDiaDinamico ? Colors.green[800] : Colors.red[800],
+                          ),
+                        ),
+                        if (_montoTotalPagar > 0)
+                          Text(
+                            'Total adeudado: \$${_montoTotalPagar.toStringAsFixed(0)}',
+                            style: TextStyle(
+                              color: alDiaDinamico ? Colors.green[700] : Colors.red[700],
+                              fontSize: 13,
+                            ),
+                          )
+                        else
+                          Text(
+                            'Podés ingresar con tu carnet habilitado',
+                            style: TextStyle(color: Colors.green[700], fontSize: 13),
+                          ),
+                      ],
+                    ),
+                  ),
+                  if (_montoTotalPagar > 0)
+                    TextButton(
+                      onPressed: () => _tabController.animateTo(1),
+                      child: const Text('Ver cuenta'),
+                    ),
+                ],
+              ),
+            ),
 
           Container(
             margin: const EdgeInsets.symmetric(horizontal: 20),
@@ -500,9 +713,6 @@ class _PantallaDashboardSocioState extends State<PantallaDashboardSocio>
     );
   }
 
-  // ==========================================
-  // PESTAÑA 2: CUENTA Y PAGOS
-  // ==========================================
   Widget _buildTabCuenta() {
     return SingleChildScrollView(
       padding: const EdgeInsets.all(20),
@@ -514,18 +724,12 @@ class _PantallaDashboardSocioState extends State<PantallaDashboardSocio>
             icono: Icons.monetization_on,
             colorIcono: Colors.green,
             contenido: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                _filaDinero("Cuota del Mes:", _montoCuotaMes),
-                if (_deudaAnterior > 0)
-                  _filaDinero("Deuda Anterior:", _deudaAnterior, esDeuda: true),
-
-                const Divider(),
-                _filaDinero("TOTAL A PAGAR:", _montoTotalPagar, esTotal: true),
-
                 if (_montoTotalPagar == 0)
                   Container(
                     margin: const EdgeInsets.only(top: 10),
-                    padding: const EdgeInsets.all(8),
+                    padding: const EdgeInsets.all(15),
                     decoration: BoxDecoration(
                       color: Colors.green[50],
                       borderRadius: BorderRadius.circular(5),
@@ -533,18 +737,70 @@ class _PantallaDashboardSocioState extends State<PantallaDashboardSocio>
                     child: const Row(
                       mainAxisAlignment: MainAxisAlignment.center,
                       children: [
-                        Icon(Icons.check_circle, color: Colors.green, size: 16),
-                        SizedBox(width: 5),
+                        Icon(Icons.check_circle, color: Colors.green, size: 24),
+                        SizedBox(width: 10),
                         Text(
                           "¡Estás al día!",
                           style: TextStyle(
                             color: Colors.green,
                             fontWeight: FontWeight.bold,
+                            fontSize: 18,
                           ),
                         ),
                       ],
                     ),
+                  )
+                else ...[
+                  // --- DESGLOSE DE CUOTA ACTUAL ---
+                  if (_desgloseMes.isNotEmpty) ...[
+                    const Text(
+                      "Detalle Cuota Actual:",
+                      style: TextStyle(
+                        fontWeight: FontWeight.bold,
+                        color: Colors.grey,
+                        fontSize: 12,
+                      ),
+                    ),
+                    const SizedBox(height: 10),
+                    ..._desgloseMes.map(
+                      (item) => _filaDesglose(
+                        item['nombre'],
+                        item['concepto'],
+                        item['monto'],
+                      ),
+                    ),
+                    const Divider(height: 25),
+                  ],
+
+                  // --- DESGLOSE DE DEUDA ANTERIOR ---
+                  if (_desgloseAnterior.isNotEmpty) ...[
+                    const Text(
+                      "Detalle Deuda Atrasada:",
+                      style: TextStyle(
+                        fontWeight: FontWeight.bold,
+                        color: Colors.red,
+                        fontSize: 12,
+                      ),
+                    ),
+                    const SizedBox(height: 10),
+                    ..._desgloseAnterior.map(
+                      (item) => _filaDesglose(
+                        item['nombre'],
+                        item['concepto'],
+                        item['monto'],
+                        esDeuda: true,
+                      ),
+                    ),
+                    const Divider(height: 25),
+                  ],
+
+                  // --- TOTAL ---
+                  _filaDinero(
+                    "TOTAL A PAGAR:",
+                    _montoTotalPagar,
+                    esTotal: true,
                   ),
+                ],
               ],
             ),
           ),
@@ -558,94 +814,108 @@ class _PantallaDashboardSocioState extends State<PantallaDashboardSocio>
             contenido: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                const Text(
-                  "Ingresá el monto que vas a abonar hoy:",
-                  style: TextStyle(fontSize: 12, color: Colors.grey),
-                ),
-                const SizedBox(height: 10),
-                TextField(
-                  controller: _montoPagoManualCtrl,
-                  keyboardType: TextInputType.number,
-                  style: const TextStyle(
-                    fontSize: 20,
-                    fontWeight: FontWeight.bold,
-                  ),
-                  decoration: const InputDecoration(
-                    prefixText: "\$ ",
-                    border: OutlineInputBorder(),
-                    contentPadding: EdgeInsets.symmetric(
-                      horizontal: 10,
-                      vertical: 15,
+                if (_montoTotalPagar > 0) ...[
+                  Text(
+                    "Total a abonar: \$${_montoTotalPagar.toStringAsFixed(0)}",
+                    style: const TextStyle(
+                      fontSize: 22,
+                      fontWeight: FontWeight.bold,
+                      color: Colors.black87,
                     ),
                   ),
-                ),
-                const SizedBox(height: 15),
+                  const SizedBox(height: 15),
 
-                SizedBox(
-                  width: double.infinity,
-                  child: ElevatedButton.icon(
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: const Color(0xFF009EE3),
-                      foregroundColor: Colors.white,
-                      padding: const EdgeInsets.symmetric(vertical: 12),
-                    ),
-                    onPressed: () {
-                      double monto =
-                          double.tryParse(_montoPagoManualCtrl.text) ?? 0;
-                      // Permitimos abrir el link siempre que sea > 0
-                      if (monto > 0)
-                        _abrirMercadoPago(monto);
-                      else
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          const SnackBar(
-                            content: Text("Ingresá un monto válido"),
-                          ),
-                        );
-                    },
-                    icon: const Icon(Icons.link),
-                    label: const Text("PAGAR CON MERCADO PAGO"),
-                  ),
-                ),
-
-                if (_configPagos['alias_cbu'] != null &&
-                    _configPagos['alias_cbu'] != '')
                   Container(
-                    margin: const EdgeInsets.only(top: 15),
-                    padding: const EdgeInsets.all(10),
-                    width: double.infinity,
+                    padding: const EdgeInsets.all(15),
                     decoration: BoxDecoration(
-                      color: Colors.grey[200],
-                      borderRadius: BorderRadius.circular(8),
+                      color: Colors.blue[50],
+                      borderRadius: BorderRadius.circular(10),
+                      border: Border.all(color: Colors.blue[200]!),
                     ),
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         const Text(
-                          "O transferencia bancaria:",
-                          style: TextStyle(fontSize: 10, color: Colors.grey),
-                        ),
-                        const SizedBox(height: 2),
-                        SelectableText(
-                          "Alias: ${_configPagos['alias_cbu']}",
-                          style: const TextStyle(
+                          "¿Cómo pagar con transferencia?",
+                          style: TextStyle(
                             fontWeight: FontWeight.bold,
-                            fontSize: 16,
+                            color: Colors.blue,
                           ),
+                        ),
+                        const SizedBox(height: 10),
+                        const Text(
+                          "1. Tocá el botón azul de abajo. Eso va a copiar automáticamente nuestro Alias y te va a abrir la app de Mercado Pago.",
+                          style: TextStyle(fontSize: 13, color: Colors.black87),
+                        ),
+                        const SizedBox(height: 8),
+                        Text(
+                          "2. Pegá el alias y transferí exactamente \$${_montoTotalPagar.toStringAsFixed(0)}.",
+                          style: const TextStyle(
+                            fontSize: 13,
+                            color: Colors.black87,
+                          ),
+                        ),
+                        const SizedBox(height: 8),
+                        const Text(
+                          "3. Guardá el comprobante y tocale al botón verde de enviar por WhatsApp para que la administración te lo acredite.",
+                          style: TextStyle(fontSize: 13, color: Colors.black87),
                         ),
                       ],
                     ),
                   ),
+                  const SizedBox(height: 15),
+
+                  if (_configPagos['alias_cbu'] != null &&
+                      _configPagos['alias_cbu'] != '')
+                    Center(
+                      child: SelectableText(
+                        "Alias: ${_configPagos['alias_cbu']}",
+                        style: const TextStyle(
+                          fontWeight: FontWeight.bold,
+                          fontSize: 16,
+                          color: Colors.grey,
+                        ),
+                      ),
+                    ),
+
+                  const SizedBox(height: 15),
+
+                  SizedBox(
+                    width: double.infinity,
+                    child: ElevatedButton.icon(
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: const Color(0xFF009EE3),
+                        foregroundColor: Colors.white,
+                        padding: const EdgeInsets.symmetric(vertical: 12),
+                      ),
+                      onPressed: _abrirMercadoPagoTransferencia,
+                      icon: const Icon(Icons.copy),
+                      label: const Text("COPIAR ALIAS Y ABRIR MP"),
+                    ),
+                  ),
+                ] else ...[
+                  const Text(
+                    "No tenés pagos pendientes para realizar en este momento.",
+                    style: TextStyle(
+                      color: Colors.green,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                  const SizedBox(height: 15),
+                ],
 
                 const SizedBox(height: 15),
                 OutlinedButton.icon(
-                  onPressed: _informarPagoWsp,
+                  onPressed: _montoTotalPagar > 0 ? _informarPagoWsp : null,
                   style: OutlinedButton.styleFrom(
                     foregroundColor: Colors.green,
-                    side: const BorderSide(color: Colors.green),
+                    side: BorderSide(
+                      color: _montoTotalPagar > 0 ? Colors.green : Colors.grey,
+                    ),
                     minimumSize: const Size(double.infinity, 45),
                   ),
                   icon: const Icon(Icons.send),
-                  label: const Text("Informar Pago y Enviar Comprobante"),
+                  label: const Text("Informar Pago por WhatsApp"),
                 ),
               ],
             ),
@@ -678,6 +948,53 @@ class _PantallaDashboardSocioState extends State<PantallaDashboardSocio>
             }).toList(),
             const SizedBox(height: 30),
           ],
+        ],
+      ),
+    );
+  }
+
+  Widget _filaDesglose(
+    String nombre,
+    String concepto,
+    double monto, {
+    bool esDeuda = false,
+  }) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 5),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        children: [
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  nombre,
+                  style: const TextStyle(
+                    fontWeight: FontWeight.bold,
+                    fontSize: 13,
+                  ),
+                ),
+                Text(
+                  concepto,
+                  style: TextStyle(
+                    color: esDeuda ? Colors.red[300] : Colors.grey[600],
+                    fontSize: 11,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          Text(
+            "\$${monto.toStringAsFixed(0)}",
+            style: TextStyle(
+              fontWeight: FontWeight.bold,
+              fontSize: 14,
+              color: esDeuda
+                  ? Colors.red
+                  : (monto == 0 ? Colors.green : Colors.black87),
+            ),
+          ),
         ],
       ),
     );

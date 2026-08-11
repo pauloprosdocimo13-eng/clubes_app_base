@@ -5,12 +5,22 @@
     <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE" />
     <uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE" />
     <uses-permission android:name="android.permission.INTERNET"/>
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS"/> 
+    <uses-permission android:name="android.permission.VIBRATE" />
+
+    <queries>
+        <package android:name="com.mercadopago.wallet" />
+        <package android:name="com.mercadolibre" />
+        <intent>
+            <action android:name="android.intent.action.VIEW" />
+            <data android:scheme="https" />
+        </intent>
+    </queries>
 
     <application
-        android:label="Club Martin Guemes"
+        android:label="${appName}" 
         android:name="${applicationName}"
-        android:icon="@mipmap/launcher_icon"
-        android:extractNativeLibs="true">
+        android:icon="@mipmap/launcher_icon">
         
         <activity
             android:name=".MainActivity"
@@ -44,15 +54,9 @@
         <meta-data
             android:name="com.google.firebase.messaging.default_notification_channel_id"
             android:value="high_importance_channel" />
-        <!-- CONFIGURACIÓN ICONO NOTIFICACIONES -->
         <meta-data
             android:name="com.google.firebase.messaging.default_notification_icon"
             android:resource="@drawable/launch_background" />
-        <!-- Puedes crear un icono silueta blanco transparente y ponerlo en drawable con otro nombre -->
-
-        <!--<meta-data
-            android:name="com.google.firebase.messaging.default_notification_color"
-            android:resource="@color/colorPrimary" />-->
 
     </application>
     <queries>

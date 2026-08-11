@@ -5,7 +5,7 @@ import '../configuracion/configuracion_app.dart';
 class PantallaAdminFormularioAviso extends StatefulWidget {
   final ConfiguracionApp config;
   final String deporteId;
-  final String? avisoId; // null = Nuevo
+  final String? avisoId;
 
   const PantallaAdminFormularioAviso({
     super.key,
@@ -15,16 +15,19 @@ class PantallaAdminFormularioAviso extends StatefulWidget {
   });
 
   @override
-  State<PantallaAdminFormularioAviso> createState() => _PantallaAdminFormularioAvisoState();
+  State<PantallaAdminFormularioAviso> createState() =>
+      _PantallaAdminFormularioAvisoState();
 }
 
-class _PantallaAdminFormularioAvisoState extends State<PantallaAdminFormularioAviso> {
+class _PantallaAdminFormularioAvisoState
+    extends State<PantallaAdminFormularioAviso> {
   final _formKey = GlobalKey<FormState>();
   bool _cargando = false;
 
   final TextEditingController _tituloController = TextEditingController();
   final TextEditingController _mensajeController = TextEditingController();
   bool _importante = false;
+  bool _enviarNotificacion = true; // Switch visual
 
   @override
   void initState() {
@@ -37,7 +40,10 @@ class _PantallaAdminFormularioAvisoState extends State<PantallaAdminFormularioAv
   Future<void> _cargarDatos() async {
     setState(() => _cargando = true);
     try {
-      final doc = await FirebaseFirestore.instance.collection('avisos').doc(widget.avisoId).get();
+      final doc = await FirebaseFirestore.instance
+          .collection('avisos')
+          .doc(widget.avisoId)
+          .get();
       if (doc.exists) {
         final data = doc.data()!;
         _tituloController.text = data['titulo'] ?? '';
@@ -62,20 +68,26 @@ class _PantallaAdminFormularioAvisoState extends State<PantallaAdminFormularioAv
       'mensaje': _mensajeController.text.trim(),
       'importante': _importante,
       'deporte_id': widget.deporteId,
-      // Si es nuevo, usamos la fecha de hoy. Si editamos, podríamos mantener la original o actualizarla.
-      // Aquí actualizamos la fecha para que suba arriba de todo al editarlo.
       'fecha': FieldValue.serverTimestamp(),
+      // --- ETIQUETAS PARA EL ROBOT DE FIREBASE ---
+      'enviar_push': _enviarNotificacion,
+      'topic_destino': '${widget.config.prefijoColeccion}_general',
     };
 
     try {
       if (widget.avisoId == null) {
         await FirebaseFirestore.instance.collection('avisos').add(datos);
       } else {
-        await FirebaseFirestore.instance.collection('avisos').doc(widget.avisoId).update(datos);
+        await FirebaseFirestore.instance
+            .collection('avisos')
+            .doc(widget.avisoId)
+            .update(datos);
       }
       if (mounted) Navigator.pop(context);
     } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text("Error: $e")));
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text("Error: $e")));
     } finally {
       setState(() => _cargando = false);
     }
@@ -86,81 +98,105 @@ class _PantallaAdminFormularioAvisoState extends State<PantallaAdminFormularioAv
     return Scaffold(
       appBar: AppBar(
         title: Text(widget.avisoId == null ? "Nuevo Aviso" : "Editar Aviso"),
-        backgroundColor: _importante ? Colors.red[900] : Colors.grey[900], // Cambia color si es urgente
+        backgroundColor: _importante ? Colors.red[900] : Colors.grey[900],
         foregroundColor: Colors.white,
         actions: [
-          IconButton(icon: const Icon(Icons.send), onPressed: _guardarAviso)
+          IconButton(icon: const Icon(Icons.send), onPressed: _guardarAviso),
         ],
       ),
       body: _cargando
           ? const Center(child: CircularProgressIndicator())
           : Form(
-        key: _formKey,
-        child: ListView(
-          padding: const EdgeInsets.all(16),
-          children: [
-            // TÍTULO
-            TextFormField(
-              controller: _tituloController,
-              decoration: const InputDecoration(
-                  labelText: "Título Corto",
-                  border: OutlineInputBorder(),
-                  hintText: "Ej: SUSPENSIÓN DE FECHA"
-              ),
-              validator: (v) => v!.isEmpty ? "Escribe un título" : null,
-            ),
-            const SizedBox(height: 20),
-
-            // IMPORTANTE (Switch)
-            Container(
-              decoration: BoxDecoration(
-                color: _importante ? Colors.red[50] : Colors.white,
-                border: _importante ? Border.all(color: Colors.red) : Border.all(color: Colors.grey[300]!),
-                borderRadius: BorderRadius.circular(10),
-              ),
-              child: SwitchListTile(
-                title: Text(
-                  "¿Es Urgente / Importante?",
-                  style: TextStyle(
-                    fontWeight: FontWeight.bold,
-                    color: _importante ? Colors.red : Colors.black,
+              key: _formKey,
+              child: ListView(
+                padding: const EdgeInsets.all(16),
+                children: [
+                  TextFormField(
+                    controller: _tituloController,
+                    decoration: const InputDecoration(
+                      labelText: "Título Corto",
+                      border: OutlineInputBorder(),
+                      hintText: "Ej: SUSPENSIÓN DE FECHA",
+                    ),
+                    validator: (v) => v!.isEmpty ? "Escribe un título" : null,
                   ),
-                ),
-                subtitle: const Text("Si lo activas, saldrá destacado en rojo."),
-                value: _importante,
-                activeColor: Colors.red,
-                secondary: Icon(Icons.warning_amber_rounded, color: _importante ? Colors.red : Colors.grey),
-                onChanged: (v) => setState(() => _importante = v),
-              ),
-            ),
-            const SizedBox(height: 20),
+                  const SizedBox(height: 20),
 
-            // MENSAJE
-            TextFormField(
-              controller: _mensajeController,
-              maxLines: 5, // Caja grande para escribir
-              decoration: const InputDecoration(
-                labelText: "Mensaje Completo",
-                border: OutlineInputBorder(),
-                alignLabelWithHint: true,
-              ),
-              validator: (v) => v!.isEmpty ? "Escribe el mensaje" : null,
-            ),
+                  Container(
+                    decoration: BoxDecoration(
+                      color: _importante ? Colors.red[50] : Colors.white,
+                      border: _importante
+                          ? Border.all(color: Colors.red)
+                          : Border.all(color: Colors.grey[300]!),
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                    child: SwitchListTile(
+                      title: Text(
+                        "¿Es Urgente / Importante?",
+                        style: TextStyle(
+                          fontWeight: FontWeight.bold,
+                          color: _importante ? Colors.red : Colors.black,
+                        ),
+                      ),
+                      value: _importante,
+                      activeColor: Colors.red,
+                      onChanged: (v) => setState(() => _importante = v),
+                    ),
+                  ),
+                  const SizedBox(height: 20),
 
-            const SizedBox(height: 30),
-            ElevatedButton.icon(
-              style: ElevatedButton.styleFrom(
-                  backgroundColor: _importante ? Colors.red : widget.config.colorPrimario,
-                  foregroundColor: Colors.white,
-                  minimumSize: const Size(double.infinity, 50)
+                  TextFormField(
+                    controller: _mensajeController,
+                    maxLines: 5,
+                    decoration: const InputDecoration(
+                      labelText: "Mensaje Completo",
+                      border: OutlineInputBorder(),
+                      alignLabelWithHint: true,
+                    ),
+                    validator: (v) => v!.isEmpty ? "Escribe el mensaje" : null,
+                  ),
+                  const SizedBox(height: 20),
+
+                  // SWITCH PARA NOTIFICACIÓN
+                  if (widget.avisoId == null)
+                    Container(
+                      decoration: BoxDecoration(
+                        color: _enviarNotificacion
+                            ? Colors.blue[50]
+                            : Colors.grey[100],
+                        border: _enviarNotificacion
+                            ? Border.all(color: Colors.blue)
+                            : Border.all(color: Colors.grey[300]!),
+                        borderRadius: BorderRadius.circular(10),
+                      ),
+                      child: SwitchListTile(
+                        title: const Text(
+                          "Enviar Notificación Push",
+                          style: TextStyle(fontWeight: FontWeight.bold),
+                        ),
+                        value: _enviarNotificacion,
+                        activeColor: Colors.blue,
+                        onChanged: (v) =>
+                            setState(() => _enviarNotificacion = v),
+                      ),
+                    ),
+
+                  const SizedBox(height: 30),
+                  ElevatedButton.icon(
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: _importante
+                          ? Colors.red
+                          : widget.config.colorPrimario,
+                      foregroundColor: Colors.white,
+                      minimumSize: const Size(double.infinity, 50),
+                    ),
+                    onPressed: _guardarAviso,
+                    icon: const Icon(Icons.campaign),
+                    label: const Text("PUBLICAR AVISO"),
+                  ),
+                ],
               ),
-              onPressed: _guardarAviso,
-              icon: const Icon(Icons.campaign),
-              label: const Text("PUBLICAR AVISO"),
             ),
-          ],
-        ),
-      ),
     );
   }
 }

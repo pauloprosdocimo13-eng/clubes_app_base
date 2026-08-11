@@ -74,7 +74,7 @@ class _PantallaAdminJugadoresState extends State<PantallaAdminJugadores> {
     showDialog(
       context: context,
       builder: (ctx) => AlertDialog(
-        title: const Text("¿Borrar Jugador?"),
+        title: const Text("¿Borrar Registro?"),
         content: const Text("Esta acción no se puede deshacer."),
         actions: [
           TextButton(onPressed: () => Navigator.pop(ctx), child: const Text("CANCELAR")),
@@ -129,7 +129,7 @@ class _PantallaAdminJugadoresState extends State<PantallaAdminJugadores> {
               ),
             ),
 
-          // 2. LISTA DE JUGADORES (AGRUPADA POR CATEGORÍA)
+          // 2. LISTA DE JUGADORES/DTs (AGRUPADA POR CATEGORÍA)
           Expanded(
             child: _tiraSeleccionadaId == null
                 ? const Center(child: Text("Cargando deportes..."))
@@ -150,15 +150,16 @@ class _PantallaAdminJugadoresState extends State<PantallaAdminJugadores> {
                             children: [
                               Icon(Icons.people_outline, size: 60, color: Colors.grey[300]),
                               const SizedBox(height: 10),
-                              const Text("No hay jugadores cargados en esta tira."),
+                              const Text("No hay integrantes cargados en esta tira."),
                             ],
                           ),
                         );
                       }
 
-                      // --- ORDENAMIENTO DOBLE ---
-                      // 1. Primero por Categoría (Descendente: 2015, 2014...)
-                      // 2. Luego por Apellido (Ascendente: A-Z)
+                      // --- ORDENAMIENTO TRIPLE ---
+                      // 1. Por Categoría (Descendente)
+                      // 2. Por Rol (DT primero, Jugador después)
+                      // 3. Por Apellido (Ascendente A-Z)
                       docs.sort((a, b) {
                         final dA = a.data() as Map<String, dynamic>;
                         final dB = b.data() as Map<String, dynamic>;
@@ -166,12 +167,17 @@ class _PantallaAdminJugadoresState extends State<PantallaAdminJugadores> {
                         String catA = (dA['categoria'] ?? '').toString();
                         String catB = (dB['categoria'] ?? '').toString();
                         
-                        // Comparamos categorías (Invertido para que 2015 aparezca antes que 2014 si es número, 
-                        // o según prefieras. String descendente suele funcionar bien para años recientes)
+                        // 1. Comparamos categorías
                         int compareCat = catB.compareTo(catA); 
                         if (compareCat != 0) return compareCat;
 
-                        // Si es la misma categoría, ordenamos por Apellido
+                        // 2. Comparamos roles para que el DT quede arriba del todo en su categoría
+                        String rolA = (dA['rol'] ?? 'Jugador').toString();
+                        String rolB = (dB['rol'] ?? 'Jugador').toString();
+                        if (rolA == 'DT' && rolB != 'DT') return -1;
+                        if (rolA != 'DT' && rolB == 'DT') return 1;
+
+                        // 3. Si tienen el mismo rol, ordenamos por Apellido
                         return (dA['apellido'] ?? '').toString().compareTo(dB['apellido'] ?? '');
                       });
 
@@ -181,6 +187,7 @@ class _PantallaAdminJugadoresState extends State<PantallaAdminJugadores> {
                         itemBuilder: (context, index) {
                           final data = docs[index].data() as Map<String, dynamic>;
                           final id = docs[index].id;
+                          final bool esDT = (data['rol'] == 'DT');
                           
                           // --- LÓGICA DE AGRUPACIÓN ---
                           bool mostrarHeader = false;
@@ -213,37 +220,48 @@ class _PantallaAdminJugadoresState extends State<PantallaAdminJugadores> {
                                   ),
                                 ),
 
-                              // TARJETA DEL JUGADOR
+                              // TARJETA DEL JUGADOR / DT
                               Card(
                                 margin: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
                                 elevation: 2,
                                 child: ListTile(
                                   leading: CircleAvatar(
-                                    backgroundColor: Colors.grey[200],
+                                    backgroundColor: esDT ? Colors.indigo[50] : Colors.grey[200],
                                     backgroundImage: (data['foto'] != null && data['foto'] != '')
                                         ? NetworkImage(data['foto'])
                                         : null,
                                     child: (data['foto'] == null || data['foto'] == '')
-                                        ? Text(data['nombre'][0], style: TextStyle(color: widget.config.colorPrimario, fontWeight: FontWeight.bold)) 
+                                        ? Text(
+                                            data['nombre'][0], 
+                                            style: TextStyle(
+                                              color: esDT ? Colors.indigo : widget.config.colorPrimario, 
+                                              fontWeight: FontWeight.bold
+                                            )
+                                          ) 
                                         : null,
                                   ),
                                   title: Text(
                                     "${data['apellido']} ${data['nombre']}",
                                     style: const TextStyle(fontWeight: FontWeight.bold),
                                   ),
-                                  subtitle: Row(
-                                    children: [
-                                      if ((data['goles'] ?? 0) > 0) ...[
-                                        const Icon(Icons.sports_soccer, size: 14, color: Colors.green),
-                                        Text(" ${data['goles']} ", style: TextStyle(color: Colors.green[800])),
-                                      ],
-                                      const SizedBox(width: 5),
-                                      if ((data['asistencias'] ?? 0) > 0) ...[
-                                        const Icon(Icons.hiking, size: 14, color: Colors.blue),
-                                        Text(" ${data['asistencias']}", style: TextStyle(color: Colors.blue[800])),
-                                      ],
-                                    ],
-                                  ),
+                                  subtitle: esDT 
+                                      ? const Text(
+                                          "DIRECTOR TÉCNICO", 
+                                          style: TextStyle(color: Colors.indigo, fontWeight: FontWeight.bold, fontSize: 11, letterSpacing: 0.5)
+                                        )
+                                      : Row(
+                                          children: [
+                                            if ((data['goles'] ?? 0) > 0) ...[
+                                              const Icon(Icons.sports_soccer, size: 14, color: Colors.green),
+                                              Text(" ${data['goles']} ", style: TextStyle(color: Colors.green[800])),
+                                            ],
+                                            const SizedBox(width: 5),
+                                            if ((data['asistencias'] ?? 0) > 0) ...[
+                                              const Icon(Icons.hiking, size: 14, color: Colors.blue),
+                                              Text(" ${data['asistencias']}", style: TextStyle(color: Colors.blue[800])),
+                                            ],
+                                          ],
+                                        ),
                                   trailing: Row(
                                     mainAxisSize: MainAxisSize.min,
                                     children: [

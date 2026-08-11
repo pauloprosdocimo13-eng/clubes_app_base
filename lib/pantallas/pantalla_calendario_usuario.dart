@@ -5,9 +5,9 @@ import '../configuracion/configuracion_app.dart';
 
 class PantallaCalendarioUsuario extends StatefulWidget {
   final ConfiguracionApp config;
-  final String espacioId;     // ID de la cancha
+  final String espacioId; // ID de la cancha
   final String tituloEspacio; // Nombre (ej: Cancha 5)
-  final String telefonoWsp;   // Teléfono del club
+  final String telefonoWsp; // Teléfono del club
 
   const PantallaCalendarioUsuario({
     super.key,
@@ -18,29 +18,43 @@ class PantallaCalendarioUsuario extends StatefulWidget {
   });
 
   @override
-  State<PantallaCalendarioUsuario> createState() => _PantallaCalendarioUsuarioState();
+  State<PantallaCalendarioUsuario> createState() =>
+      _PantallaCalendarioUsuarioState();
 }
 
 class _PantallaCalendarioUsuarioState extends State<PantallaCalendarioUsuario> {
   DateTime _fechaSeleccionada = DateTime.now();
-  
-  // Generamos horarios de 8 a 23 hs (Puedes ajustar esto según el club)
-  final List<String> _horarios = List.generate(16, (index) => "${index + 8}:00");
+  bool _procesandoReserva = false; // Para evitar doble tap
 
-  // Formato YYYY-MM-DD para la base de datos
-  String get _fechaId => "${_fechaSeleccionada.year}-${_fechaSeleccionada.month.toString().padLeft(2,'0')}-${_fechaSeleccionada.day.toString().padLeft(2,'0')}";
+  // Generamos horarios de 8 a 23:30 hs (cada 30 minutos)
+  final List<String> _horarios = List.generate(
+    32, // 16 horas * 2 turnos por hora
+    (index) {
+      int hora = 8 + (index ~/ 2); // División entera para sacar la hora
+      String minutos = (index % 2 == 0)
+          ? "00"
+          : "30"; // Par es en punto, impar es y media
+      return "$hora:$minutos";
+    },
+  );
 
-  // Selector de fecha seguro (No deja elegir el pasado)
+  String get _fechaId =>
+      "${_fechaSeleccionada.year}-${_fechaSeleccionada.month.toString().padLeft(2, '0')}-${_fechaSeleccionada.day.toString().padLeft(2, '0')}";
+
   Future<void> _seleccionarFecha() async {
     final picked = await showDatePicker(
       context: context,
       initialDate: _fechaSeleccionada,
-      firstDate: DateTime.now(), // Bloqueamos fechas pasadas
-      lastDate: DateTime.now().add(const Duration(days: 60)), // Max 2 meses adelante
+      firstDate: DateTime.now().subtract(
+        const Duration(days: 1),
+      ), // Permitimos hoy
+      lastDate: DateTime.now().add(const Duration(days: 60)),
       builder: (context, child) {
         return Theme(
           data: ThemeData.light().copyWith(
-            colorScheme: ColorScheme.light(primary: widget.config.colorPrimario),
+            colorScheme: ColorScheme.light(
+              primary: widget.config.colorPrimario,
+            ),
           ),
           child: child!,
         );
@@ -51,19 +65,103 @@ class _PantallaCalendarioUsuarioState extends State<PantallaCalendarioUsuario> {
     }
   }
 
-  // Acción al tocar un horario libre
+  // LOGICA PRINCIPAL DE RESERVA
   void _reservarTurno(String hora) async {
-    // 1. Mensaje pre-armado
-    final mensaje = "Hola! Vi en la App que *${widget.tituloEspacio}* está libre el día *$_fechaId* a las *$hora* hs. Quisiera reservarla.";
-    
-    // 2. Armamos la URL de WhatsApp
-    final url = "https://wa.me/${widget.telefonoWsp}?text=${Uri.encodeComponent(mensaje)}";
+    if (_procesandoReserva) return;
+    setState(() => _procesandoReserva = true);
 
-    // 3. Lanzamos
     try {
-      await launchUrl(Uri.parse(url), mode: LaunchMode.externalApplication);
+      // 1. Verificar si alguien nos ganó de mano en el último segundo
+      final check = await FirebaseFirestore.instance
+          .collection('reservas')
+          .where('espacio_id', isEqualTo: widget.espacioId)
+          .where('fecha', isEqualTo: _fechaId)
+          .where('hora', isEqualTo: hora)
+          .get();
+
+      // Filtramos si hay alguna reserva válida (confirmada o pendiente reciente)
+      bool ocupadoReal = false;
+      final ahora = DateTime.now();
+
+      for (var doc in check.docs) {
+        String estado = doc['estado'] ?? 'confirmada';
+        if (estado == 'confirmada') {
+          ocupadoReal = true;
+          break;
+        }
+        if (estado == 'pendiente') {
+          Timestamp? creado = doc['creado_el'];
+          if (creado != null) {
+            final diferencia = ahora.difference(creado.toDate()).inMinutes;
+            if (diferencia < 30) {
+              // Si tiene menos de 30 min, está ocupada
+              ocupadoReal = true;
+              break;
+            }
+          }
+        }
+      }
+
+      if (ocupadoReal) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text("¡Uy! Alguien acaba de reservar este horario."),
+            ),
+          );
+        }
+        setState(() => _procesandoReserva = false);
+        return;
+      }
+
+      // 2. BLOQUEAMOS LA CANCHA (Estado Pendiente)
+      await FirebaseFirestore.instance.collection('reservas').add({
+        'espacio_id': widget.espacioId,
+        'fecha': _fechaId,
+        'hora': hora,
+        'estado': 'pendiente', // <--- CLAVE: Pendiente
+        'creado_el': FieldValue.serverTimestamp(), // <--- CLAVE: Hora exacta
+        'espacio_nombre':
+            widget.tituloEspacio, // Para facilitar lectura en admin
+      });
+
+      // 3. Abrimos WhatsApp (LÓGICA BLINDADA Y LIMPIA)
+      String telefonoLimpio = widget.telefonoWsp.replaceAll(
+        RegExp(r'[^0-9]'),
+        '',
+      );
+
+      final mensaje =
+          "Hola! Acabo de reservar en la App: *${widget.tituloEspacio}* para el día *$_fechaId* a las *$hora* hs. Quedó como 'Pendiente'. ¿Cómo hago la seña?";
+      final url =
+          "https://wa.me/$telefonoLimpio?text=${Uri.encodeComponent(mensaje)}";
+
+      try {
+        if (!await launchUrl(
+          Uri.parse(url),
+          mode: LaunchMode.externalApplication,
+        )) {
+          await launchUrl(Uri.parse(url), mode: LaunchMode.platformDefault);
+        }
+      } catch (e) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text(
+                "No se pudo abrir WhatsApp, pero tu reserva ya quedó pendiente en el sistema.",
+              ),
+            ),
+          );
+        }
+      }
     } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("No se pudo abrir WhatsApp")));
+      if (mounted) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text("Error: $e")));
+      }
+    } finally {
+      if (mounted) setState(() => _procesandoReserva = false);
     }
   }
 
@@ -77,7 +175,7 @@ class _PantallaCalendarioUsuarioState extends State<PantallaCalendarioUsuario> {
       ),
       body: Column(
         children: [
-          // --- CABECERA CON FECHA ---
+          // CABECERA
           Container(
             padding: const EdgeInsets.all(15),
             color: Colors.grey[100],
@@ -89,10 +187,16 @@ class _PantallaCalendarioUsuarioState extends State<PantallaCalendarioUsuario> {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      const Text("Estás viendo el día:", style: TextStyle(fontSize: 12, color: Colors.grey)),
+                      const Text(
+                        "Estás viendo el día:",
+                        style: TextStyle(fontSize: 12, color: Colors.grey),
+                      ),
                       Text(
                         "${_fechaSeleccionada.day}/${_fechaSeleccionada.month}/${_fechaSeleccionada.year}",
-                         style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold)
+                        style: const TextStyle(
+                          fontSize: 18,
+                          fontWeight: FontWeight.bold,
+                        ),
                       ),
                     ],
                   ),
@@ -100,18 +204,33 @@ class _PantallaCalendarioUsuarioState extends State<PantallaCalendarioUsuario> {
                 ElevatedButton(
                   onPressed: _seleccionarFecha,
                   style: ElevatedButton.styleFrom(
-                    backgroundColor: widget.config.colorPrimario, 
-                    foregroundColor: Colors.white
+                    backgroundColor: widget.config.colorPrimario,
+                    foregroundColor: Colors.white,
                   ),
                   child: const Text("CAMBIAR"),
-                )
+                ),
               ],
             ),
           ),
-          
+
           const Divider(height: 1),
 
-          // --- LISTA DE HORARIOS (VERDE / ROJO) ---
+          // LEYENDA DE COLORES
+          Padding(
+            padding: const EdgeInsets.symmetric(vertical: 8.0),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                _leyendaColor(Colors.green[100]!, "Libre"),
+                const SizedBox(width: 15),
+                _leyendaColor(Colors.orange[100]!, "Pendiente"),
+                const SizedBox(width: 15),
+                _leyendaColor(Colors.red[100]!, "Ocupado"),
+              ],
+            ),
+          ),
+
+          // LISTA DE HORARIOS
           Expanded(
             child: StreamBuilder<QuerySnapshot>(
               stream: FirebaseFirestore.instance
@@ -120,39 +239,93 @@ class _PantallaCalendarioUsuarioState extends State<PantallaCalendarioUsuario> {
                   .where('fecha', isEqualTo: _fechaId)
                   .snapshots(),
               builder: (context, snapshot) {
-                if (!snapshot.hasData) return const Center(child: CircularProgressIndicator());
+                if (!snapshot.hasData) {
+                  return const Center(child: CircularProgressIndicator());
+                }
 
-                // Guardamos qué horas están ocupadas en un Set para búsqueda rápida
-                Set<String> horasOcupadas = {};
+                // Analizamos qué horarios están ocupados y cuáles pendientes
+                Set<String> ocupadasConfirmadas = {};
+                Set<String> ocupadasPendientes = {};
+
+                final ahora = DateTime.now();
+
                 for (var doc in snapshot.data!.docs) {
                   final data = doc.data() as Map<String, dynamic>;
-                  horasOcupadas.add(data['hora']);
+                  String h = data['hora'];
+                  String estado =
+                      data['estado'] ??
+                      'confirmada'; // Compatibilidad hacia atrás
+
+                  if (estado == 'confirmada') {
+                    ocupadasConfirmadas.add(h);
+                  } else if (estado == 'pendiente') {
+                    // Verificamos expiración (30 min)
+                    Timestamp? creado = data['creado_el'];
+                    if (creado != null) {
+                      final diferencia = ahora
+                          .difference(creado.toDate())
+                          .inMinutes;
+                      if (diferencia < 30) {
+                        // Aún es válida la prioridad
+                        ocupadasPendientes.add(h);
+                      } else {
+                        // Expiró: No la agregamos a ningún set, así que se verá LIBRE.
+                      }
+                    } else {
+                      // Si no tiene fecha (error raro), asumimos pendiente reciente
+                      ocupadasPendientes.add(h);
+                    }
+                  }
                 }
 
                 return ListView.builder(
                   itemCount: _horarios.length,
                   itemBuilder: (context, index) {
                     final hora = _horarios[index];
-                    final bool ocupado = horasOcupadas.contains(hora);
+
+                    bool esConfirmada = ocupadasConfirmadas.contains(hora);
+                    bool esPendiente = ocupadasPendientes.contains(hora);
+                    bool ocupado = esConfirmada || esPendiente;
+
+                    // Definimos colores según estado
+                    Color bgColor = Colors.white;
+                    Color borderColor = Colors.grey[300]!;
+                    Color iconColor = Colors.green[800]!;
+                    Color iconBg = Colors.green[100]!;
+
+                    if (esConfirmada) {
+                      bgColor = Colors.red[50]!;
+                      borderColor = Colors.red[100]!;
+                      iconColor = Colors.red[800]!;
+                      iconBg = Colors.red[100]!;
+                    } else if (esPendiente) {
+                      bgColor = Colors.orange[50]!;
+                      borderColor = Colors.orange[100]!;
+                      iconColor = Colors.orange[800]!;
+                      iconBg = Colors.orange[100]!;
+                    }
 
                     return Card(
-                      margin: const EdgeInsets.symmetric(horizontal: 15, vertical: 5),
+                      margin: const EdgeInsets.symmetric(
+                        horizontal: 15,
+                        vertical: 5,
+                      ),
                       elevation: 0,
-                      color: ocupado ? Colors.red[50] : Colors.white,
+                      color: bgColor,
                       shape: RoundedRectangleBorder(
                         borderRadius: BorderRadius.circular(10),
-                        side: BorderSide(color: ocupado ? Colors.red[100]! : Colors.grey[300]!)
+                        side: BorderSide(color: borderColor),
                       ),
                       child: ListTile(
                         leading: Container(
                           padding: const EdgeInsets.all(8),
                           decoration: BoxDecoration(
-                            color: ocupado ? Colors.red[100] : Colors.green[100],
-                            shape: BoxShape.circle
+                            color: iconBg,
+                            shape: BoxShape.circle,
                           ),
                           child: Icon(
                             Icons.access_time,
-                            color: ocupado ? Colors.red[800] : Colors.green[800],
+                            color: iconColor,
                             size: 20,
                           ),
                         ),
@@ -160,18 +333,7 @@ class _PantallaCalendarioUsuarioState extends State<PantallaCalendarioUsuario> {
                           "$hora hs",
                           style: const TextStyle(fontWeight: FontWeight.bold),
                         ),
-                        trailing: ocupado 
-                          ? const Text("OCUPADO", style: TextStyle(color: Colors.red, fontWeight: FontWeight.bold))
-                          : ElevatedButton(
-                              style: ElevatedButton.styleFrom(
-                                backgroundColor: Colors.green, 
-                                foregroundColor: Colors.white,
-                                padding: const EdgeInsets.symmetric(horizontal: 20),
-                                elevation: 0,
-                              ),
-                              onPressed: () => _reservarTurno(hora),
-                              child: const Text("RESERVAR"),
-                            ),
+                        trailing: _buildBotonAccion(ocupado, esPendiente, hora),
                       ),
                     );
                   },
@@ -181,6 +343,52 @@ class _PantallaCalendarioUsuarioState extends State<PantallaCalendarioUsuario> {
           ),
         ],
       ),
+    );
+  }
+
+  // Widget auxiliar para el botón o texto
+  Widget _buildBotonAccion(bool ocupado, bool esPendiente, String hora) {
+    if (ocupado) {
+      if (esPendiente) {
+        return const Text(
+          "EN PROCESO...",
+          style: TextStyle(
+            color: Colors.orange,
+            fontWeight: FontWeight.bold,
+            fontSize: 12,
+          ),
+        );
+      } else {
+        return const Text(
+          "OCUPADO",
+          style: TextStyle(color: Colors.red, fontWeight: FontWeight.bold),
+        );
+      }
+    }
+
+    return ElevatedButton(
+      style: ElevatedButton.styleFrom(
+        backgroundColor: Colors.green,
+        foregroundColor: Colors.white,
+        padding: const EdgeInsets.symmetric(horizontal: 20),
+        elevation: 0,
+      ),
+      onPressed: _procesandoReserva ? null : () => _reservarTurno(hora),
+      child: const Text("RESERVAR"),
+    );
+  }
+
+  Widget _leyendaColor(Color color, String texto) {
+    return Row(
+      children: [
+        Container(
+          width: 12,
+          height: 12,
+          decoration: BoxDecoration(color: color, shape: BoxShape.circle),
+        ),
+        const SizedBox(width: 5),
+        Text(texto, style: const TextStyle(fontSize: 12)),
+      ],
     );
   }
 }

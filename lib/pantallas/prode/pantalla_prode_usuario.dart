@@ -14,18 +14,14 @@ class PantallaProdeUsuario extends StatefulWidget {
 
 class _PantallaProdeUsuarioState extends State<PantallaProdeUsuario> {
   final _nombreController = TextEditingController();
-  
-  // Variables de Estado
-  String? _deviceId; // ID único del celular
-  String? _fechaSeleccionadaId; // ID de la fecha activa
+
+  String? _deviceId;
+  String? _fechaSeleccionadaId;
   bool _cargando = true;
   bool _enviando = false;
 
-  // Mapa de votos TEMPORALES (lo que toco ahora)
-  final Map<String, String> _votosTemp = {};
-  
-  // Mapa de votos GUARDADOS (si ya voté antes)
-  Map<String, dynamic>? _votosGuardados; 
+  final Map<String, Map<String, int>> _votosTemp = {};
+  Map<String, dynamic>? _votosGuardados;
   int _puntosUsuario = 0;
 
   @override
@@ -34,18 +30,17 @@ class _PantallaProdeUsuarioState extends State<PantallaProdeUsuario> {
     _inicializarUsuario();
   }
 
-  // 1. Configuración inicial del usuario
   Future<void> _inicializarUsuario() async {
     final prefs = await SharedPreferences.getInstance();
-    
-    // Generar ID único si no existe (Huella del dispositivo)
+
     if (!prefs.containsKey('prode_device_id')) {
-      String idGenerado = DateTime.now().millisecondsSinceEpoch.toString() + Random().nextInt(999).toString();
-      await prefs.setString('prode_device_id', idGenerado); 
+      String idGenerado =
+          DateTime.now().millisecondsSinceEpoch.toString() +
+          Random().nextInt(999).toString();
+      await prefs.setString('prode_device_id', idGenerado);
     }
     _deviceId = prefs.getString('prode_device_id');
-    
-    // Autocompletar nombre si ya jugó antes
+
     if (prefs.containsKey('prode_nombre_usuario')) {
       _nombreController.text = prefs.getString('prode_nombre_usuario')!;
     }
@@ -53,19 +48,18 @@ class _PantallaProdeUsuarioState extends State<PantallaProdeUsuario> {
     await _buscarFechaActiva();
   }
 
-  // 2. Buscamos qué fecha se está jugando ahora
   Future<void> _buscarFechaActiva() async {
     try {
+      // MODIFICACIÓN: Ya no filtramos solo por 'ABIERTA'.
+      // Traemos la última siempre, para que puedan ver los puntos el finde.
       final query = await FirebaseFirestore.instance
           .collection('prode_fechas')
-          .where('estado', isEqualTo: 'ABIERTA')
           .orderBy('creada_el', descending: true)
           .limit(1)
           .get();
 
       if (query.docs.isNotEmpty) {
         _fechaSeleccionadaId = query.docs.first.id;
-        // 3. Chequeamos si este usuario YA votó en esta fecha
         await _verificarVotoExistente();
       } else {
         setState(() => _cargando = false);
@@ -76,7 +70,6 @@ class _PantallaProdeUsuarioState extends State<PantallaProdeUsuario> {
     }
   }
 
-  // 3. Verificar si ya votó
   Future<void> _verificarVotoExistente() async {
     if (_fechaSeleccionadaId == null || _deviceId == null) return;
 
@@ -88,7 +81,6 @@ class _PantallaProdeUsuarioState extends State<PantallaProdeUsuario> {
         .get();
 
     if (votoQuery.docs.isNotEmpty) {
-      // YA VOTÓ: Recuperamos datos
       final data = votoQuery.docs.first.data();
       setState(() {
         _votosGuardados = data['predicciones'];
@@ -96,7 +88,6 @@ class _PantallaProdeUsuarioState extends State<PantallaProdeUsuario> {
         _cargando = false;
       });
     } else {
-      // NO VOTÓ
       setState(() {
         _votosGuardados = null;
         _cargando = false;
@@ -104,23 +95,29 @@ class _PantallaProdeUsuarioState extends State<PantallaProdeUsuario> {
     }
   }
 
-  // 4. Enviar Voto
-  Future<void> _enviarPronostico() async {
+  Future<void> _enviarPronostico(int cantidadPartidos) async {
     final nombre = _nombreController.text.trim();
 
     if (nombre.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Por favor, ingresá tu nombre.")));
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text("Por favor, ingresá tu nombre y apellido."),
+        ),
+      );
       return;
     }
-    if (_votosTemp.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Debes pronosticar al menos un partido.")));
+    if (_votosTemp.length < cantidadPartidos) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text("Aún te faltan partidos por pronosticar."),
+        ),
+      );
       return;
     }
 
     setState(() => _enviando = true);
 
     try {
-      // Guardar nombre localmente
       final prefs = await SharedPreferences.getInstance();
       await prefs.setString('prode_nombre_usuario', nombre);
 
@@ -128,19 +125,25 @@ class _PantallaProdeUsuarioState extends State<PantallaProdeUsuario> {
         'fecha_id': _fechaSeleccionadaId,
         'user_id': _deviceId,
         'nombre_usuario': nombre,
-        'predicciones': _votosTemp, 
+        'predicciones': _votosTemp,
         'fecha_voto': FieldValue.serverTimestamp(),
-        'puntos': 0, // Inicia en 0, se calcula desde Admin
+        'puntos': 0,
       });
 
-      // Recargar para mostrar estado "Ya votaste"
       await _verificarVotoExistente();
-      
+
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("¡Pronóstico enviado con éxito!")));
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text("¡Pronóstico de goles enviado con éxito!"),
+            backgroundColor: Colors.green,
+          ),
+        );
       }
     } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Error al enviar. Intenta de nuevo.")));
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text("Error al enviar. Revisa tu conexión.")),
+      );
     } finally {
       if (mounted) setState(() => _enviando = false);
     }
@@ -150,257 +153,461 @@ class _PantallaProdeUsuarioState extends State<PantallaProdeUsuario> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text("Prode del Club"),
+        title: const Text("Prode de Goles"),
         backgroundColor: widget.config.colorPrimario,
         foregroundColor: Colors.white,
       ),
-      body: _cargando 
+      body: _cargando
           ? const Center(child: CircularProgressIndicator())
           : _fechaSeleccionadaId == null
-              ? Center(
-                  child: Column(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      Icon(Icons.event_busy, size: 60, color: Colors.grey[300]),
-                      const SizedBox(height: 10),
-                      const Text("No hay fechas activas por el momento.", style: TextStyle(color: Colors.grey)),
-                    ],
+          ? Center(
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Icon(Icons.event_busy, size: 60, color: Colors.grey[300]),
+                  const SizedBox(height: 10),
+                  const Text(
+                    "No hay fechas activas por el momento.",
+                    style: TextStyle(color: Colors.grey),
                   ),
-                )
-              : StreamBuilder<DocumentSnapshot>(
-                  stream: FirebaseFirestore.instance.collection('prode_fechas').doc(_fechaSeleccionadaId).snapshots(),
-                  builder: (context, snapshot) {
-                    if (!snapshot.hasData) return const Center(child: CircularProgressIndicator());
-                    
-                    final dataFecha = snapshot.data!.data() as Map<String, dynamic>;
-                    final partidos = List.from(dataFecha['partidos'] ?? []);
-                    final titulo = dataFecha['titulo'] ?? 'Fecha Actual';
+                ],
+              ),
+            )
+          : StreamBuilder<DocumentSnapshot>(
+              stream: FirebaseFirestore.instance
+                  .collection('prode_fechas')
+                  .doc(_fechaSeleccionadaId)
+                  .snapshots(),
+              builder: (context, snapshot) {
+                if (!snapshot.hasData) {
+                  return const Center(child: CircularProgressIndicator());
+                }
 
-                    // MODO LECTURA: Si ya votó, mostramos resultados
-                    bool modoLectura = _votosGuardados != null;
+                final dataFecha = snapshot.data!.data() as Map<String, dynamic>;
+                final partidos = List.from(dataFecha['partidos'] ?? []);
+                partidos.sort(
+                  (a, b) => a['categoria'].compareTo(b['categoria']),
+                );
+                final titulo = dataFecha['titulo'] ?? 'Fecha Actual';
 
-                    return SingleChildScrollView(
-                      padding: const EdgeInsets.all(15),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.stretch,
-                        children: [
-                          // HEADER DE ESTADO
-                          Text(titulo, style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold, color: widget.config.colorPrimario), textAlign: TextAlign.center),
-                          const SizedBox(height: 10),
-                          
-                          if (modoLectura)
-                            Container(
-                              padding: const EdgeInsets.all(15),
-                              margin: const EdgeInsets.only(bottom: 20),
-                              decoration: BoxDecoration(color: Colors.green[50], borderRadius: BorderRadius.circular(10), border: Border.all(color: Colors.green)),
+                // --- LA MAGIA DEL BLOQUEO ESTÁ ACÁ ---
+                bool prodeCerrado = dataFecha['bloqueado'] ?? false;
+                // Entra en lectura si ya votó O si cerraste el prode desde el admin
+                bool modoLectura = _votosGuardados != null || prodeCerrado;
+
+                return SingleChildScrollView(
+                  padding: const EdgeInsets.all(15),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      Text(
+                        titulo,
+                        style: TextStyle(
+                          fontSize: 22,
+                          fontWeight: FontWeight.bold,
+                          color: widget.config.colorPrimario,
+                        ),
+                        textAlign: TextAlign.center,
+                      ),
+                      const SizedBox(height: 10),
+
+                      // --- PANELES SUPERIORES DINÁMICOS ---
+                      if (_votosGuardados != null)
+                        Container(
+                          padding: const EdgeInsets.all(15),
+                          margin: const EdgeInsets.only(bottom: 20),
+                          decoration: BoxDecoration(
+                            color: Colors.green[50],
+                            borderRadius: BorderRadius.circular(10),
+                            border: Border.all(color: Colors.green),
+                          ),
+                          child: Column(
+                            children: [
+                              const Text(
+                                "🏆 TU PUNTAJE:",
+                                style: TextStyle(
+                                  color: Colors.green,
+                                  fontWeight: FontWeight.bold,
+                                ),
+                              ),
+                              Text(
+                                "$_puntosUsuario PUNTOS",
+                                style: const TextStyle(
+                                  color: Colors.green,
+                                  fontWeight: FontWeight.bold,
+                                  fontSize: 30,
+                                ),
+                              ),
+                              const SizedBox(height: 5),
+                              const Text(
+                                "Acierto Exacto = 3 pts | Acierto Ganador = 1 pt",
+                                style: TextStyle(
+                                  color: Colors.green,
+                                  fontSize: 11,
+                                ),
+                              ),
+                            ],
+                          ),
+                        )
+                      else if (prodeCerrado)
+                        Container(
+                          padding: const EdgeInsets.all(15),
+                          margin: const EdgeInsets.only(bottom: 20),
+                          decoration: BoxDecoration(
+                            color: Colors.red[50],
+                            borderRadius: BorderRadius.circular(10),
+                            border: Border.all(color: Colors.red),
+                          ),
+                          child: const Column(
+                            children: [
+                              Icon(
+                                Icons.lock_clock,
+                                color: Colors.red,
+                                size: 30,
+                              ),
+                              SizedBox(height: 5),
+                              Text(
+                                "PRODE CERRADO",
+                                style: TextStyle(
+                                  color: Colors.red,
+                                  fontWeight: FontWeight.bold,
+                                  fontSize: 18,
+                                ),
+                              ),
+                              Text(
+                                "Ya no se pueden ingresar pronósticos.\n¡Suerte a los que participaron!",
+                                textAlign: TextAlign.center,
+                                style: TextStyle(
+                                  color: Colors.red,
+                                  fontSize: 13,
+                                ),
+                              ),
+                            ],
+                          ),
+                        )
+                      else
+                        const Padding(
+                          padding: EdgeInsets.only(bottom: 20),
+                          child: Text(
+                            "Completá los goles de cada partido.\n¡El resultado exacto suma más puntos!",
+                            textAlign: TextAlign.center,
+                            style: TextStyle(color: Colors.grey),
+                          ),
+                        ),
+
+                      // INPUT NOMBRE (Solo visible si no está en modo lectura)
+                      if (!modoLectura) ...[
+                        TextField(
+                          controller: _nombreController,
+                          decoration: const InputDecoration(
+                            labelText: "Tu Nombre y Apellido",
+                            border: OutlineInputBorder(),
+                            prefixIcon: Icon(Icons.person),
+                          ),
+                        ),
+                        const SizedBox(height: 20),
+                      ],
+
+                      // LISTA DE PARTIDOS CON INPUT DE GOLES
+                      if (partidos.isEmpty)
+                        const Center(
+                          child: Padding(
+                            padding: EdgeInsets.all(20),
+                            child: Text("No hay partidos en esta fecha."),
+                          ),
+                        )
+                      else
+                        ...partidos.map((p) {
+                          String id = p['id'];
+                          String cat = p['categoria'];
+                          String local = p['local'];
+                          String visitante = p['visitante'];
+
+                          int? glReal = p['goles_local_real'];
+                          int? gvReal = p['goles_visitante_real'];
+
+                          int? glUsuario;
+                          int? gvUsuario;
+
+                          if (_votosGuardados != null) {
+                            if (_votosGuardados![id] != null) {
+                              glUsuario = _votosGuardados![id]['gl'];
+                              gvUsuario = _votosGuardados![id]['gv'];
+                            }
+                          } else {
+                            if (_votosTemp[id] != null) {
+                              glUsuario = _votosTemp[id]!['gl'];
+                              gvUsuario = _votosTemp[id]!['gv'];
+                            }
+                          }
+
+                          return Card(
+                            margin: const EdgeInsets.only(bottom: 15),
+                            elevation: modoLectura ? 1 : 3,
+                            child: Padding(
+                              padding: const EdgeInsets.all(12.0),
                               child: Column(
                                 children: [
-                                  const Text("🏆 TU PUNTAJE:", style: TextStyle(color: Colors.green, fontWeight: FontWeight.bold)),
-                                  Text("$_puntosUsuario PUNTOS", style: const TextStyle(color: Colors.green, fontWeight: FontWeight.bold, fontSize: 30)),
-                                  const SizedBox(height: 5),
-                                  const Text("Ya enviaste tu pronóstico.", style: TextStyle(color: Colors.green, fontSize: 12)),
+                                  Container(
+                                    padding: const EdgeInsets.symmetric(
+                                      horizontal: 8,
+                                      vertical: 2,
+                                    ),
+                                    decoration: BoxDecoration(
+                                      color: Colors.grey[200],
+                                      borderRadius: BorderRadius.circular(4),
+                                    ),
+                                    child: Text(
+                                      cat,
+                                      style: const TextStyle(
+                                        fontSize: 12,
+                                        fontWeight: FontWeight.bold,
+                                      ),
+                                    ),
+                                  ),
+                                  const SizedBox(height: 15),
+
+                                  _IngresoGolesWidget(
+                                    idPartido: id,
+                                    local: local,
+                                    visitante: visitante,
+                                    glUsuario: glUsuario,
+                                    gvUsuario: gvUsuario,
+                                    glReal: glReal,
+                                    gvReal: gvReal,
+                                    modoLectura: modoLectura,
+                                    onGolesCambiados: (gl, gv) {
+                                      setState(() {
+                                        _votosTemp[id] = {'gl': gl, 'gv': gv};
+                                      });
+                                    },
+                                  ),
                                 ],
                               ),
-                            )
-                          else
-                            const Text("¡Jugá y ganá! Adiviná los resultados.", textAlign: TextAlign.center, style: TextStyle(color: Colors.grey)),
-                          
-                          const SizedBox(height: 10),
-
-                          // INPUT NOMBRE (Solo visible si no votó)
-                          if (!modoLectura) ...[
-                            TextField(
-                              controller: _nombreController,
-                              decoration: const InputDecoration(
-                                labelText: "Tu Nombre y Apellido",
-                                border: OutlineInputBorder(),
-                                prefixIcon: Icon(Icons.person)
-                              ),
                             ),
-                            const SizedBox(height: 20),
-                          ],
+                          );
+                        }).toList(),
 
-                          // LISTA DE PARTIDOS
-                          if (partidos.isEmpty)
-                            const Center(child: Padding(padding: EdgeInsets.all(20), child: Text("No hay partidos cargados en esta fecha.")))
-                          else
-                            ...partidos.map((p) {
-                              String id = p['id'];
-                              String cat = p['categoria'];
-                              String local = p['local'];
-                              String visitante = p['visitante'];
-                              String? resultadoReal = p['resultado_real']; // L, E, V (Oficial)
+                      const SizedBox(height: 20),
 
-                              // Recuperamos qué votó (si ya jugó) o qué está tocando (si está jugando)
-                              String? votoUsuario = modoLectura ? _votosGuardados![id] : _votosTemp[id];
-
-                              return Card(
-                                margin: const EdgeInsets.only(bottom: 15),
-                                elevation: 2,
-                                child: Padding(
-                                  padding: const EdgeInsets.all(10.0),
-                                  child: Column(
-                                    children: [
-                                      // Etiqueta Categoría
-                                      Container(
-                                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-                                        decoration: BoxDecoration(color: Colors.grey[200], borderRadius: BorderRadius.circular(4)),
-                                        child: Text(cat, style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold)),
-                                      ),
-                                      const SizedBox(height: 10),
-                                      
-                                      // Equipos
-                                      Row(
-                                        mainAxisAlignment: MainAxisAlignment.spaceAround,
-                                        children: [
-                                          Expanded(child: Text(local, textAlign: TextAlign.center, style: const TextStyle(fontWeight: FontWeight.bold))),
-                                          const Text(" VS ", style: TextStyle(color: Colors.grey, fontWeight: FontWeight.bold)),
-                                          Expanded(child: Text(visitante, textAlign: TextAlign.center, style: const TextStyle(fontWeight: FontWeight.bold))),
-                                        ],
-                                      ),
-                                      const SizedBox(height: 15),
-                                      
-                                      // BOTONES DE OPCIÓN (L - E - V)
-                                      Row(
-                                        mainAxisAlignment: MainAxisAlignment.center,
-                                        children: [
-                                          _BotonOpcion(
-                                            txt: "LOCAL", val: "L", 
-                                            voto: votoUsuario, real: resultadoReal, active: !modoLectura, 
-                                            onTap: () => setState(() => _votosTemp[id] = "L")
-                                          ),
-                                          const SizedBox(width: 5),
-                                          _BotonOpcion(
-                                            txt: "EMPATE", val: "E", 
-                                            voto: votoUsuario, real: resultadoReal, active: !modoLectura,
-                                            onTap: () => setState(() => _votosTemp[id] = "E")
-                                          ),
-                                          const SizedBox(width: 5),
-                                          _BotonOpcion(
-                                            txt: "VISITA", val: "V", 
-                                            voto: votoUsuario, real: resultadoReal, active: !modoLectura,
-                                            onTap: () => setState(() => _votosTemp[id] = "V")
-                                          ),
-                                        ],
-                                      )
-                                    ],
+                      // BOTÓN ENVIAR (Desaparece si se bloquea el prode)
+                      if (!modoLectura && partidos.isNotEmpty)
+                        SizedBox(
+                          width: double.infinity,
+                          height: 50,
+                          child: ElevatedButton(
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: widget.config.colorPrimario,
+                              foregroundColor: Colors.white,
+                            ),
+                            onPressed: _enviando
+                                ? null
+                                : () => _enviarPronostico(partidos.length),
+                            child: _enviando
+                                ? const CircularProgressIndicator(
+                                    color: Colors.white,
+                                  )
+                                : const Text(
+                                    "ENVIAR PRONÓSTICO",
+                                    style: TextStyle(
+                                      fontSize: 18,
+                                      fontWeight: FontWeight.bold,
+                                    ),
                                   ),
-                                ),
-                              );
-                            }).toList(),
-
-                          const SizedBox(height: 20),
-
-                          // BOTÓN ENVIAR
-                          if (!modoLectura && partidos.isNotEmpty)
-                            SizedBox(
-                              width: double.infinity,
-                              height: 50,
-                              child: ElevatedButton(
-                                style: ElevatedButton.styleFrom(
-                                  backgroundColor: widget.config.colorPrimario,
-                                  foregroundColor: Colors.white,
-                                ),
-                                onPressed: _enviando ? null : _enviarPronostico,
-                                child: _enviando
-                                    ? const CircularProgressIndicator(color: Colors.white)
-                                    : const Text("ENVIAR PRONÓSTICO", style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
-                              ),
-                            ),
-                          const SizedBox(height: 30),
-                        ],
-                      ),
-                    );
-                  },
-                ),
+                          ),
+                        ),
+                      const SizedBox(height: 30),
+                    ],
+                  ),
+                );
+              },
+            ),
     );
   }
 }
 
-// WIDGET AUXILIAR INTELIGENTE (COLORES VERDE/ROJO)
-class _BotonOpcion extends StatelessWidget {
-  final String txt;
-  final String val;
-  final String? voto;     // Lo que votó el usuario
-  final String? real;     // El resultado oficial (si existe)
-  final bool active;      // Si se puede votar o no
-  final VoidCallback onTap;
+class _IngresoGolesWidget extends StatelessWidget {
+  final String idPartido;
+  final String local;
+  final String visitante;
+  final int? glUsuario;
+  final int? gvUsuario;
+  final int? glReal;
+  final int? gvReal;
+  final bool modoLectura;
+  final Function(int, int) onGolesCambiados;
 
-  const _BotonOpcion({
-    required this.txt, required this.val, 
-    required this.voto, required this.real, 
-    required this.active, required this.onTap
+  const _IngresoGolesWidget({
+    required this.idPartido,
+    required this.local,
+    required this.visitante,
+    required this.glUsuario,
+    required this.gvUsuario,
+    required this.glReal,
+    required this.gvReal,
+    required this.modoLectura,
+    required this.onGolesCambiados,
   });
 
   @override
   Widget build(BuildContext context) {
-    // Definimos colores por defecto
-    Color colorFondo = Colors.white;
-    Color colorBorde = Colors.grey[300]!;
-    Color colorTexto = Colors.black;
-    IconData? icono;
+    bool partidoFinalizado = (glReal != null && gvReal != null);
 
-    bool esLoQueVoto = (voto == val);
-    bool esElGanador = (real == val);
+    Color colorFondoLocal = Colors.white;
+    Color colorFondoVisitante = Colors.white;
+    String cartelAcierto = "";
 
-    if (active) {
-      // --- MODO VOTACIÓN (AZUL) ---
-      if (esLoQueVoto) {
-        colorFondo = Colors.blue;
-        colorTexto = Colors.white;
-        colorBorde = Colors.blue;
-      }
-    } else {
-      // --- MODO RESULTADO (VERDE/ROJO) ---
-      if (esElGanador) {
-        // Esta opción era la correcta: SIEMPRE VERDE
-        colorFondo = Colors.green;
-        colorTexto = Colors.white;
-        colorBorde = Colors.green;
-        if (esLoQueVoto) icono = Icons.check; // Y encima la votaste!
-      } else if (esLoQueVoto) {
-        // Votaste esto pero NO era la correcta: ROJO
-        colorFondo = Colors.red;
-        colorTexto = Colors.white;
-        colorBorde = Colors.red;
-        icono = Icons.close;
-      } else if (esLoQueVoto && real == null) {
-        // Votaste esto pero aun no se jugó: AZUL
-        colorFondo = Colors.blue;
-        colorTexto = Colors.white;
-        colorBorde = Colors.blue;
+    if (modoLectura &&
+        partidoFinalizado &&
+        glUsuario != null &&
+        gvUsuario != null) {
+      if (glReal == glUsuario && gvReal == gvUsuario) {
+        colorFondoLocal = colorFondoVisitante = Colors.green[100]!;
+        cartelAcierto = "¡+3 PTS! Resultado Exacto";
+      } else {
+        bool realLocalGana = glReal! > gvReal!;
+        bool usuLocalGana = glUsuario! > gvUsuario!;
+        bool realVisGana = gvReal! > glReal!;
+        bool usuVisGana = gvUsuario! > glUsuario!;
+        bool realEmpate = glReal == gvReal;
+        bool usuEmpate = glUsuario == gvUsuario;
+
+        if ((realLocalGana && usuLocalGana) ||
+            (realVisGana && usuVisGana) ||
+            (realEmpate && usuEmpate)) {
+          colorFondoLocal = colorFondoVisitante = Colors.blue[50]!;
+          cartelAcierto = "¡+1 PT! Acierto Ganador";
+        } else {
+          colorFondoLocal = colorFondoVisitante = Colors.red[50]!;
+          cartelAcierto = "0 Pts. Incorrecto";
+        }
       }
     }
 
-    return Expanded(
-      child: GestureDetector(
-        onTap: active ? onTap : null,
-        child: Container(
-          padding: const EdgeInsets.symmetric(vertical: 10),
-          decoration: BoxDecoration(
-            color: colorFondo,
-            borderRadius: BorderRadius.circular(5),
-            border: Border.all(color: colorBorde),
-          ),
-          child: Row(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              if (icono != null) ...[
-                Icon(icono, color: Colors.white, size: 16), 
-                const SizedBox(width: 4)
-              ],
-              Text(
-                txt, 
-                style: TextStyle(
-                  fontWeight: FontWeight.bold, 
-                  color: colorTexto, 
-                  fontSize: 12
-                )
+    return Column(
+      children: [
+        Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Expanded(
+              flex: 3,
+              child: Text(
+                local,
+                textAlign: TextAlign.right,
+                style: const TextStyle(
+                  fontWeight: FontWeight.bold,
+                  fontSize: 13,
+                ),
               ),
-            ],
-          ),
+            ),
+            const SizedBox(width: 10),
+
+            SizedBox(
+              width: 45,
+              height: 45,
+              child: TextFormField(
+                readOnly: modoLectura,
+                initialValue: glUsuario?.toString() ?? '',
+                keyboardType: TextInputType.number,
+                textAlign: TextAlign.center,
+                style: const TextStyle(
+                  fontSize: 20,
+                  fontWeight: FontWeight.bold,
+                ),
+                decoration: InputDecoration(
+                  contentPadding: EdgeInsets.zero,
+                  filled: true,
+                  fillColor: modoLectura ? colorFondoLocal : Colors.grey[100],
+                  border: const OutlineInputBorder(),
+                ),
+                onChanged: (val) {
+                  int gl = int.tryParse(val) ?? 0;
+                  int gv = gvUsuario ?? 0;
+                  onGolesCambiados(gl, gv);
+                },
+              ),
+            ),
+
+            const Padding(
+              padding: EdgeInsets.symmetric(horizontal: 10),
+              child: Text(
+                "-",
+                style: TextStyle(
+                  fontWeight: FontWeight.bold,
+                  fontSize: 20,
+                  color: Colors.grey,
+                ),
+              ),
+            ),
+
+            SizedBox(
+              width: 45,
+              height: 45,
+              child: TextFormField(
+                readOnly: modoLectura,
+                initialValue: gvUsuario?.toString() ?? '',
+                keyboardType: TextInputType.number,
+                textAlign: TextAlign.center,
+                style: const TextStyle(
+                  fontSize: 20,
+                  fontWeight: FontWeight.bold,
+                ),
+                decoration: InputDecoration(
+                  contentPadding: EdgeInsets.zero,
+                  filled: true,
+                  fillColor: modoLectura
+                      ? colorFondoVisitante
+                      : Colors.grey[100],
+                  border: const OutlineInputBorder(),
+                ),
+                onChanged: (val) {
+                  int gv = int.tryParse(val) ?? 0;
+                  int gl = glUsuario ?? 0;
+                  onGolesCambiados(gl, gv);
+                },
+              ),
+            ),
+
+            const SizedBox(width: 10),
+            Expanded(
+              flex: 3,
+              child: Text(
+                visitante,
+                textAlign: TextAlign.left,
+                style: const TextStyle(
+                  fontWeight: FontWeight.bold,
+                  fontSize: 13,
+                ),
+              ),
+            ),
+          ],
         ),
-      ),
+
+        if (partidoFinalizado && modoLectura && cartelAcierto.isNotEmpty)
+          Padding(
+            padding: const EdgeInsets.only(top: 8),
+            child: Text(
+              cartelAcierto,
+              style: TextStyle(
+                color: cartelAcierto.contains('+3')
+                    ? Colors.green[700]
+                    : (cartelAcierto.contains('+1')
+                          ? Colors.blue[700]
+                          : Colors.red),
+                fontWeight: FontWeight.bold,
+                fontSize: 11,
+              ),
+            ),
+          )
+        else if (partidoFinalizado && modoLectura)
+          Padding(
+            padding: const EdgeInsets.only(top: 8),
+            child: Text(
+              "Resultado Real: $glReal - $gvReal",
+              style: const TextStyle(color: Colors.grey, fontSize: 11),
+            ),
+          ),
+      ],
     );
   }
 }

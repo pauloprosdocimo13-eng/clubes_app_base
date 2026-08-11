@@ -18,6 +18,9 @@ class PantallaDetalleNoticia extends StatelessWidget {
     final String bajada = noticia['bajada'] ?? '';
     final String cuerpo = noticia['cuerpo'] ?? '';
     final String imagenUrl = noticia['imagen_url'] ?? '';
+    
+    // Calculamos el 35% del alto de la pantalla para la imagen
+    final double altoImagen = MediaQuery.of(context).size.height * 0.35;
 
     return Scaffold(
       appBar: AppBar(
@@ -33,17 +36,21 @@ class PantallaDetalleNoticia extends StatelessWidget {
             if (imagenUrl.isNotEmpty)
               Hero(
                 tag: imagenUrl, // Animación bonita desde la lista
-                child: CachedNetworkImage(
-                  imageUrl: imagenUrl,
+                child: Container(
                   width: double.infinity,
-                  height: 250,
-                  fit: BoxFit.cover,
-                  placeholder: (context, url) => Container(
-                    height: 250,
-                    color: Colors.grey[200],
-                    child: const Center(child: CircularProgressIndicator()),
+                  color: Colors.black87, // Fondo oscuro estilo porta-retrato
+                  child: CachedNetworkImage(
+                    imageUrl: imagenUrl,
+                    width: double.infinity,
+                    height: altoImagen, // Altura adaptable según el celular
+                    fit: BoxFit.contain, // NO RECORTA LA IMAGEN
+                    placeholder: (context, url) => Container(
+                      height: altoImagen,
+                      color: Colors.grey[900],
+                      child: const Center(child: CircularProgressIndicator(color: Colors.white)),
+                    ),
+                    errorWidget: (context, url, error) => const SizedBox.shrink(),
                   ),
-                  errorWidget: (context, url, error) => const SizedBox.shrink(),
                 ),
               ),
 

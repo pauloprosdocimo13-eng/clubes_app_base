@@ -12,7 +12,6 @@ class PantallaAdminProde extends StatefulWidget {
 }
 
 class _PantallaAdminProdeState extends State<PantallaAdminProde> {
-  // --- Lógica para Crear Nueva Fecha ---
   void _crearNuevaFecha() {
     final _tituloController = TextEditingController();
     showDialog(
@@ -21,19 +20,28 @@ class _PantallaAdminProdeState extends State<PantallaAdminProde> {
         title: const Text("Nueva Fecha de Prode"),
         content: TextField(
           controller: _tituloController,
-          decoration: const InputDecoration(labelText: "Nombre (ej: Fecha 5 - vs Morón)"),
+          decoration: const InputDecoration(
+            labelText: "Nombre (ej: Fecha 5 - vs Morón)",
+          ),
         ),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(context), child: const Text("CANCELAR")),
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text("CANCELAR"),
+          ),
           ElevatedButton(
             onPressed: () async {
               if (_tituloController.text.isNotEmpty) {
-                await FirebaseFirestore.instance.collection('prode_fechas').add({
-                  'titulo': _tituloController.text,
-                  'creada_el': FieldValue.serverTimestamp(),
-                  'estado': 'ABIERTA', // ABIERTA, CERRADA, FINALIZADA
-                  'partidos': [], // Aquí irán los partidos
-                });
+                await FirebaseFirestore.instance.collection('prode_fechas').add(
+                  {
+                    'titulo': _tituloController.text,
+                    'creada_el': FieldValue.serverTimestamp(),
+                    'estado': 'ABIERTA',
+                    'bloqueado':
+                        false, // NUEVO: Inicialmente el prode arranca abierto
+                    'partidos': [],
+                  },
+                );
                 Navigator.pop(context);
               }
             },
@@ -44,7 +52,6 @@ class _PantallaAdminProdeState extends State<PantallaAdminProde> {
     );
   }
 
-  // --- Lógica para Borrar Fecha ---
   void _borrarFecha(String id) {
     showDialog(
       context: context,
@@ -52,11 +59,16 @@ class _PantallaAdminProdeState extends State<PantallaAdminProde> {
         title: const Text("¿Borrar Fecha?"),
         content: const Text("Se borrarán también los votos de la gente."),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(context), child: const Text("CANCELAR")),
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text("CANCELAR"),
+          ),
           TextButton(
             onPressed: () async {
-              await FirebaseFirestore.instance.collection('prode_fechas').doc(id).delete();
-              // Idealmente borraríamos la colección 'prode_votos' asociada también
+              await FirebaseFirestore.instance
+                  .collection('prode_fechas')
+                  .doc(id)
+                  .delete();
               Navigator.pop(context);
             },
             child: const Text("BORRAR", style: TextStyle(color: Colors.red)),
@@ -86,7 +98,8 @@ class _PantallaAdminProdeState extends State<PantallaAdminProde> {
             .orderBy('creada_el', descending: true)
             .snapshots(),
         builder: (context, snapshot) {
-          if (!snapshot.hasData) return const Center(child: CircularProgressIndicator());
+          if (!snapshot.hasData)
+            return const Center(child: CircularProgressIndicator());
 
           final docs = snapshot.data!.docs;
           if (docs.isEmpty) {
@@ -101,6 +114,7 @@ class _PantallaAdminProdeState extends State<PantallaAdminProde> {
               final id = docs[index].id;
               final String estado = data['estado'] ?? 'ABIERTA';
               final int cantPartidos = (data['partidos'] as List? ?? []).length;
+              final bool estaBloqueado = data['bloqueado'] ?? false; // NUEVO
 
               Color colorEstado = Colors.green;
               if (estado == 'CERRADA') colorEstado = Colors.orange;
@@ -110,7 +124,22 @@ class _PantallaAdminProdeState extends State<PantallaAdminProde> {
                 elevation: 3,
                 margin: const EdgeInsets.only(bottom: 15),
                 child: ListTile(
-                  title: Text(data['titulo'] ?? 'Sin Título', style: const TextStyle(fontWeight: FontWeight.bold)),
+                  title: Row(
+                    children: [
+                      Expanded(
+                        child: Text(
+                          data['titulo'] ?? 'Sin Título',
+                          style: const TextStyle(fontWeight: FontWeight.bold),
+                        ),
+                      ),
+                      if (estaBloqueado)
+                        const Icon(
+                          Icons.lock,
+                          color: Colors.red,
+                          size: 18,
+                        ), // CANDADITO SI ESTÁ CERRADO
+                    ],
+                  ),
                   subtitle: Text("$cantPartidos partidos cargados"),
                   leading: CircleAvatar(
                     backgroundColor: colorEstado,
@@ -120,21 +149,37 @@ class _PantallaAdminProdeState extends State<PantallaAdminProde> {
                     mainAxisSize: MainAxisSize.min,
                     children: [
                       Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                        decoration: BoxDecoration(
-                            color: colorEstado.withOpacity(0.1),
-                            borderRadius: BorderRadius.circular(5)
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 8,
+                          vertical: 4,
                         ),
-                        child: Text(estado, style: TextStyle(color: colorEstado, fontWeight: FontWeight.bold, fontSize: 10)),
+                        decoration: BoxDecoration(
+                          color: colorEstado.withOpacity(0.1),
+                          borderRadius: BorderRadius.circular(5),
+                        ),
+                        child: Text(
+                          estado,
+                          style: TextStyle(
+                            color: colorEstado,
+                            fontWeight: FontWeight.bold,
+                            fontSize: 10,
+                          ),
+                        ),
                       ),
                       const SizedBox(width: 10),
                       IconButton(
                         icon: const Icon(Icons.edit, color: Colors.blue),
                         onPressed: () {
-                          // AQUÍ NAVEGAREMOS A LA EDICIÓN DE LA FECHA (Paso siguiente)
-                          Navigator.push(context, MaterialPageRoute(builder: (context) =>
-                              PantallaAdminDetalleFecha(config: widget.config, fechaId: id, titulo: data['titulo'])
-                          ));
+                          Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              builder: (context) => PantallaAdminDetalleFecha(
+                                config: widget.config,
+                                fechaId: id,
+                                titulo: data['titulo'],
+                              ),
+                            ),
+                          );
                         },
                       ),
                       IconButton(

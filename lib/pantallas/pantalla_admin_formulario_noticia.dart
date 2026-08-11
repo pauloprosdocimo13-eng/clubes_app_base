@@ -25,14 +25,16 @@ class _PantallaAdminFormularioNoticiaState extends State<PantallaAdminFormulario
   final TextEditingController _bajadaController = TextEditingController();
   final TextEditingController _imagenController = TextEditingController();
 
-  // Opción para ocultar una noticia sin borrarla (Borrador)
   bool _visible = true;
+  bool _enviarPush = true; // NUEVO: Control de notificaciones
 
   @override
   void initState() {
     super.initState();
     if (widget.noticiaId != null) {
       _cargarDatos();
+      // Si estamos editando, apagamos el push por defecto para no spamear por un error de tipeo
+      _enviarPush = false; 
     }
   }
 
@@ -47,6 +49,8 @@ class _PantallaAdminFormularioNoticiaState extends State<PantallaAdminFormulario
         _imagenController.text = data['imagen_url'] ?? '';
         setState(() {
           _visible = data['visible'] ?? true;
+          // Si el documento viejo tenía la variable, la leemos, sino falso.
+          _enviarPush = data['enviar_push'] ?? false; 
         });
       }
     } catch (e) {
@@ -62,19 +66,20 @@ class _PantallaAdminFormularioNoticiaState extends State<PantallaAdminFormulario
 
     final datos = {
       'titulo': _tituloController.text.trim(),
-      'bajada': _bajadaController.text.trim(), // Texto principal
+      'bajada': _bajadaController.text.trim(), 
       'imagen_url': _imagenController.text.trim(),
       'visible': _visible,
-      // Al editar, actualizamos la fecha para que suba?
-      // Mejor dejemos la fecha original si es edición, o actualicémosla si quieres que vuelva arriba.
-      // Por ahora, actualizamos siempre para "revivir" noticias viejas.
+      'enviar_push': _enviarPush, // NUEVO: Le pasamos la orden al servidor
+      'topic_destino': 'general', // NUEVO: Enrutamiento para tu index.js
       'fecha': FieldValue.serverTimestamp(),
     };
 
     try {
       if (widget.noticiaId == null) {
+        // Al usar .add(), disparamos el evento onDocumentCreated en tu servidor
         await FirebaseFirestore.instance.collection('noticias').add(datos);
       } else {
+        // Al usar .update(), solo actualizamos datos silenciosamente
         await FirebaseFirestore.instance.collection('noticias').doc(widget.noticiaId).update(datos);
       }
       if (mounted) Navigator.pop(context);
@@ -115,7 +120,6 @@ class _PantallaAdminFormularioNoticiaState extends State<PantallaAdminFormulario
             ),
             const SizedBox(height: 15),
 
-            // IMAGEN URL
             // WIDGET DE IMAGEN
             InputImagen(
               urlInicial: _imagenController.text,
@@ -142,15 +146,44 @@ class _PantallaAdminFormularioNoticiaState extends State<PantallaAdminFormulario
               ),
               validator: (v) => v!.isEmpty ? "Escribe algo..." : null,
             ),
-            const SizedBox(height: 10),
+            const SizedBox(height: 15),
 
-            // SWITCH VISIBLE
-            SwitchListTile(
-              title: const Text("Publicada"),
-              subtitle: Text(_visible ? "Visible en la app" : "Oculta (Borrador)"),
-              value: _visible,
-              activeColor: Colors.green,
-              onChanged: (v) => setState(() => _visible = v),
+            // --- PANELES DE CONTROL ---
+            Container(
+              decoration: BoxDecoration(
+                border: Border.all(color: Colors.grey[300]!),
+                borderRadius: BorderRadius.circular(10),
+              ),
+              child: Column(
+                children: [
+                  // SWITCH VISIBLE
+                  SwitchListTile(
+                    title: const Text("Publicada", style: TextStyle(fontWeight: FontWeight.bold)),
+                    subtitle: Text(_visible ? "Visible en la app" : "Oculta (Borrador)"),
+                    value: _visible,
+                    activeColor: Colors.green,
+                    onChanged: (v) => setState(() => _visible = v),
+                  ),
+                  const Divider(height: 1),
+                  
+                  // SWITCH NOTIFICACIÓN PUSH
+                  SwitchListTile(
+                    title: const Text("Alerta a Socios", style: TextStyle(fontWeight: FontWeight.bold)),
+                    subtitle: Text(
+                      _enviarPush 
+                        ? "Hará sonar el celular de todos los socios" 
+                        : "Se guardará silenciosamente",
+                      style: TextStyle(color: _enviarPush ? Colors.blue[700] : Colors.grey),
+                    ),
+                    value: _enviarPush,
+                    activeColor: Colors.blue,
+                    // Si están editando y quieren enviar push igual, el servidor no lo va a agarrar 
+                    // a menos que cambies el backend, pero dejamos la opción por si el día de mañana
+                    // actualizás el backend a onDocumentWritten.
+                    onChanged: (v) => setState(() => _enviarPush = v),
+                  ),
+                ],
+              ),
             ),
 
             const SizedBox(height: 30),
@@ -162,7 +195,7 @@ class _PantallaAdminFormularioNoticiaState extends State<PantallaAdminFormulario
               ),
               onPressed: _guardarNoticia,
               icon: const Icon(Icons.publish),
-              label: const Text("PUBLICAR NOTICIA"),
+              label: const Text("GUARDAR NOTICIA", style: TextStyle(fontWeight: FontWeight.bold, letterSpacing: 1.2)),
             ),
           ],
         ),

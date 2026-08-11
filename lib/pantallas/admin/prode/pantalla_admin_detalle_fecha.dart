@@ -15,7 +15,8 @@ class PantallaAdminDetalleFecha extends StatefulWidget {
   });
 
   @override
-  State<PantallaAdminDetalleFecha> createState() => _PantallaAdminDetalleFechaState();
+  State<PantallaAdminDetalleFecha> createState() =>
+      _PantallaAdminDetalleFechaState();
 }
 
 class _PantallaAdminDetalleFechaState extends State<PantallaAdminDetalleFecha> {
@@ -23,111 +24,397 @@ class _PantallaAdminDetalleFechaState extends State<PantallaAdminDetalleFecha> {
   final _rivalController = TextEditingController();
   bool _calculando = false;
 
-  // --- 1. IMPORTADOR (Versión Simple y Robusta) ---
-  void _mostrarImportador() {
-    showModalBottomSheet(
+  Future<void> _toggleBloqueo(bool estadoActual) async {
+    await FirebaseFirestore.instance
+        .collection('prode_fechas')
+        .doc(widget.fechaId)
+        .update({'bloqueado': !estadoActual});
+
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            !estadoActual
+                ? "🔒 Prode CERRADO. Nadie puede votar."
+                : "🔓 Prode ABIERTO al público.",
+          ),
+          backgroundColor: !estadoActual ? Colors.red : Colors.green,
+        ),
+      );
+    }
+  }
+
+  Future<void> _mostrarGeneradorAutomatico() async {
+    showDialog(
       context: context,
-      isScrollControlled: true,
-      builder: (context) {
-        return Container(
-          height: MediaQuery.of(context).size.height * 0.8,
-          padding: const EdgeInsets.all(20),
-          child: Column(
-            children: [
-              const Text("Importar desde Fixture", style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
-              const Divider(),
-              Expanded(
-                child: StreamBuilder<QuerySnapshot>(
-                  // TRUCO: Quitamos filtros complejos para asegurar que aparezcan
-                  stream: FirebaseFirestore.instance.collection('partidos').limit(20).snapshots(),
-                  builder: (context, snapshot) {
-                    if (!snapshot.hasData) return const Center(child: CircularProgressIndicator());
-                    if (snapshot.data!.docs.isEmpty) return const Center(child: Text("No se encontraron partidos en la base de datos."));
+      barrierDismissible: false,
+      builder: (ctx) => const Center(child: CircularProgressIndicator()),
+    );
 
-                    return ListView.builder(
-                      itemCount: snapshot.data!.docs.length,
-                      itemBuilder: (context, index) {
-                        final doc = snapshot.data!.docs[index];
-                        final data = doc.data() as Map<String, dynamic>;
-                        final rival = data['rival'] ?? '??';
-                        final fecha = data['fecha'] ?? '';
-                        final resultados = data['resultados'] as List? ?? [];
+    try {
+      DocumentSnapshot configDoc = await FirebaseFirestore.instance
+          .collection('configuracion')
+          .doc('general')
+          .get();
 
-                        return ListTile(
-                          title: Text("Vs $rival ($fecha)"),
-                          subtitle: Text("${resultados.length} categorías"),
-                          trailing: ElevatedButton(
-                            child: const Text("IMPORTAR"),
-                            onPressed: () => _importarPartido(doc.id, rival, resultados),
-                          ),
-                        );
-                      },
-                    );
-                  },
-                ),
-              ),
-            ],
+      Navigator.pop(context);
+
+      List menuDeportes = [];
+      if (configDoc.exists) {
+        var data = configDoc.data() as Map<String, dynamic>;
+        menuDeportes = data['menu_deportes'] ?? [];
+      }
+
+      if (menuDeportes.isEmpty) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text("No se encontraron categorías en la base de datos."),
           ),
         );
-      },
+        return;
+      }
+
+      String disciplinaSeleccionada = menuDeportes.first['titulo'] ?? '';
+      List categoriasDeDisciplina = menuDeportes.first['categorias'] ?? [];
+      String rivalGenerador = "";
+      bool somosLocales = true;
+
+      showDialog(
+        context: context,
+        builder: (ctxDialog) {
+          // CAMBIO: Renombramos para evitar el error
+          return StatefulBuilder(
+            builder: (ctxStateful, setStateDialog) {
+              // CAMBIO: Renombramos para evitar el error
+              return AlertDialog(
+                title: const Text(
+                  "Generar Tira de Partidos",
+                  style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                ),
+                content: SingleChildScrollView(
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      const Text(
+                        "1. Seleccioná la Disciplina:",
+                        style: TextStyle(
+                          fontWeight: FontWeight.bold,
+                          fontSize: 12,
+                        ),
+                      ),
+                      DropdownButton<String>(
+                        isExpanded: true,
+                        value: disciplinaSeleccionada,
+                        items: menuDeportes.map((dep) {
+                          return DropdownMenuItem<String>(
+                            value: dep['titulo'],
+                            child: Text(dep['titulo'] ?? 'Desconocido'),
+                          );
+                        }).toList(),
+                        onChanged: (val) {
+                          setStateDialog(() {
+                            disciplinaSeleccionada = val!;
+                            var depElegido = menuDeportes.firstWhere(
+                              (d) => d['titulo'] == val,
+                            );
+                            categoriasDeDisciplina =
+                                depElegido['categorias'] ?? [];
+                          });
+                        },
+                      ),
+                      const SizedBox(height: 15),
+                      const Text(
+                        "2. Escribí el Rival:",
+                        style: TextStyle(
+                          fontWeight: FontWeight.bold,
+                          fontSize: 12,
+                        ),
+                      ),
+                      TextField(
+                        decoration: const InputDecoration(
+                          hintText: "Ej: Club Morón",
+                          isDense: true,
+                        ),
+                        onChanged: (val) => rivalGenerador = val,
+                      ),
+                      const SizedBox(height: 15),
+                      const Text(
+                        "3. ¿Dónde se juega?:",
+                        style: TextStyle(
+                          fontWeight: FontWeight.bold,
+                          fontSize: 12,
+                        ),
+                      ),
+                      Row(
+                        children: [
+                          Expanded(
+                            child: RadioListTile<bool>(
+                              title: const Text(
+                                "Local",
+                                style: TextStyle(fontSize: 12),
+                              ),
+                              value: true,
+                              groupValue: somosLocales,
+                              onChanged: (val) =>
+                                  setStateDialog(() => somosLocales = val!),
+                              contentPadding: EdgeInsets.zero,
+                            ),
+                          ),
+                          Expanded(
+                            child: RadioListTile<bool>(
+                              title: const Text(
+                                "Visitante",
+                                style: TextStyle(fontSize: 12),
+                              ),
+                              value: false,
+                              groupValue: somosLocales,
+                              onChanged: (val) =>
+                                  setStateDialog(() => somosLocales = val!),
+                              contentPadding: EdgeInsets.zero,
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 10),
+                      Container(
+                        padding: const EdgeInsets.all(8),
+                        color: Colors.blue[50],
+                        child: Text(
+                          "Se generarán ${categoriasDeDisciplina.length} partidos automáticamente.",
+                          style: TextStyle(
+                            fontSize: 11,
+                            color: Colors.blue[800],
+                          ),
+                          textAlign: TextAlign.center,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                actions: [
+                  TextButton(
+                    onPressed: () => Navigator.pop(ctxStateful),
+                    child: const Text("CANCELAR"),
+                  ),
+                  ElevatedButton(
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: widget.config.colorPrimario,
+                      foregroundColor: Colors.white,
+                    ),
+                    onPressed: () async {
+                      if (rivalGenerador.isEmpty) return;
+                      Navigator.pop(ctxStateful); // Cerramos el popup
+
+                      List<Map<String, dynamic>> nuevos = [];
+                      int idCounter = DateTime.now().millisecondsSinceEpoch;
+
+                      for (var cat in categoriasDeDisciplina) {
+                        nuevos.add({
+                          'id': "${idCounter++}",
+                          'categoria': "$disciplinaSeleccionada - $cat",
+                          'local': somosLocales
+                              ? widget.config.nombreApp
+                              : rivalGenerador,
+                          'visitante': somosLocales
+                              ? rivalGenerador
+                              : widget.config.nombreApp,
+                          'goles_local_real': null,
+                          'goles_visitante_real': null,
+                        });
+                      }
+
+                      await FirebaseFirestore.instance
+                          .collection('prode_fechas')
+                          .doc(widget.fechaId)
+                          .update({'partidos': FieldValue.arrayUnion(nuevos)});
+
+                      if (mounted) {
+                        // ACA ESTABA EL ERROR: Usamos el context global de la pantalla
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(
+                            content: Text(
+                              "Tira de partidos generada con éxito.",
+                            ),
+                            backgroundColor: Colors.green,
+                          ),
+                        );
+                      }
+                    },
+                    child: const Text("GENERAR"),
+                  ),
+                ],
+              );
+            },
+          );
+        },
+      );
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text("Error: $e")));
+      }
+    }
+  }
+
+  Future<void> _mostrarDialogoGoles(Map<String, dynamic> partido) async {
+    final glCtrl = TextEditingController(
+      text: partido['goles_local_real']?.toString() ?? '',
+    );
+    final gvCtrl = TextEditingController(
+      text: partido['goles_visitante_real']?.toString() ?? '',
+    );
+
+    String nombreLocal = partido['local'] ?? 'Local';
+    String nombreVisitante = partido['visitante'] ?? 'Visitante';
+
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text("Resultado Oficial", textAlign: TextAlign.center),
+        content: Row(
+          mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+          children: [
+            Expanded(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(
+                    nombreLocal,
+                    textAlign: TextAlign.center,
+                    style: const TextStyle(
+                      fontWeight: FontWeight.bold,
+                      fontSize: 12,
+                    ),
+                    maxLines: 2,
+                  ),
+                  const SizedBox(height: 10),
+                  TextField(
+                    controller: glCtrl,
+                    keyboardType: TextInputType.number,
+                    textAlign: TextAlign.center,
+                    style: const TextStyle(
+                      fontSize: 24,
+                      fontWeight: FontWeight.bold,
+                    ),
+                    decoration: const InputDecoration(
+                      border: OutlineInputBorder(),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const Padding(
+              padding: EdgeInsets.symmetric(horizontal: 10),
+              child: Text(
+                "-",
+                style: TextStyle(fontSize: 30, fontWeight: FontWeight.bold),
+              ),
+            ),
+            Expanded(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(
+                    nombreVisitante,
+                    textAlign: TextAlign.center,
+                    style: const TextStyle(
+                      fontWeight: FontWeight.bold,
+                      fontSize: 12,
+                    ),
+                    maxLines: 2,
+                  ),
+                  const SizedBox(height: 10),
+                  TextField(
+                    controller: gvCtrl,
+                    keyboardType: TextInputType.number,
+                    textAlign: TextAlign.center,
+                    style: const TextStyle(
+                      fontSize: 24,
+                      fontWeight: FontWeight.bold,
+                    ),
+                    decoration: const InputDecoration(
+                      border: OutlineInputBorder(),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () async {
+              Navigator.pop(ctx);
+              await _actualizarPartido(partido, null, null);
+            },
+            child: const Text("RESETEAR", style: TextStyle(color: Colors.red)),
+          ),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Colors.green,
+              foregroundColor: Colors.white,
+            ),
+            onPressed: () async {
+              if (glCtrl.text.isEmpty || gvCtrl.text.isEmpty) return;
+              Navigator.pop(ctx);
+              await _actualizarPartido(
+                partido,
+                int.parse(glCtrl.text),
+                int.parse(gvCtrl.text),
+              );
+            },
+            child: const Text("GUARDAR GOLES"),
+          ),
+        ],
+      ),
     );
   }
 
-  Future<void> _importarPartido(String realId, String rival, List cats) async {
-    Navigator.pop(context);
-    List<Map<String, dynamic>> nuevos = [];
-    int idCounter = DateTime.now().millisecondsSinceEpoch;
+  Future<void> _actualizarPartido(
+    Map<String, dynamic> partidoViejo,
+    int? gl,
+    int? gv,
+  ) async {
+    await FirebaseFirestore.instance
+        .collection('prode_fechas')
+        .doc(widget.fechaId)
+        .update({
+          'partidos': FieldValue.arrayRemove([partidoViejo]),
+        });
 
-    for (var c in cats) {
-      nuevos.add({
-        'id': "${idCounter++}",
-        'categoria': c['categoria'] ?? 'Gral',
-        'local': widget.config.nombreApp,
-        'visitante': rival,
-        'partido_real_id': realId,
-        'resultado_real': null, // Inicialmente nadie ganó
-      });
-    }
+    Map<String, dynamic> partidoModificado = Map.from(partidoViejo);
+    partidoModificado['goles_local_real'] = gl;
+    partidoModificado['goles_visitante_real'] = gv;
+    partidoModificado.remove('resultado_real');
 
-    await FirebaseFirestore.instance.collection('prode_fechas').doc(widget.fechaId).update({
-      'partidos': FieldValue.arrayUnion(nuevos)
-    });
+    await FirebaseFirestore.instance
+        .collection('prode_fechas')
+        .doc(widget.fechaId)
+        .update({
+          'partidos': FieldValue.arrayUnion([partidoModificado]),
+        });
   }
 
-  // --- 2. DEFINIR RESULTADO MANUALMENTE ---
-  Future<void> _setearResultado(Map<String, dynamic> partido, String? resultado) async {
-    // 1. Borramos el partido viejo
-    await FirebaseFirestore.instance.collection('prode_fechas').doc(widget.fechaId).update({
-      'partidos': FieldValue.arrayRemove([partido])
-    });
-
-    // 2. Modificamos el resultado (L, E, V, o null)
-    Map<String, dynamic> partidoModificado = Map.from(partido);
-    partidoModificado['resultado_real'] = resultado;
-
-    // 3. Lo subimos de nuevo
-    await FirebaseFirestore.instance.collection('prode_fechas').doc(widget.fechaId).update({
-      'partidos': FieldValue.arrayUnion([partidoModificado])
-    });
-  }
-
-  // --- 3. CALCULAR PUNTOS DE TODOS LOS USUARIOS ---
   Future<void> _calcularPuntosMasivos() async {
     setState(() => _calculando = true);
-    
-    // A. Obtenemos la fecha con los resultados cargados
-    DocumentSnapshot fechaDoc = await FirebaseFirestore.instance.collection('prode_fechas').doc(widget.fechaId).get();
+
+    DocumentSnapshot fechaDoc = await FirebaseFirestore.instance
+        .collection('prode_fechas')
+        .doc(widget.fechaId)
+        .get();
     List partidos = fechaDoc['partidos'] ?? [];
 
-    // Creamos un mapa rápido de resultados: { 'id_partido': 'L' }
-    Map<String, String> resultadosOficiales = {};
+    Map<String, Map<String, int>> resultadosOficiales = {};
     for (var p in partidos) {
-      if (p['resultado_real'] != null) {
-        resultadosOficiales[p['id']] = p['resultado_real'];
+      if (p['goles_local_real'] != null && p['goles_visitante_real'] != null) {
+        resultadosOficiales[p['id']] = {
+          'gl': p['goles_local_real'],
+          'gv': p['goles_visitante_real'],
+        };
       }
     }
 
-    // B. Buscamos todos los votos de esta fecha
     QuerySnapshot votosSnapshot = await FirebaseFirestore.instance
         .collection('prode_votos')
         .where('fecha_id', isEqualTo: widget.fechaId)
@@ -135,31 +422,55 @@ class _PantallaAdminDetalleFechaState extends State<PantallaAdminDetalleFecha> {
 
     WriteBatch batch = FirebaseFirestore.instance.batch();
 
-    // C. Corregimos examen por examen
     for (var doc in votosSnapshot.docs) {
       Map<String, dynamic> data = doc.data() as Map<String, dynamic>;
       Map<String, dynamic> predicciones = data['predicciones'] ?? {};
-      int puntos = 0;
+      int puntosTotalesUsuario = 0;
 
       predicciones.forEach((partidoId, votoUsuario) {
-        // Si el usuario acertó el resultado oficial, suma punto
-        if (resultadosOficiales.containsKey(partidoId) && resultadosOficiales[partidoId] == votoUsuario) {
-          puntos++;
+        if (resultadosOficiales.containsKey(partidoId)) {
+          int glReal = resultadosOficiales[partidoId]!['gl']!;
+          int gvReal = resultadosOficiales[partidoId]!['gv']!;
+
+          if (votoUsuario != null && votoUsuario is Map) {
+            int glUsu = votoUsuario['gl'] ?? 0;
+            int gvUsu = votoUsuario['gv'] ?? 0;
+
+            if (glReal == glUsu && gvReal == gvUsu) {
+              puntosTotalesUsuario += 3; // EXACTO
+            } else {
+              bool realGanaL = glReal > gvReal;
+              bool realGanaV = gvReal > glReal;
+              bool realEmpate = glReal == gvReal;
+
+              bool usuGanaL = glUsu > gvUsu;
+              bool usuGanaV = gvUsu > glUsu;
+              bool usuEmpate = glUsu == gvUsu;
+
+              if ((realGanaL && usuGanaL) ||
+                  (realGanaV && usuGanaV) ||
+                  (realEmpate && usuEmpate)) {
+                puntosTotalesUsuario += 1; // ACIERTO TENDENCIA
+              }
+            }
+          }
         }
       });
 
-      // Agregamos la actualización al lote
-      batch.update(doc.reference, {'puntos': puntos});
+      batch.update(doc.reference, {'puntos': puntosTotalesUsuario});
     }
 
-    // D. Aplicamos cambios
     await batch.commit();
 
     setState(() => _calculando = false);
-    ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("¡Puntos calculados exitosamente!")));
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(
+        content: Text("¡Puntos calculados exitosamente!"),
+        backgroundColor: Colors.green,
+      ),
+    );
   }
 
-  // UI para cargar manual (Mantenemos la que tenías)
   Future<void> _agregarManual() async {
     if (_catController.text.isEmpty || _rivalController.text.isEmpty) return;
     final nuevo = {
@@ -167,12 +478,27 @@ class _PantallaAdminDetalleFechaState extends State<PantallaAdminDetalleFecha> {
       'categoria': _catController.text,
       'local': widget.config.nombreApp,
       'visitante': _rivalController.text,
-      'resultado_real': null,
+      'goles_local_real': null,
+      'goles_visitante_real': null,
     };
-    await FirebaseFirestore.instance.collection('prode_fechas').doc(widget.fechaId).update({
-      'partidos': FieldValue.arrayUnion([nuevo])
-    });
+    await FirebaseFirestore.instance
+        .collection('prode_fechas')
+        .doc(widget.fechaId)
+        .update({
+          'partidos': FieldValue.arrayUnion([nuevo]),
+        });
     Navigator.pop(context);
+  }
+
+  Future<void> _borrarPartidoIndividual(
+    Map<String, dynamic> partidoViejo,
+  ) async {
+    await FirebaseFirestore.instance
+        .collection('prode_fechas')
+        .doc(widget.fechaId)
+        .update({
+          'partidos': FieldValue.arrayRemove([partidoViejo]),
+        });
   }
 
   @override
@@ -183,50 +509,151 @@ class _PantallaAdminDetalleFechaState extends State<PantallaAdminDetalleFecha> {
         backgroundColor: widget.config.colorPrimario,
         foregroundColor: Colors.white,
         actions: [
-          IconButton(icon: const Icon(Icons.cloud_download), onPressed: _mostrarImportador),
+          IconButton(
+            icon: const Icon(Icons.auto_fix_high),
+            tooltip: "Generador Automático",
+            onPressed: _mostrarGeneradorAutomatico,
+          ),
         ],
       ),
       body: StreamBuilder<DocumentSnapshot>(
-        stream: FirebaseFirestore.instance.collection('prode_fechas').doc(widget.fechaId).snapshots(),
+        stream: FirebaseFirestore.instance
+            .collection('prode_fechas')
+            .doc(widget.fechaId)
+            .snapshots(),
         builder: (context, snapshot) {
-          if (!snapshot.hasData) return const Center(child: CircularProgressIndicator());
+          if (!snapshot.hasData) {
+            return const Center(child: CircularProgressIndicator());
+          }
+
           final data = snapshot.data!.data() as Map<String, dynamic>;
           List partidos = List.from(data['partidos'] ?? []);
-          
-          // Ordenamos por categoría para que sea prolijo
           partidos.sort((a, b) => a['categoria'].compareTo(b['categoria']));
+
+          bool estaBloqueado = data['bloqueado'] ?? false;
 
           return Column(
             children: [
-               Container(
-                 padding: const EdgeInsets.all(10),
-                 color: Colors.amber[100],
-                 child: const Text("⚠️ Toca el icono de silbato para definir quién ganó y luego presiona 'Calcular Puntos'.", textAlign: TextAlign.center, style: TextStyle(fontSize: 12)),
-               ),
+              Container(
+                color: estaBloqueado ? Colors.red[50] : Colors.green[50],
+                child: SwitchListTile(
+                  title: Text(
+                    estaBloqueado
+                        ? "PRODE CERRADO (Nadie vota)"
+                        : "PRODE ABIERTO (Gente votando)",
+                    style: TextStyle(
+                      fontWeight: FontWeight.bold,
+                      color: estaBloqueado
+                          ? Colors.red[800]
+                          : Colors.green[800],
+                    ),
+                  ),
+                  subtitle: Text(
+                    estaBloqueado
+                        ? "Bloqueaste la carga de resultados"
+                        : "Los hinchas pueden jugar",
+                  ),
+                  value: estaBloqueado,
+                  activeColor: Colors.red,
+                  inactiveThumbColor: Colors.green,
+                  inactiveTrackColor: Colors.green[200],
+                  onChanged: (val) => _toggleBloqueo(estaBloqueado),
+                ),
+              ),
+
+              Container(
+                padding: const EdgeInsets.all(10),
+                color: Colors.amber[100],
+                width: double.infinity,
+                child: const Text(
+                  "Toca los ⚽ para cargar los Goles Reales de cada partido. Luego, 'Calcular Puntos'.",
+                  textAlign: TextAlign.center,
+                  style: TextStyle(fontSize: 12),
+                ),
+              ),
               Expanded(
                 child: ListView.builder(
+                  padding: const EdgeInsets.only(
+                    bottom: 130,
+                  ), // <--- ESTE ES EL ESPACIO INVISIBLE SALVAVIDAS
                   itemCount: partidos.length,
                   itemBuilder: (context, index) {
                     final p = partidos[index];
-                    String? res = p['resultado_real']; // L, E, V, o null
+                    String nombreLocal = p['local'] ?? 'Local';
+                    String nombreVisitante = p['visitante'] ?? 'Visitante';
+
+                    int? gl = p['goles_local_real'];
+                    int? gv = p['goles_visitante_real'];
+                    bool jugado = (gl != null && gv != null);
 
                     return Card(
+                      margin: const EdgeInsets.symmetric(
+                        horizontal: 10,
+                        vertical: 5,
+                      ),
                       child: ListTile(
-                        leading: _IconoResultado(resultado: res),
-                        title: Text("${p['categoria']}: ${p['local']} vs ${p['visitante']}"),
-                        subtitle: Text(
-                            res == null ? "Esperando resultado..." : "Ganador: ${res == 'L' ? 'Local' : res == 'E' ? 'Empate' : 'Visitante'}",
-                            style: TextStyle(color: res == null ? Colors.grey : Colors.green[800], fontWeight: FontWeight.bold)
+                        leading: IconButton(
+                          icon: Icon(Icons.delete, color: Colors.red[300]),
+                          onPressed: () => _borrarPartidoIndividual(p),
                         ),
-                        trailing: PopupMenuButton<String>(
-                          icon: const Icon(Icons.sports, color: Colors.blue),
-                          onSelected: (valor) => _setearResultado(p, valor),
-                          itemBuilder: (context) => [
-                            const PopupMenuItem(value: "L", child: Text("Gana LOCAL")),
-                            const PopupMenuItem(value: "E", child: Text("EMPATE")),
-                            const PopupMenuItem(value: "V", child: Text("Gana VISITANTE")),
-                            const PopupMenuItem(value: null, child: Text("Resetear (Sin jugar)")),
+                        title: Text(
+                          "${p['categoria']}",
+                          style: const TextStyle(
+                            fontSize: 12,
+                            color: Colors.grey,
+                          ),
+                        ),
+                        subtitle: Row(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            Expanded(
+                              child: Text(
+                                nombreLocal,
+                                textAlign: TextAlign.right,
+                                style: const TextStyle(
+                                  fontWeight: FontWeight.bold,
+                                ),
+                              ),
+                            ),
+                            Container(
+                              margin: const EdgeInsets.symmetric(
+                                horizontal: 10,
+                              ),
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 12,
+                                vertical: 4,
+                              ),
+                              decoration: BoxDecoration(
+                                color: jugado
+                                    ? Colors.green[800]
+                                    : Colors.grey[300],
+                                borderRadius: BorderRadius.circular(5),
+                              ),
+                              child: Text(
+                                jugado ? "$gl - $gv" : "vs",
+                                style: TextStyle(
+                                  color: jugado ? Colors.white : Colors.black,
+                                  fontWeight: FontWeight.bold,
+                                ),
+                              ),
+                            ),
+                            Expanded(
+                              child: Text(
+                                nombreVisitante,
+                                textAlign: TextAlign.left,
+                                style: const TextStyle(
+                                  fontWeight: FontWeight.bold,
+                                ),
+                              ),
+                            ),
                           ],
+                        ),
+                        trailing: IconButton(
+                          icon: const Icon(
+                            Icons.sports_soccer,
+                            color: Colors.blue,
+                          ),
+                          onPressed: () => _mostrarDialogoGoles(p),
                         ),
                       ),
                     );
@@ -237,7 +664,6 @@ class _PantallaAdminDetalleFechaState extends State<PantallaAdminDetalleFecha> {
           );
         },
       ),
-      // BOTÓN PRINCIPAL: CALCULAR PUNTOS
       floatingActionButton: Column(
         mainAxisAlignment: MainAxisAlignment.end,
         children: [
@@ -246,14 +672,28 @@ class _PantallaAdminDetalleFechaState extends State<PantallaAdminDetalleFecha> {
             onPressed: () => showDialog(
               context: context,
               builder: (c) => AlertDialog(
-                content: Column(mainAxisSize: MainAxisSize.min, children: [
-                  TextField(controller: _catController, decoration: const InputDecoration(labelText: "Categoría")),
-                  TextField(controller: _rivalController, decoration: const InputDecoration(labelText: "Rival")),
-                ]),
-                actions: [ElevatedButton(onPressed: _agregarManual, child: const Text("Agregar"))],
-              )
+                content: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    TextField(
+                      controller: _catController,
+                      decoration: const InputDecoration(labelText: "Categoría"),
+                    ),
+                    TextField(
+                      controller: _rivalController,
+                      decoration: const InputDecoration(labelText: "Rival"),
+                    ),
+                  ],
+                ),
+                actions: [
+                  ElevatedButton(
+                    onPressed: _agregarManual,
+                    child: const Text("Agregar Manual"),
+                  ),
+                ],
+              ),
             ),
-            label: const Text("Manual"),
+            label: const Text("1 Manual"),
             icon: const Icon(Icons.add),
             backgroundColor: Colors.grey,
           ),
@@ -261,26 +701,14 @@ class _PantallaAdminDetalleFechaState extends State<PantallaAdminDetalleFecha> {
           FloatingActionButton.extended(
             heroTag: "calcular",
             onPressed: _calculando ? null : _calcularPuntosMasivos,
-            label: _calculando ? const Text("Calculando...") : const Text("CALCULAR PUNTOS"),
+            label: _calculando
+                ? const Text("Calculando...")
+                : const Text("CALCULAR PUNTOS"),
             icon: const Icon(Icons.calculate),
             backgroundColor: Colors.green,
           ),
         ],
       ),
     );
-  }
-}
-
-// Iconito visual para el estado del partido
-class _IconoResultado extends StatelessWidget {
-  final String? resultado;
-  const _IconoResultado({required this.resultado});
-
-  @override
-  Widget build(BuildContext context) {
-    if (resultado == 'L') return const CircleAvatar(backgroundColor: Colors.blue, child: Text("L", style: TextStyle(color: Colors.white)));
-    if (resultado == 'E') return const CircleAvatar(backgroundColor: Colors.grey, child: Text("E", style: TextStyle(color: Colors.white)));
-    if (resultado == 'V') return const CircleAvatar(backgroundColor: Colors.red, child: Text("V", style: TextStyle(color: Colors.white)));
-    return const CircleAvatar(backgroundColor: Colors.transparent, child: Icon(Icons.access_time, color: Colors.grey));
   }
 }

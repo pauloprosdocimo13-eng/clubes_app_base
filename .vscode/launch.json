@@ -2,16 +2,37 @@
     "version": "0.2.0",
     "configurations": [
         {
-            "name": "Club Genérico",
+            "name": "Unificado (dart-define)",
             "request": "launch",
             "type": "dart",
-            "program": "lib/main_generico.dart"
+            "program": "lib/main.dart",
+            "args": [
+                "--dart-define=FLAVOR=guemes"
+            ]
         },
         {
-            "name": "Club Güemes",
+            "name": "La Loma",
+            "request": "launch",
+            "type": "dart",
+            "program": "lib/main_laloma.dart"
+        },
+        {
+            "name": "Fátima",
+            "request": "launch",
+            "type": "dart",
+            "program": "lib/main_fatima.dart"
+        },
+        {
+            "name": "Güemes",
             "request": "launch",
             "type": "dart",
             "program": "lib/main_guemes.dart"
+        },
+        {
+            "name": "Genérico",
+            "request": "launch",
+            "type": "dart",
+            "program": "lib/main_generico.dart"
         }
     ]
 }

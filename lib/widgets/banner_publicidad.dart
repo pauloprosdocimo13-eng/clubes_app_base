@@ -18,7 +18,6 @@ class _BannerPublicidadState extends State<BannerPublicidad> {
   @override
   void initState() {
     super.initState();
-    // Iniciamos el ciclo automático
     _iniciarTimer();
   }
 
@@ -26,20 +25,17 @@ class _BannerPublicidadState extends State<BannerPublicidad> {
     _timer = Timer.periodic(const Duration(seconds: 5), (Timer timer) {
       if (_sponsors.isEmpty || !_pageController.hasClients) return;
 
-      // 1. Preguntamos al controlador en qué página estamos REALMENTE
       int paginaActual = _pageController.page?.round() ?? 0;
       int siguientePagina = paginaActual + 1;
 
-      // 2. Si llegamos al final, volvemos al principio (0)
       if (siguientePagina >= _sponsors.length) {
         siguientePagina = 0;
       }
 
-      // 3. Animación suave
       _pageController.animateToPage(
         siguientePagina,
-        duration: const Duration(milliseconds: 800), // Más lento y elegante
-        curve: Curves.easeInOut, // Movimiento más natural
+        duration: const Duration(milliseconds: 800),
+        curve: Curves.easeInOut,
       );
     });
   }
@@ -51,13 +47,50 @@ class _BannerPublicidadState extends State<BannerPublicidad> {
     super.dispose();
   }
 
+  // --- FUNCIÓN MEJORADA: CON MENSAJE PREDETERMINADO ---
   Future<void> _abrirLink(String? url) async {
-    if (url == null || url.isEmpty) return;
-    final Uri uri = Uri.parse(url);
-    try {
-      await launchUrl(uri, mode: LaunchMode.externalApplication);
-    } catch (e) {
-      debugPrint("Error al abrir link: $e");
+    if (url == null || url.trim().isEmpty) return;
+
+    String linkLimpio = url.trim();
+    Uri? uriFinal;
+
+    if (linkLimpio.startsWith('http://') ||
+        linkLimpio.startsWith('https://') ||
+        linkLimpio.startsWith('www.')) {
+      if (linkLimpio.startsWith('www.')) {
+        linkLimpio = 'https://$linkLimpio';
+      }
+      uriFinal = Uri.parse(linkLimpio);
+    } else {
+      String telefonoSoloNumeros = linkLimpio.replaceAll(RegExp(r'[^0-9]'), '');
+
+      if (telefonoSoloNumeros.isNotEmpty) {
+        if (!telefonoSoloNumeros.startsWith('54')) {
+          if (telefonoSoloNumeros.startsWith('11') ||
+              telefonoSoloNumeros.startsWith('15')) {
+            telefonoSoloNumeros = '549$telefonoSoloNumeros';
+          } else if (telefonoSoloNumeros.startsWith('0')) {
+            telefonoSoloNumeros = '549${telefonoSoloNumeros.substring(1)}';
+          } else {
+            telefonoSoloNumeros = '549$telefonoSoloNumeros';
+          }
+        }
+
+        // ACÁ AGREGAMOS EL TEXTO PREDETERMINADO
+        String mensaje =
+            "Hola, vi su anuncio en la App del club y quería hacer una consulta.";
+        uriFinal = Uri.parse(
+          "https://wa.me/$telefonoSoloNumeros?text=${Uri.encodeComponent(mensaje)}",
+        );
+      }
+    }
+
+    if (uriFinal != null) {
+      try {
+        await launchUrl(uriFinal, mode: LaunchMode.externalApplication);
+      } catch (e) {
+        debugPrint("Error al abrir link/whatsapp: $e");
+      }
     }
   }
 
@@ -72,9 +105,7 @@ class _BannerPublicidadState extends State<BannerPublicidad> {
             .orderBy('orden')
             .snapshots(),
         builder: (context, snapshot) {
-
           if (snapshot.hasError) {
-            // Si hay error, ocultamos el banner para no afear la app
             return const SizedBox.shrink();
           }
 
@@ -87,7 +118,6 @@ class _BannerPublicidadState extends State<BannerPublicidad> {
           return PageView.builder(
             controller: _pageController,
             itemCount: _sponsors.length,
-            // Quitamos el onPageChanged innecesario para evitar conflictos
             itemBuilder: (context, index) {
               final data = _sponsors[index].data() as Map<String, dynamic>;
               final String imagenUrl = data['imagen_url'] ?? '';
@@ -96,34 +126,37 @@ class _BannerPublicidadState extends State<BannerPublicidad> {
               return GestureDetector(
                 onTap: () => _abrirLink(link),
                 child: Container(
-                  margin: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                  margin: const EdgeInsets.symmetric(
+                    horizontal: 10,
+                    vertical: 5,
+                  ),
                   decoration: BoxDecoration(
                     borderRadius: BorderRadius.circular(10),
                     boxShadow: [
                       BoxShadow(
-                        color: Colors.black.withOpacity(0.2), // Sombra suave
+                        color: Colors.black.withOpacity(0.2),
                         blurRadius: 4,
                         offset: const Offset(0, 2),
                       ),
                     ],
                     image: imagenUrl.isNotEmpty
                         ? DecorationImage(
-                      image: NetworkImage(imagenUrl),
-                      fit: BoxFit.cover,
-                    )
+                            image: NetworkImage(imagenUrl),
+                            fit: BoxFit.cover,
+                          )
                         : null,
-                    color: Colors.white, // Fondo blanco por si la imagen es PNG transparente
+                    color: Colors.white,
                   ),
                   child: imagenUrl.isEmpty
                       ? Center(
-                    child: Text(
-                      data['nombre'] ?? 'Espacio Publicitario',
-                      style: TextStyle(
-                          color: Colors.grey[400],
-                          fontWeight: FontWeight.bold
-                      ),
-                    ),
-                  )
+                          child: Text(
+                            data['nombre'] ?? 'Espacio Publicitario',
+                            style: TextStyle(
+                              color: Colors.grey[400],
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                        )
                       : null,
                 ),
               );

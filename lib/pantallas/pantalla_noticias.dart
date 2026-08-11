@@ -3,7 +3,8 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import '../configuracion/configuracion_app.dart';
 import '../servicios/servicio_firebase.dart';
-import 'pantalla_detalle_noticia.dart'; // <--- IMPORTANTE: Conecta con el detalle
+import '../widgets/estado_carga.dart';
+import 'pantalla_detalle_noticia.dart';
 
 class PantallaNoticias extends StatelessWidget {
   final ConfiguracionApp config;
@@ -33,17 +34,26 @@ class PantallaNoticias extends StatelessWidget {
           child: StreamBuilder<QuerySnapshot>(
             stream: _servicio.obtenerNoticias(),
             builder: (context, snapshot) {
-              // 1. Cargando
               if (snapshot.connectionState == ConnectionState.waiting) {
-                return const Center(child: CircularProgressIndicator());
+                return EstadoCarga(
+                  estado: TipoEstadoPantalla.cargando,
+                  colorPrimario: config.colorPrimario,
+                );
               }
-              // 2. Error
               if (snapshot.hasError) {
-                return const Center(child: Text("Error cargando noticias"));
+                return EstadoCarga(
+                  estado: TipoEstadoPantalla.error,
+                  colorPrimario: config.colorPrimario,
+                  mensaje: 'No pudimos cargar las noticias',
+                );
               }
-              // 3. Vacío
               if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
-                return const Center(child: Text("No hay noticias aún."));
+                return EstadoCarga(
+                  estado: TipoEstadoPantalla.vacio,
+                  colorPrimario: config.colorPrimario,
+                  mensaje: 'Todavía no hay noticias publicadas',
+                  iconoVacio: Icons.newspaper,
+                );
               }
 
               final documentos = snapshot.data!.docs;
@@ -80,20 +90,23 @@ class PantallaNoticias extends StatelessWidget {
                           if (imagenUrl.isNotEmpty)
                             Hero(
                               tag: imagenUrl, // Animación suave hacia el detalle
-                              child: CachedNetworkImage(
-                                imageUrl: imagenUrl,
-                                height: 180,
-                                width: double.infinity,
-                                fit: BoxFit.cover,
-                                placeholder: (context, url) => Container(
-                                  height: 180,
-                                  color: Colors.grey[200],
-                                  child: const Center(child: CircularProgressIndicator()),
-                                ),
-                                errorWidget: (context, url, error) => Container(
-                                  height: 180,
-                                  color: Colors.grey[300],
-                                  child: const Icon(Icons.broken_image, size: 50, color: Colors.grey),
+                              child: Container(
+                                color: Colors.grey[100], // Un fondo sutil por si la imagen no ocupa todo el ancho
+                                child: CachedNetworkImage(
+                                  imageUrl: imagenUrl,
+                                  height: 220, // Altura aumentada para que las fotos verticales luzcan mejor
+                                  width: double.infinity,
+                                  fit: BoxFit.contain, // Muestra la foto entera sin cortar cabezas
+                                  placeholder: (context, url) => Container(
+                                    height: 220,
+                                    color: Colors.grey[200],
+                                    child: const Center(child: CircularProgressIndicator()),
+                                  ),
+                                  errorWidget: (context, url, error) => Container(
+                                    height: 220,
+                                    color: Colors.grey[300],
+                                    child: const Icon(Icons.broken_image, size: 50, color: Colors.grey),
+                                  ),
                                 ),
                               ),
                             ),

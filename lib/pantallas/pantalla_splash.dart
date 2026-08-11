@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
-import 'package:cloud_firestore/cloud_firestore.dart'; // Necesario para consultar
 import '../configuracion/configuracion_app.dart';
-import 'pantalla_seleccion.dart'; // Camino A: Solo Fútbol (Clásico)
-import 'pantalla_seleccion_actividad.dart'; // Camino B: Multi-Actividad
+import '../servicios/servicio_firebase.dart';
+import 'pantalla_seleccion.dart'; 
+import 'pantalla_seleccion_actividad.dart'; 
 
 class PantallaSplash extends StatefulWidget {
   final ConfiguracionApp config;
@@ -29,32 +29,30 @@ class _PantallaSplashState extends State<PantallaSplash> {
       }
     });
 
-    // 2. Iniciamos la lógica de decisión
+    // 2. Iniciamos la lógica de decisión protegida
     _decidirNavegacion();
   }
 
   Future<void> _decidirNavegacion() async {
     bool activarMultiActividad = false;
 
-    // Hacemos dos cosas a la vez:
-    // A. Esperar 3 segundos para que se vea el logo.
-    // B. Consultar a Firebase qué modo usar.
+    // Ejecutamos en paralelo los 3 segundos estéticos mínimos del Splash
+    // y la consulta protegida con timeout a nuestro servicio.
     await Future.wait([
       Future.delayed(const Duration(seconds: 3)),
-      _consultarModoApp().then((resultado) => activarMultiActividad = resultado),
+      ServicioFirebase().consultarModoMultiActividad().then((resultado) {
+        activarMultiActividad = resultado;
+      }),
     ]);
 
     if (!mounted) return;
 
-    // 3. Redirigimos según el resultado
     if (activarMultiActividad) {
-      // MODO MULTI-ACTIVIDAD (Güemes) -> Pantalla 3 Botones
       Navigator.pushReplacement(
         context,
         MaterialPageRoute(builder: (context) => PantallaSeleccionActividad(config: widget.config)),
       );
     } else {
-      // MODO SOLO FÚTBOL (Otros Clubes) -> Pantalla Tiras Clásica
       Navigator.pushReplacement(
         context,
         MaterialPageRoute(builder: (context) => PantallaSeleccion(config: widget.config)),
@@ -62,90 +60,90 @@ class _PantallaSplashState extends State<PantallaSplash> {
     }
   }
 
-  // Función auxiliar para leer Firebase sin romper la app si falla
-  Future<bool> _consultarModoApp() async {
-    try {
-      final doc = await FirebaseFirestore.instance.collection('configuracion').doc('general').get();
-      if (doc.exists && doc.data() != null) {
-        // Buscamos el campo 'activar_multi_actividad'
-        // Si no existe, devolvemos false (por seguridad)
-        return doc.data()!['activar_multi_actividad'] ?? false;
-      }
-    } catch (e) {
-      print("Error consultando configuración en Splash: $e");
-    }
-    return false; // Ante la duda, vamos al clásico
-  }
-
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       body: Container(
         width: double.infinity,
-        height: double.infinity,
         decoration: BoxDecoration(
-          // Mantenemos tu diseño exacto
+          // Fondo institucional limpio y premium
           gradient: LinearGradient(
             begin: Alignment.topCenter,
             end: Alignment.bottomCenter,
             colors: [
-              Colors.black,
               widget.config.colorPrimario,
+              Colors.black,
             ],
           ),
         ),
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            // LOGO ANIMADO
             AnimatedOpacity(
               duration: const Duration(seconds: 1),
               opacity: _opacidad,
               curve: Curves.easeOut,
               child: Column(
                 children: [
-                  // Logo del Club
+                  // Logo del Club con sombra profunda
                   Container(
-                    width: 150,
-                    height: 150,
+                    width: 160,
+                    height: 160,
                     decoration: BoxDecoration(
                       shape: BoxShape.circle,
                       boxShadow: [
                         BoxShadow(
-                          color: Colors.black.withOpacity(0.3),
+                          color: Colors.black.withOpacity(0.4),
                           blurRadius: 20,
                           spreadRadius: 5,
+                          offset: const Offset(0, 10),
                         )
                       ],
                     ),
                     child: Image.asset(widget.config.rutaLogo),
                   ),
-                  const SizedBox(height: 20),
+                  const SizedBox(height: 35),
+                  
                   // Nombre del Club
                   Text(
                     widget.config.nombreApp.toUpperCase(),
                     textAlign: TextAlign.center,
                     style: const TextStyle(
                       color: Colors.white,
-                      fontSize: 24,
-                      fontWeight: FontWeight.bold,
+                      fontSize: 28,
+                      fontWeight: FontWeight.w900,
                       letterSpacing: 1.5,
+                      shadows: [
+                        Shadow(
+                          color: Colors.black54,
+                          blurRadius: 6,
+                          offset: Offset(0, 3),
+                        )
+                      ],
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+
+                  // Subtítulo de autoridad
+                  const Text(
+                    "SISTEMA OFICIAL",
+                    style: TextStyle(
+                      color: Colors.white70,
+                      fontSize: 12,
+                      fontWeight: FontWeight.bold,
+                      letterSpacing: 4.0,
                     ),
                   ),
                 ],
               ),
             ),
-            const SizedBox(height: 50),
+            const SizedBox(height: 70),
+            
             // INDICADOR DE CARGA
             const CircularProgressIndicator(
               color: Colors.white,
-              strokeWidth: 2,
+              strokeWidth: 3,
             ),
-            const SizedBox(height: 20),
-            const Text(
-              "Iniciando...",
-              style: TextStyle(color: Colors.white70, fontSize: 12),
-            )
           ],
         ),
       ),

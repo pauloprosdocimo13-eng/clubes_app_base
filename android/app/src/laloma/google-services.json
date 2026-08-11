@@ -1,0 +1,48 @@
+{
+  "project_info": {
+    "project_number": "337573061762",
+    "project_id": "la-loma-46d7e",
+    "storage_bucket": "la-loma-46d7e.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:337573061762:android:5b360ee55872104094009b",
+        "android_client_info": {
+          "package_name": "com.martinguemesfutbol.app"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyBZfpwQOaTzqeoFgV6oz01lRW-Th92YfhI"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    },
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:337573061762:android:ed3d3b181552c22894009b",
+        "android_client_info": {
+          "package_name": "com.prosdodigital.laloma"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyBZfpwQOaTzqeoFgV6oz01lRW-Th92YfhI"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

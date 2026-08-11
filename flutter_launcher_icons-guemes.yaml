@@ -1,0 +1,7 @@
+flutter_launcher_icons:
+  android: "launcher_icon"
+  ios: true
+  image_path: "assets/logo_guemes.png"
+  flavor: guemes                               # <--- Lo aísla en su propia carpeta
+  adaptive_icon_background: "#DA291C"          # Color rojo o el que uses
+  adaptive_icon_foreground: "assets/logo_guemes.png"

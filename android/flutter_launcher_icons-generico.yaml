@@ -1,0 +1,4 @@
+flutter_launcher_icons:
+  android: true
+  ios: false # Ponelo en true si también vas a sacar versión para iPhone
+  image_path: "assets/logo_demo.png" # <-- CAMBIÁ ESTO POR LA RUTA EXACTA DE TU IMAGEN

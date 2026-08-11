@@ -1,16 +1,42 @@
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import '../configuracion/configuracion_app.dart';
+import '../servicios/servicio_aviso_entrada.dart';
+import '../servicios/servicio_version.dart';
+import '../widgets/estado_carga.dart';
 // PANTALLAS DE NAVEGACIÓN
 import 'pantalla_inicio.dart';
 import 'socios/pantalla_acceso_socio.dart';
 import 'pantalla_reservas.dart';
-import 'pantalla_login_admin.dart'; // <--- IMPORTANTE: Para ir al Admin directo
+import 'pantalla_login_admin.dart';
 
-class PantallaSeleccion extends StatelessWidget {
+class PantallaSeleccion extends StatefulWidget {
   final ConfiguracionApp config;
 
   const PantallaSeleccion({super.key, required this.config});
+
+  @override
+  State<PantallaSeleccion> createState() => _PantallaSeleccionState();
+}
+
+class _PantallaSeleccionState extends State<PantallaSeleccion> {
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) async {
+      await ServicioVersion.mostrarBloqueoSiCorresponde(context);
+      if (mounted) {
+        await ServicioAvisoEntrada.mostrarSiCorresponde(context, widget.config);
+      }
+    });
+  }
+
+  // --- MÉTODOS AUXILIARES ---
+  IconData _obtenerIcono(String id) {
+    if (id.contains('baby')) return Icons.sports_soccer;
+    if (id.contains('futsal')) return Icons.sports_handball;
+    return Icons.star;
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -22,17 +48,30 @@ class PantallaSeleccion extends StatelessWidget {
             end: Alignment.bottomCenter,
             colors: [
               Colors.black,
-              config.colorPrimario.withOpacity(0.8),
+              widget.config.colorPrimario.withOpacity(0.8),
             ],
           ),
         ),
         child: SafeArea(
           child: FutureBuilder<DocumentSnapshot>(
-            future: FirebaseFirestore.instance.collection('configuracion').doc('general').get(),
+            future: FirebaseFirestore.instance
+                .collection('configuracion')
+                .doc('general')
+                .get(),
             builder: (context, snapshot) {
-              // 1. ESTADO DE CARGA
               if (snapshot.connectionState == ConnectionState.waiting) {
-                return const Center(child: CircularProgressIndicator(color: Colors.white));
+                return EstadoCarga(
+                  estado: TipoEstadoPantalla.cargando,
+                  colorPrimario: widget.config.colorPrimario,
+                );
+              }
+
+              if (snapshot.hasError) {
+                return EstadoCarga(
+                  estado: TipoEstadoPantalla.error,
+                  colorPrimario: widget.config.colorPrimario,
+                  onReintentar: () => setState(() {}),
+                );
               }
 
               // Preparamos variables por defecto
@@ -45,18 +84,23 @@ class PantallaSeleccion extends StatelessWidget {
                 final data = snapshot.data!.data() as Map<String, dynamic>;
                 listaDeportes = data['menu_deportes'] as List<dynamic>? ?? [];
 
-                final modulos = data['modulos_activos'] as Map<String, dynamic>? ?? {};
+                final modulos =
+                    data['modulos_activos'] as Map<String, dynamic>? ?? {};
                 mostrarInstitucional = modulos['institucional'] ?? false;
                 mostrarReservas = modulos['reservas'] ?? false;
               }
 
-              final bool hayModulosExtras = mostrarInstitucional || mostrarReservas;
+              final bool hayModulosExtras =
+                  mostrarInstitucional || mostrarReservas;
 
               return Column(
                 children: [
                   // --- ENCABEZADO CON "PUERTA TRASERA" ADMIN ---
                   Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 10),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 10,
+                      vertical: 10,
+                    ),
                     child: Row(
                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [
@@ -64,16 +108,22 @@ class PantallaSeleccion extends StatelessWidget {
                         const SizedBox(width: 40),
 
                         // LOGO CENTRAL
-                        Image.asset(config.rutaLogo, height: 100),
+                        Image.asset(widget.config.rutaLogo, height: 100),
 
                         // BOTÓN DE ACCESO ADMIN (Salvavidas)
                         IconButton(
-                          icon: const Icon(Icons.settings, color: Colors.white24), // Sutil
+                          icon: const Icon(
+                            Icons.settings,
+                            color: Colors.white24,
+                          ), // Sutil
                           onPressed: () {
                             // Navegamos directo al Login de Admin
                             Navigator.push(
                               context,
-                              MaterialPageRoute(builder: (context) => PantallaLoginAdmin(config: config)),
+                              MaterialPageRoute(
+                                builder: (context) =>
+                                    PantallaLoginAdmin(config: widget.config),
+                              ),
                             );
                           },
                         ),
@@ -85,7 +135,9 @@ class PantallaSeleccion extends StatelessWidget {
                   const Text(
                     "Seleccioná una categoría",
                     style: TextStyle(
-                      color: Colors.white, fontSize: 22, fontWeight: FontWeight.bold,
+                      color: Colors.white,
+                      fontSize: 22,
+                      fontWeight: FontWeight.bold,
                     ),
                   ),
                   const SizedBox(height: 20),
@@ -94,67 +146,92 @@ class PantallaSeleccion extends StatelessWidget {
                   Expanded(
                     child: listaDeportes.isEmpty
                         ? Center(
-                      child: Column(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          const Icon(Icons.sports_soccer, size: 50, color: Colors.white24),
-                          const SizedBox(height: 10),
-                          const Text(
-                            "No hay categorías activas.",
-                            style: TextStyle(color: Colors.white54),
-                          ),
-                          const SizedBox(height: 5),
-                          TextButton(
-                            onPressed: () {
-                              Navigator.push(context, MaterialPageRoute(builder: (context) => PantallaLoginAdmin(config: config)));
-                            },
-                            child: const Text("Ingresar al Panel de Admin"),
-                          )
-                        ],
-                      ),
-                    )
-                        : ListView.builder(
-                      padding: const EdgeInsets.symmetric(horizontal: 20),
-                      itemCount: listaDeportes.length,
-                      itemBuilder: (context, index) {
-                        final deporte = listaDeportes[index] as Map<String, dynamic>;
-                        return Padding(
-                          padding: const EdgeInsets.only(bottom: 15),
-                          child: ElevatedButton(
-                            style: ElevatedButton.styleFrom(
-                              backgroundColor: Colors.white,
-                              foregroundColor: config.colorPrimario,
-                              padding: const EdgeInsets.symmetric(vertical: 20),
-                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(15)),
-                              elevation: 5,
+                            child: Column(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              children: [
+                                const Icon(
+                                  Icons.sports_soccer,
+                                  size: 50,
+                                  color: Colors.white24,
+                                ),
+                                const SizedBox(height: 10),
+                                const Text(
+                                  "No hay categorías activas.",
+                                  style: TextStyle(color: Colors.white54),
+                                ),
+                                const SizedBox(height: 5),
+                                TextButton(
+                                  onPressed: () {
+                                    Navigator.push(
+                                      context,
+                                      MaterialPageRoute(
+                                        builder: (context) =>
+                                            PantallaLoginAdmin(
+                                              config: widget.config,
+                                            ),
+                                      ),
+                                    );
+                                  },
+                                  child: const Text(
+                                    "Ingresar al Panel de Admin",
+                                  ),
+                                ),
+                              ],
                             ),
-                            onPressed: () {
-                              Navigator.pushReplacement(
-                                context,
-                                MaterialPageRoute(
-                                  builder: (context) => PantallaInicio(
-                                    config: config,
-                                    deporteId: deporte['id'],
-                                    deporteTitulo: deporte['titulo'],
+                          )
+                        : ListView.builder(
+                            padding: const EdgeInsets.symmetric(horizontal: 20),
+                            itemCount: listaDeportes.length,
+                            itemBuilder: (context, index) {
+                              final deporte =
+                                  listaDeportes[index] as Map<String, dynamic>;
+                              return Padding(
+                                padding: const EdgeInsets.only(bottom: 15),
+                                child: ElevatedButton(
+                                  style: ElevatedButton.styleFrom(
+                                    backgroundColor: Colors.white,
+                                    foregroundColor:
+                                        widget.config.colorPrimario,
+                                    padding: const EdgeInsets.symmetric(
+                                      vertical: 20,
+                                    ),
+                                    shape: RoundedRectangleBorder(
+                                      borderRadius: BorderRadius.circular(15),
+                                    ),
+                                    elevation: 5,
+                                  ),
+                                  onPressed: () {
+                                    Navigator.pushReplacement(
+                                      context,
+                                      MaterialPageRoute(
+                                        builder: (context) => PantallaInicio(
+                                          config: widget.config,
+                                          deporteId: deporte['id'],
+                                          deporteTitulo: deporte['titulo'],
+                                        ),
+                                      ),
+                                    );
+                                  },
+                                  child: Row(
+                                    mainAxisAlignment: MainAxisAlignment.center,
+                                    children: [
+                                      Icon(_obtenerIcono(deporte['id'])),
+                                      const SizedBox(width: 10),
+                                      Text(
+                                        deporte['titulo']
+                                            .toString()
+                                            .toUpperCase(),
+                                        style: const TextStyle(
+                                          fontSize: 18,
+                                          fontWeight: FontWeight.bold,
+                                        ),
+                                      ),
+                                    ],
                                   ),
                                 ),
                               );
                             },
-                            child: Row(
-                              mainAxisAlignment: MainAxisAlignment.center,
-                              children: [
-                                Icon(_obtenerIcono(deporte['id'])),
-                                const SizedBox(width: 10),
-                                Text(
-                                  deporte['titulo'].toString().toUpperCase(),
-                                  style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-                                ),
-                              ],
-                            ),
                           ),
-                        );
-                      },
-                    ),
                   ),
 
                   // --- SECCIÓN INFERIOR (MÓDULOS) ---
@@ -164,15 +241,19 @@ class PantallaSeleccion extends StatelessWidget {
                       decoration: BoxDecoration(
                         color: Colors.black.withOpacity(0.3),
                         borderRadius: const BorderRadius.only(
-                            topLeft: Radius.circular(20),
-                            topRight: Radius.circular(20)
+                          topLeft: Radius.circular(20),
+                          topRight: Radius.circular(20),
                         ),
                       ),
                       child: Column(
                         children: [
                           const Text(
                             "INSTITUCIONAL / SERVICIOS",
-                            style: TextStyle(color: Colors.white54, fontSize: 12, letterSpacing: 2),
+                            style: TextStyle(
+                              color: Colors.white54,
+                              fontSize: 12,
+                              letterSpacing: 2,
+                            ),
                           ),
                           const SizedBox(height: 15),
 
@@ -181,14 +262,21 @@ class PantallaSeleccion extends StatelessWidget {
                               style: ElevatedButton.styleFrom(
                                 backgroundColor: Colors.white,
                                 foregroundColor: Colors.teal[800],
-                                padding: const EdgeInsets.symmetric(vertical: 15),
-                                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                                padding: const EdgeInsets.symmetric(
+                                  vertical: 15,
+                                ),
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(10),
+                                ),
                                 minimumSize: const Size(double.infinity, 50),
                               ),
                               onPressed: () {
                                 Navigator.push(
-                                    context,
-                                    MaterialPageRoute(builder: (context) => PantallaReservas(config: config))
+                                  context,
+                                  MaterialPageRoute(
+                                    builder: (context) =>
+                                        PantallaReservas(config: widget.config),
+                                  ),
                                 );
                               },
                               child: const Row(
@@ -196,11 +284,18 @@ class PantallaSeleccion extends StatelessWidget {
                                 children: [
                                   Icon(Icons.calendar_month),
                                   SizedBox(width: 10),
-                                  Text("ALQUILER DE CANCHAS / SALÓN", style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold)),
+                                  Text(
+                                    "ALQUILER DE CANCHAS / SALÓN",
+                                    style: TextStyle(
+                                      fontSize: 14,
+                                      fontWeight: FontWeight.bold,
+                                    ),
+                                  ),
                                 ],
                               ),
                             ),
-                            if (mostrarInstitucional) const SizedBox(height: 10),
+                            if (mostrarInstitucional)
+                              const SizedBox(height: 10),
                           ],
 
                           if (mostrarInstitucional)
@@ -208,14 +303,22 @@ class PantallaSeleccion extends StatelessWidget {
                               style: ElevatedButton.styleFrom(
                                 backgroundColor: Colors.green[700],
                                 foregroundColor: Colors.white,
-                                padding: const EdgeInsets.symmetric(vertical: 15),
-                                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                                padding: const EdgeInsets.symmetric(
+                                  vertical: 15,
+                                ),
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(10),
+                                ),
                                 minimumSize: const Size(double.infinity, 50),
                               ),
                               onPressed: () {
                                 Navigator.push(
                                   context,
-                                  MaterialPageRoute(builder: (context) => PantallaAccesoSocio(config: config)),
+                                  MaterialPageRoute(
+                                    builder: (context) => PantallaAccesoSocio(
+                                      config: widget.config,
+                                    ),
+                                  ),
                                 );
                               },
                               child: const Row(
@@ -223,7 +326,13 @@ class PantallaSeleccion extends StatelessWidget {
                                 children: [
                                   Icon(Icons.badge),
                                   SizedBox(width: 10),
-                                  Text("ACCESO SOCIOS", style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold)),
+                                  Text(
+                                    "ACCESO SOCIOS",
+                                    style: TextStyle(
+                                      fontSize: 14,
+                                      fontWeight: FontWeight.bold,
+                                    ),
+                                  ),
                                 ],
                               ),
                             ),
@@ -237,11 +346,5 @@ class PantallaSeleccion extends StatelessWidget {
         ),
       ),
     );
-  }
-
-  IconData _obtenerIcono(String id) {
-    if (id.contains('baby')) return Icons.sports_soccer;
-    if (id.contains('futsal')) return Icons.sports_handball;
-    return Icons.star;
   }
 }
