@@ -24,7 +24,7 @@ class FirebaseOptionsTuSede {
   // ============================================================
 
   static const FirebaseOptions web = FirebaseOptions(
-    apiKey: 'AIzaSyBCFGr5USL4W0rwCGLCpKX1wU1Qpl3okdA',
+    apiKey: 'AIzaSyBCFGr5USl4W0rwCGlCpKX1wU1Qpl3okdA',
     appId: '1:22406792089:web:47bd882b2587e7a7ca0908',
     messagingSenderId: '22406792089',
     projectId: 'tu-sede-app',
