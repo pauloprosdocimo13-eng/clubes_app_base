@@ -10,11 +10,16 @@ import 'pantallas/pantalla_avisos.dart';
 import 'pantallas/pantalla_noticias.dart';
 import 'servicios/servicio_notificaciones_topics.dart';
 import 'tusede/servicios/contexto_club.dart';
+import 'tusede/servicios/firestore_tusede.dart';
+import 'tusede/servicios/servicio_firebase_tusede.dart';
 
-final GlobalKey<NavigatorState> navigatorKey = GlobalKey<NavigatorState>();
+final GlobalKey<NavigatorState> navigatorKey =
+    GlobalKey<NavigatorState>();
 
 @pragma('vm:entry-point')
-Future<void> firebaseMessagingBackgroundHandler(RemoteMessage message) async {
+Future<void> firebaseMessagingBackgroundHandler(
+  RemoteMessage message,
+) async {
   final sabor = const String.fromEnvironment(
     'FLAVOR',
     defaultValue: 'guemes',
@@ -34,33 +39,43 @@ Future<void> bootstrapApp(String sabor) async {
 
   final config = RegistroFlavors.configDe(sabor);
 
+  // ============================================================
+  // FIREBASE ACTUAL DEL CLUB
+  // ============================================================
+  //
+  // Sigue siendo la instancia DEFAULT.
+  //
+  // Güemes continúa utilizando exactamente su Firebase actual
+  // para socios, cuotas, movimientos, noticias, etc.
   await Firebase.initializeApp(
     options: RegistroFlavors.firebaseOptionsDe(sabor),
   );
 
   // ============================================================
-  // CONTEXTO GENERAL DE LA APLICACIÓN
+  // CONTEXTO DEL CLUB
   // ============================================================
 
   ConfiguracionApp.actual = config;
 
-  // A partir de este punto TuSede conoce qué club está utilizando
-  // la aplicación.
-  //
-  // Actualmente:
-  //
-  // guemes  -> clubId "guemes"
-  // fatima  -> clubId "fatima"
-  // laloma  -> clubId "laloma"
-  //
-  // Más adelante este contexto se obtendrá desde la plataforma
-  // central TuSede y no desde los flavors.
   ContextoClub.inicializarDesdeConfiguracion(config);
 
   debugPrint(
     'TuSede iniciado - Club: ${ContextoClub.nombreClub} '
     '(${ContextoClub.clubId})',
   );
+
+  // ============================================================
+  // FIREBASE CENTRAL TUSEDE
+  // ============================================================
+  //
+  // Se inicializa como una SEGUNDA instancia.
+  //
+  // No reemplaza ni modifica al Firebase actual de Güemes.
+  await _inicializarTuSedeCentral();
+
+  // ============================================================
+  // NOTIFICACIONES DEL CLUB
+  // ============================================================
 
   FirebaseMessaging.onBackgroundMessage(
     firebaseMessagingBackgroundHandler,
@@ -74,6 +89,73 @@ Future<void> bootstrapApp(String sabor) async {
       navigatorKey: navigatorKey,
     ),
   );
+}
+
+Future<void> _inicializarTuSedeCentral() async {
+  try {
+    final inicializado =
+        await ServicioFirebaseTuSede.inicializar();
+
+    if (!inicializado) {
+      debugPrint(
+        'TuSede Central no se inició en esta plataforma.',
+      );
+
+      return;
+    }
+
+    final club = await FirestoreTuSede
+        .cargarClubActual()
+        .timeout(
+          const Duration(seconds: 10),
+        );
+
+    if (club == null) {
+      debugPrint(
+        'TuSede Central conectado, pero no existe '
+        'el club ${ContextoClub.clubId}.',
+      );
+
+      return;
+    }
+
+    debugPrint(
+      '===============================================',
+    );
+
+    debugPrint(
+      'TUSEDE CENTRAL CONECTADO CORRECTAMENTE',
+    );
+
+    debugPrint(
+      'Club: ${club.nombre}',
+    );
+
+    debugPrint(
+      'Club ID: ${club.id}',
+    );
+
+    debugPrint(
+      'Activo: ${club.activo}',
+    );
+
+    debugPrint(
+      'Proyecto central: tu-sede-app',
+    );
+
+    debugPrint(
+      '===============================================',
+    );
+  } on FirebaseException catch (e) {
+    debugPrint(
+      'Error Firebase TuSede Central: '
+      '${e.code} - ${e.message}',
+    );
+  } catch (e) {
+    debugPrint(
+      'Error conectando con TuSede Central: $e',
+    );
+  }
 }
 
 Future<void> _iniciarNotificaciones(
@@ -97,13 +179,22 @@ Future<void> _iniciarNotificaciones(
 
     if (!kIsWeb) {
       final topicGeneral =
-          ServicioNotificacionesTopics.topicGeneral(config);
+          ServicioNotificacionesTopics.topicGeneral(
+        config,
+      );
 
       final topicPartidos =
-          ServicioNotificacionesTopics.topicPartidos(config);
+          ServicioNotificacionesTopics.topicPartidos(
+        config,
+      );
 
-      await messaging.subscribeToTopic(topicGeneral);
-      await messaging.subscribeToTopic(topicPartidos);
+      await messaging.subscribeToTopic(
+        topicGeneral,
+      );
+
+      await messaging.subscribeToTopic(
+        topicPartidos,
+      );
 
       debugPrint(
         'Suscrito a $topicGeneral y $topicPartidos',
@@ -112,7 +203,10 @@ Future<void> _iniciarNotificaciones(
 
     FirebaseMessaging.onMessageOpenedApp.listen(
       (message) {
-        _manejarRedireccion(message, config);
+        _manejarRedireccion(
+          message,
+          config,
+        );
       },
     );
 
@@ -154,7 +248,9 @@ void _manejarRedireccion(
 
   final nav = navigatorKey.currentState;
 
-  if (nav == null) return;
+  if (nav == null) {
+    return;
+  }
 
   if (tipo == 'noticia') {
     nav.push(

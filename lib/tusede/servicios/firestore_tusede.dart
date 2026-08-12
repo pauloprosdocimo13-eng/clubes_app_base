@@ -1,16 +1,51 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 
+import '../modelos/club_tusede.dart';
 import 'contexto_club.dart';
+import 'servicio_firebase_tusede.dart';
 
 class FirestoreTuSede {
   FirestoreTuSede._();
 
-  static FirebaseFirestore get _db => FirebaseFirestore.instance;
+  /// Base central de TuSede.
+  ///
+  /// Esta NO es la misma base Firebase que actualmente utiliza Güemes.
+  static FirebaseFirestore get _db {
+    return ServicioFirebaseTuSede.firestore;
+  }
 
   static String get clubId => ContextoClub.clubId;
 
+  /// Documento principal del club dentro de la plataforma TuSede.
+  ///
+  /// Ejemplo:
+  /// clubes/guemes
   static DocumentReference<Map<String, dynamic>> get clubActual {
     return _db.collection('clubes').doc(clubId);
+  }
+
+  /// Lee la información general del club desde TuSede Central.
+  static Future<ClubTuSede?> cargarClubActual() async {
+    final snapshot = await clubActual.get();
+
+    if (!snapshot.exists) {
+      return null;
+    }
+
+    final data = snapshot.data();
+
+    if (data == null) {
+      return null;
+    }
+
+    final club = ClubTuSede.fromMap(
+      snapshot.id,
+      data,
+    );
+
+    ContextoClub.cambiarClub(club);
+
+    return club;
   }
 
   static CollectionReference<Map<String, dynamic>> coleccion(
@@ -27,7 +62,7 @@ class FirestoreTuSede {
   }
 
   // ==========================================================
-  // COLECCIONES PRINCIPALES DE TUSEDE
+  // COLECCIONES MULTICLUB DE TUSEDE
   // ==========================================================
 
   static CollectionReference<Map<String, dynamic>> get socios {
