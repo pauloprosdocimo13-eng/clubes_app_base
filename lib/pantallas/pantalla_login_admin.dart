@@ -1,9 +1,12 @@
+import 'dart:async';
+
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 
 import '../configuracion/configuracion_app.dart';
 import '../tusede/servicios/contexto_usuario_tusede.dart';
 import '../tusede/servicios/servicio_sesion_tusede.dart';
+import '../tusede/servicios/servicio_vinculo_tusede.dart';
 import 'desktop/pantalla_admin_desktop.dart';
 import 'pantalla_admin_dashboard.dart';
 
@@ -52,15 +55,14 @@ class _PantallaLoginAdminState extends State<PantallaLoginAdmin> {
   Future<void> _chequearSesionExistente() async {
     await Future.delayed(Duration.zero);
 
-    // Intentamos restaurar una posible sesión central TuSede.
+    // Intentamos restaurar una sesión TuSede si existe.
     //
-    // Esto NO afecta a FirebaseAuth.instance,
-    // que continúa siendo el Firebase del club.
+    // Pero esto NO decide si el usuario puede entrar al panel.
+    // La autoridad continúa siendo Firebase Legacy de Güemes.
     try {
       await ServicioSesionTuSede.restaurarSesion();
-    } catch (_) {
-      // No bloqueamos la aplicación por una sesión
-      // central inexistente.
+    } catch (e) {
+      debugPrint('No se pudo restaurar TuSede: $e');
     }
 
     final User? usuarioActual = FirebaseAuth.instance.currentUser;
@@ -68,6 +70,16 @@ class _PantallaLoginAdminState extends State<PantallaLoginAdmin> {
     if (!mounted) {
       return;
     }
+
+    // ==========================================================
+    // IMPORTANTE
+    // ==========================================================
+    //
+    // Solo entramos automáticamente si existe una sesión
+    // válida en el Firebase Legacy del club.
+    //
+    // Una sesión TuSede por sí sola NO permite todavía
+    // ingresar al panel administrativo.
 
     if (usuarioActual != null) {
       _navegarAlPanel();
@@ -79,7 +91,7 @@ class _PantallaLoginAdminState extends State<PantallaLoginAdmin> {
   }
 
   // ============================================================
-  // NAVEGACIÓN PANEL TRADICIONAL
+  // NAVEGACIÓN PANEL
   // ============================================================
 
   void _navegarAlPanel() {
@@ -105,12 +117,15 @@ class _PantallaLoginAdminState extends State<PantallaLoginAdmin> {
   }
 
   // ============================================================
-  // LOGIN ACTUAL DEL CLUB
+  // LOGIN LEGACY - SIGUE SIENDO LA AUTORIDAD
   // ============================================================
 
   Future<void> _login() async {
-    if (_emailController.text.trim().isEmpty ||
-        _passwordController.text.isEmpty) {
+    final email = _emailController.text.trim();
+
+    final password = _passwordController.text;
+
+    if (email.isEmpty || password.isEmpty) {
       _mostrarMensaje('Completá el email y la contraseña.', Colors.orange);
 
       return;
@@ -121,14 +136,50 @@ class _PantallaLoginAdminState extends State<PantallaLoginAdmin> {
     });
 
     try {
+      // ========================================================
+      // PASO 1
+      // ========================================================
+      //
+      // Autenticación NORMAL del club.
+      //
+      // Este sigue siendo exactamente el requisito que existía
+      // antes de comenzar la migración a TuSede.
+
       await FirebaseAuth.instance.signInWithEmailAndPassword(
-        email: _emailController.text.trim(),
-        password: _passwordController.text,
+        email: email,
+        password: password,
       );
 
       if (!mounted) {
         return;
       }
+
+      // ========================================================
+      // PASO 2 - TUSEDE SHADOW
+      // ========================================================
+      //
+      // Firebase Güemes YA aceptó al administrador.
+      //
+      // Por eso entramos al panel normalmente.
+      //
+      // En paralelo TuSede intenta reconocerlo.
+      //
+      // NO esperamos esta operación.
+      // NO puede bloquear el panel.
+      // NO modifica sus permisos actuales.
+
+      unawaited(
+        ServicioVinculoTuSede.intentarVincular(
+          email: email,
+          password: password,
+        ),
+      );
+
+      // ========================================================
+      // PASO 3
+      // ========================================================
+      //
+      // El administrador entra exactamente como hasta hoy.
 
       _navegarAlPanel();
     } on FirebaseAuthException catch (e) {
@@ -163,8 +214,12 @@ class _PantallaLoginAdminState extends State<PantallaLoginAdmin> {
   }
 
   // ============================================================
-  // PRUEBA DE LOGIN CENTRAL TUSEDE
+  // BOTÓN TEMPORAL PARA PRUEBAS TUSEDE
   // ============================================================
+  //
+  // Por ahora lo conservamos en nuestra rama de desarrollo.
+  //
+  // NO forma parte todavía del login definitivo.
 
   Future<void> _validarCuentaTuSede() async {
     final email = _emailController.text.trim();
@@ -197,8 +252,7 @@ class _PantallaLoginAdminState extends State<PantallaLoginAdmin> {
 
       _mostrarMensaje(
         'TuSede conectado correctamente. '
-        '${usuario.nombre} - '
-        '${usuario.rol}',
+        '${usuario.nombre} - ${usuario.rol}',
         Colors.green,
       );
 
@@ -222,6 +276,10 @@ class _PantallaLoginAdminState extends State<PantallaLoginAdmin> {
       }
     }
   }
+
+  // ============================================================
+  // MENSAJES
+  // ============================================================
 
   void _mostrarMensaje(String mensaje, Color color) {
     ScaffoldMessenger.of(context).hideCurrentSnackBar();
@@ -304,7 +362,7 @@ class _PantallaLoginAdminState extends State<PantallaLoginAdmin> {
                 const SizedBox(height: 30),
 
                 // =================================================
-                // LOGIN ACTUAL
+                // LOGIN ACTUAL DEL CLUB
                 // =================================================
                 SizedBox(
                   width: double.infinity,
@@ -340,7 +398,7 @@ class _PantallaLoginAdminState extends State<PantallaLoginAdmin> {
                 const SizedBox(height: 15),
 
                 // =================================================
-                // BOTÓN TEMPORAL DE PRUEBA TUSEDE
+                // BOTÓN TEMPORAL TUSEDE
                 // =================================================
                 SizedBox(
                   width: double.infinity,
@@ -367,8 +425,9 @@ class _PantallaLoginAdminState extends State<PantallaLoginAdmin> {
 
                 const Text(
                   'Botón temporal de desarrollo. '
-                  'No reemplaza todavía el acceso '
-                  'administrativo actual del club.',
+                  'El acceso administrativo actual '
+                  'del club continúa funcionando '
+                  'de manera independiente.',
                   textAlign: TextAlign.center,
                   style: TextStyle(fontSize: 11, color: Colors.grey),
                 ),
