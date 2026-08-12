@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/foundation.dart';
 
@@ -20,12 +22,16 @@ class SesionTuSedeException implements Exception {
 class ServicioSesionTuSede {
   ServicioSesionTuSede._();
 
+  static StreamSubscription<User?>? _suscripcionSesionLegacy;
+
+  static bool _cerrandoSesionPorSincronizacion = false;
+
   static FirebaseAuth get _auth {
     return ServicioFirebaseTuSede.auth;
   }
 
   // ============================================================
-  // USUARIO FIREBASE
+  // USUARIO FIREBASE TUSEDE
   // ============================================================
 
   static User? get usuarioFirebaseActual {
@@ -38,6 +44,72 @@ class ServicioSesionTuSede {
 
   static bool get haySesionFirebase {
     return usuarioFirebaseActual != null;
+  }
+
+  // ============================================================
+  // SINCRONIZACIÓN CON FIREBASE LEGACY
+  // ============================================================
+
+  /// Durante la migración, el Firebase actual del club continúa
+  /// siendo la autoridad para ingresar al panel.
+  ///
+  /// Si ese usuario cierra sesión, TuSede debe cerrar también
+  /// su sesión secundaria para no dejar una cuenta central
+  /// abierta en una computadora compartida.
+  static void _activarSincronizacionConLegacy() {
+    // Evitamos crear varios listeners.
+    if (_suscripcionSesionLegacy != null) {
+      return;
+    }
+
+    _suscripcionSesionLegacy = FirebaseAuth.instance.authStateChanges().listen((
+      usuarioLegacy,
+    ) async {
+      if (usuarioLegacy != null) {
+        return;
+      }
+
+      if (_cerrandoSesionPorSincronizacion) {
+        return;
+      }
+
+      if (!ServicioFirebaseTuSede.estaInicializado) {
+        ContextoUsuarioTuSede.limpiar();
+        return;
+      }
+
+      final usuarioCentral = _auth.currentUser;
+
+      if (usuarioCentral == null) {
+        ContextoUsuarioTuSede.limpiar();
+        return;
+      }
+
+      _cerrandoSesionPorSincronizacion = true;
+
+      try {
+        debugPrint(
+          'TuSede Shadow: se detectó cierre '
+          'de sesión Legacy.',
+        );
+
+        await _auth.signOut();
+
+        ContextoUsuarioTuSede.limpiar();
+
+        debugPrint(
+          'TuSede Shadow: sesión central '
+          'cerrada automáticamente.',
+        );
+      } catch (e) {
+        debugPrint(
+          'TuSede Shadow: error cerrando '
+          'sesión central: $e',
+        );
+      } finally {
+        _cerrandoSesionPorSincronizacion = false;
+      }
+    });
   }
 
   // ============================================================
@@ -79,6 +151,10 @@ class ServicioSesionTuSede {
       _validarUsuario(usuario);
 
       ContextoUsuarioTuSede.establecerUsuario(usuario);
+
+      // A partir de este momento ambas sesiones quedan
+      // sincronizadas para el cierre.
+      _activarSincronizacionConLegacy();
 
       debugPrint('===============================================');
 
@@ -128,6 +204,8 @@ class ServicioSesionTuSede {
       _validarUsuario(usuario);
 
       ContextoUsuarioTuSede.establecerUsuario(usuario);
+
+      _activarSincronizacionConLegacy();
 
       debugPrint(
         'Sesión TuSede restaurada: '
@@ -194,12 +272,16 @@ class ServicioSesionTuSede {
   }
 
   // ============================================================
-  // CERRAR SESIÓN
+  // CERRAR SESIÓN TUSEDE
   // ============================================================
 
   static Future<void> cerrarSesion() async {
     if (ServicioFirebaseTuSede.estaInicializado) {
-      await _auth.signOut();
+      try {
+        await _auth.signOut();
+      } catch (e) {
+        debugPrint('Error cerrando sesión TuSede: $e');
+      }
     }
 
     ContextoUsuarioTuSede.limpiar();
