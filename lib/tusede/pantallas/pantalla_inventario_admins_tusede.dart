@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../modelos/admin_inventario_tusede.dart';
 import '../servicios/contexto_club.dart';
 import '../servicios/servicio_inventario_admins_tusede.dart';
+import '../servicios/servicio_preparacion_migracion_admin.dart';
 
 class PantallaInventarioAdminsTuSede extends StatefulWidget {
   const PantallaInventarioAdminsTuSede({super.key});
@@ -17,6 +18,8 @@ class _PantallaInventarioAdminsTuSedeState
   bool _cargando = true;
 
   String? _error;
+
+  final Set<String> _preparando = {};
 
   List<AdminInventarioTuSede> _usuarios = [];
 
@@ -88,9 +91,11 @@ class _PantallaInventarioAdminsTuSedeState
         .length;
   }
 
-  int get _cantidadSoloTuSede {
+  int get _cantidadPreparados {
     return _usuarios
-        .where((u) => u.estado == EstadoMigracionAdmin.soloTuSede)
+        .where(
+          (u) => u.migracionPreparada && u.preparacionValida && !u.existeTuSede,
+        )
         .length;
   }
 
@@ -98,6 +103,95 @@ class _PantallaInventarioAdminsTuSedeState
     return _usuarios
         .where((u) => u.estado == EstadoMigracionAdmin.revisar)
         .length;
+  }
+
+  // ============================================================
+  // PREPARAR
+  // ============================================================
+
+  Future<void> _preparar(AdminInventarioTuSede usuario) async {
+    final confirmar = await showDialog<bool>(
+      context: context,
+      builder: (context) {
+        return AlertDialog(
+          title: const Text('Preparar migración'),
+          content: Text(
+            'Se preparará la migración de:\n\n'
+            '${usuario.email}\n\n'
+            'Rol actual: '
+            '${usuario.rolLegacy.toUpperCase()}\n'
+            'Rol TuSede: '
+            '${usuario.rolSugeridoTuSede.toUpperCase()}\n\n'
+            'Esto NO crea una cuenta nueva, '
+            'NO cambia la contraseña y '
+            'NO modifica los permisos actuales de Güemes.',
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context, false),
+              child: const Text('Cancelar'),
+            ),
+            ElevatedButton(
+              onPressed: () => Navigator.pop(context, true),
+              child: const Text('Preparar'),
+            ),
+          ],
+        );
+      },
+    );
+
+    if (confirmar != true) {
+      return;
+    }
+
+    setState(() {
+      _preparando.add(usuario.email);
+    });
+
+    try {
+      await ServicioPreparacionMigracionAdmin.preparar(usuario);
+
+      if (!mounted) {
+        return;
+      }
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            'Migración preparada para '
+            '${usuario.email}.',
+          ),
+          backgroundColor: Colors.green,
+        ),
+      );
+
+      await _cargar();
+    } on PreparacionMigracionAdminException catch (e) {
+      if (!mounted) {
+        return;
+      }
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(e.mensaje), backgroundColor: Colors.red),
+      );
+    } catch (e) {
+      if (!mounted) {
+        return;
+      }
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Error preparando migración: $e'),
+          backgroundColor: Colors.red,
+        ),
+      );
+    } finally {
+      if (mounted) {
+        setState(() {
+          _preparando.remove(usuario.email);
+        });
+      }
+    }
   }
 
   // ============================================================
@@ -128,10 +222,6 @@ class _PantallaInventarioAdminsTuSedeState
     );
   }
 
-  // ============================================================
-  // ERROR
-  // ============================================================
-
   Widget _buildError() {
     return Center(
       child: Padding(
@@ -143,11 +233,7 @@ class _PantallaInventarioAdminsTuSedeState
 
             const SizedBox(height: 15),
 
-            Text(
-              _error!,
-              textAlign: TextAlign.center,
-              style: const TextStyle(fontSize: 16),
-            ),
+            Text(_error!, textAlign: TextAlign.center),
 
             const SizedBox(height: 20),
 
@@ -162,19 +248,12 @@ class _PantallaInventarioAdminsTuSedeState
     );
   }
 
-  // ============================================================
-  // CONTENIDO
-  // ============================================================
-
   Widget _buildContenido() {
     return RefreshIndicator(
       onRefresh: _cargar,
       child: ListView(
         padding: const EdgeInsets.all(20),
         children: [
-          // ====================================================
-          // AVISO
-          // ====================================================
           Container(
             padding: const EdgeInsets.all(16),
             decoration: BoxDecoration(
@@ -185,16 +264,16 @@ class _PantallaInventarioAdminsTuSedeState
             child: const Row(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Icon(Icons.visibility_outlined, color: Colors.blueGrey),
+                Icon(Icons.shield_outlined, color: Colors.blueGrey),
 
                 SizedBox(width: 12),
 
                 Expanded(
                   child: Text(
-                    'Control de migración en modo solo lectura. '
-                    'TuSede compara los roles actuales del club '
-                    'con el catálogo central, pero no modifica '
-                    'usuarios ni permisos.',
+                    'Preparar una migración solamente '
+                    'crea una autorización interna de TuSede. '
+                    'No crea cuentas, no guarda contraseñas '
+                    'y no modifica los permisos de Güemes.',
                     style: TextStyle(fontWeight: FontWeight.w600),
                   ),
                 ),
@@ -218,9 +297,6 @@ class _PantallaInventarioAdminsTuSedeState
 
           const SizedBox(height: 20),
 
-          // ====================================================
-          // RESUMEN
-          // ====================================================
           Wrap(
             spacing: 10,
             runSpacing: 10,
@@ -247,10 +323,10 @@ class _PantallaInventarioAdminsTuSedeState
               ),
 
               _ResumenCard(
-                titulo: 'Solo TuSede',
-                valor: _cantidadSoloTuSede,
-                icono: Icons.cloud,
-                color: Colors.blue,
+                titulo: 'Preparados',
+                valor: _cantidadPreparados,
+                icono: Icons.playlist_add_check_circle,
+                color: Colors.teal,
               ),
 
               _ResumenCard(
@@ -271,181 +347,205 @@ class _PantallaInventarioAdminsTuSedeState
 
           const SizedBox(height: 10),
 
-          if (_usuarios.isEmpty)
-            const Padding(
-              padding: EdgeInsets.all(40),
-              child: Center(
-                child: Text(
-                  'No se encontraron '
-                  'administradores.',
-                ),
-              ),
-            )
-          else
-            ..._usuarios.map(_buildUsuario),
+          ..._usuarios.map(_buildUsuario),
         ],
       ),
     );
   }
 
-  // ============================================================
-  // ADMINISTRADOR
-  // ============================================================
-
   Widget _buildUsuario(AdminInventarioTuSede usuario) {
     final estado = _datosEstado(usuario.estado);
+
+    final preparando = _preparando.contains(usuario.email);
 
     return Card(
       margin: const EdgeInsets.only(bottom: 12),
       elevation: 1,
       child: Padding(
         padding: const EdgeInsets.all(16),
-        child: Row(
+        child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            CircleAvatar(
-              backgroundColor: estado.color.withOpacity(0.15),
-              child: Icon(estado.icono, color: estado.color),
-            ),
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                CircleAvatar(
+                  backgroundColor: estado.color.withOpacity(0.15),
+                  child: Icon(estado.icono, color: estado.color),
+                ),
 
-            const SizedBox(width: 15),
+                const SizedBox(width: 15),
 
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    usuario.nombre,
-                    style: const TextStyle(
-                      fontSize: 16,
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-
-                  const SizedBox(height: 3),
-
-                  Text(
-                    usuario.email,
-                    style: TextStyle(color: Colors.grey[700]),
-                  ),
-
-                  const SizedBox(height: 12),
-
-                  // ============================================
-                  // DATOS
-                  // ============================================
-                  Wrap(
-                    spacing: 8,
-                    runSpacing: 8,
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      _ChipDato(
-                        titulo: 'Legacy',
-                        valor: usuario.existeLegacy
-                            ? usuario.rolLegacy.isEmpty
-                                  ? 'SIN ROL'
-                                  : usuario.rolLegacy.toUpperCase()
-                            : 'NO',
+                      Text(
+                        usuario.nombre,
+                        style: const TextStyle(
+                          fontSize: 16,
+                          fontWeight: FontWeight.bold,
+                        ),
                       ),
 
-                      _ChipDato(
-                        titulo: 'TuSede',
-                        valor: usuario.existeTuSede
-                            ? usuario.rolTuSede.isEmpty
-                                  ? 'SIN ROL'
-                                  : usuario.rolTuSede.toUpperCase()
-                            : 'NO',
+                      const SizedBox(height: 3),
+
+                      Text(
+                        usuario.email,
+                        style: TextStyle(color: Colors.grey[700]),
                       ),
-
-                      if (usuario.existeLegacy &&
-                          usuario.rolSugeridoTuSede.isNotEmpty)
-                        _ChipDato(
-                          titulo: 'Sugerido',
-                          valor: usuario.rolSugeridoTuSede.toUpperCase(),
-                          destacado: !usuario.existeTuSede,
-                        ),
-
-                      if (usuario.existeTuSede)
-                        _ChipDato(
-                          titulo: 'Activo',
-                          valor: usuario.activoTuSede ? 'SÍ' : 'NO',
-                        ),
                     ],
                   ),
+                ),
 
-                  // ============================================
-                  // MOTIVO DE REVISIÓN
-                  // ============================================
-                  if (usuario.estado == EstadoMigracionAdmin.revisar &&
-                      usuario.motivoRevision.isNotEmpty) ...[
-                    const SizedBox(height: 12),
+                Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 10,
+                    vertical: 6,
+                  ),
+                  decoration: BoxDecoration(
+                    color: estado.color.withOpacity(0.12),
+                    borderRadius: BorderRadius.circular(20),
+                    border: Border.all(color: estado.color),
+                  ),
+                  child: Text(
+                    estado.texto,
+                    style: TextStyle(
+                      color: estado.color,
+                      fontWeight: FontWeight.bold,
+                      fontSize: 11,
+                    ),
+                  ),
+                ),
+              ],
+            ),
 
-                    Container(
-                      width: double.infinity,
-                      padding: const EdgeInsets.all(10),
-                      decoration: BoxDecoration(
-                        color: Colors.red[50],
-                        borderRadius: BorderRadius.circular(8),
-                        border: Border.all(color: Colors.red[200]!),
-                      ),
-                      child: Row(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          const Icon(
-                            Icons.warning_amber,
-                            color: Colors.red,
-                            size: 18,
-                          ),
+            const SizedBox(height: 12),
 
-                          const SizedBox(width: 8),
+            Wrap(
+              spacing: 8,
+              runSpacing: 8,
+              children: [
+                _ChipDato(
+                  titulo: 'Legacy',
+                  valor: usuario.existeLegacy
+                      ? usuario.rolLegacy.isEmpty
+                            ? 'SIN ROL'
+                            : usuario.rolLegacy.toUpperCase()
+                      : 'NO',
+                ),
 
-                          Expanded(
-                            child: Text(
-                              usuario.motivoRevision,
-                              style: TextStyle(
-                                color: Colors.red[900],
-                                fontSize: 12,
-                                fontWeight: FontWeight.w600,
-                              ),
-                            ),
-                          ),
-                        ],
+                _ChipDato(
+                  titulo: 'TuSede',
+                  valor: usuario.existeTuSede
+                      ? usuario.rolTuSede.isEmpty
+                            ? 'SIN ROL'
+                            : usuario.rolTuSede.toUpperCase()
+                      : 'NO',
+                ),
+
+                if (usuario.existeLegacy &&
+                    usuario.rolSugeridoTuSede.isNotEmpty)
+                  _ChipDato(
+                    titulo: 'Sugerido',
+                    valor: usuario.rolSugeridoTuSede.toUpperCase(),
+                    destacado: !usuario.existeTuSede,
+                  ),
+
+                if (usuario.migracionPreparada)
+                  _ChipDato(
+                    titulo: 'Preparación',
+                    valor: usuario.preparacionValida ? 'LISTA' : 'REVISAR',
+                    colorEspecial: usuario.preparacionValida
+                        ? Colors.teal
+                        : Colors.red,
+                  ),
+              ],
+            ),
+
+            if (usuario.migracionPreparada &&
+                usuario.preparacionValida &&
+                !usuario.existeTuSede) ...[
+              const SizedBox(height: 12),
+
+              Container(
+                width: double.infinity,
+                padding: const EdgeInsets.all(10),
+                decoration: BoxDecoration(
+                  color: Colors.teal[50],
+                  borderRadius: BorderRadius.circular(8),
+                  border: Border.all(color: Colors.teal[200]!),
+                ),
+                child: const Row(
+                  children: [
+                    Icon(Icons.verified_outlined, color: Colors.teal, size: 18),
+
+                    SizedBox(width: 8),
+
+                    Expanded(
+                      child: Text(
+                        'Migración autorizada y preparada. '
+                        'La cuenta todavía NO fue creada '
+                        'en Authentication TuSede.',
+                        style: TextStyle(
+                          fontSize: 12,
+                          fontWeight: FontWeight.w600,
+                        ),
                       ),
                     ),
                   ],
-                ],
-              ),
-            ),
-
-            const SizedBox(width: 10),
-
-            // ==================================================
-            // ESTADO
-            // ==================================================
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-              decoration: BoxDecoration(
-                color: estado.color.withOpacity(0.12),
-                borderRadius: BorderRadius.circular(20),
-                border: Border.all(color: estado.color),
-              ),
-              child: Text(
-                estado.texto,
-                style: TextStyle(
-                  color: estado.color,
-                  fontWeight: FontWeight.bold,
-                  fontSize: 11,
                 ),
               ),
-            ),
+            ],
+
+            if (usuario.estado == EstadoMigracionAdmin.revisar &&
+                usuario.motivoRevision.isNotEmpty) ...[
+              const SizedBox(height: 12),
+
+              Container(
+                width: double.infinity,
+                padding: const EdgeInsets.all(10),
+                decoration: BoxDecoration(
+                  color: Colors.red[50],
+                  borderRadius: BorderRadius.circular(8),
+                  border: Border.all(color: Colors.red[200]!),
+                ),
+                child: Text(
+                  usuario.motivoRevision,
+                  style: TextStyle(
+                    color: Colors.red[900],
+                    fontSize: 12,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+              ),
+            ],
+
+            if (usuario.puedePrepararse) ...[
+              const SizedBox(height: 14),
+
+              SizedBox(
+                width: double.infinity,
+                child: OutlinedButton.icon(
+                  onPressed: preparando ? null : () => _preparar(usuario),
+                  icon: preparando
+                      ? const SizedBox(
+                          width: 18,
+                          height: 18,
+                          child: CircularProgressIndicator(strokeWidth: 2),
+                        )
+                      : const Icon(Icons.playlist_add_check),
+                  label: Text(
+                    preparando ? 'PREPARANDO...' : 'PREPARAR MIGRACIÓN',
+                  ),
+                ),
+              ),
+            ],
           ],
         ),
       ),
     );
   }
-
-  // ============================================================
-  // ESTADOS
-  // ============================================================
 
   _DatosEstado _datosEstado(EstadoMigracionAdmin estado) {
     switch (estado) {
@@ -479,10 +579,6 @@ class _PantallaInventarioAdminsTuSedeState
     }
   }
 }
-
-// =============================================================
-// TARJETA RESUMEN
-// =============================================================
 
 class _ResumenCard extends StatelessWidget {
   final String titulo;
@@ -538,45 +634,42 @@ class _ResumenCard extends StatelessWidget {
   }
 }
 
-// =============================================================
-// CHIP
-// =============================================================
-
 class _ChipDato extends StatelessWidget {
   final String titulo;
   final String valor;
   final bool destacado;
+  final Color? colorEspecial;
 
   const _ChipDato({
     required this.titulo,
     required this.valor,
     this.destacado = false,
+    this.colorEspecial,
   });
 
   @override
   Widget build(BuildContext context) {
+    final color =
+        colorEspecial ?? (destacado ? Colors.orange : Colors.blueGrey);
+
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 5),
       decoration: BoxDecoration(
-        color: destacado ? Colors.orange[50] : Colors.grey[100],
+        color: color.withOpacity(0.08),
         borderRadius: BorderRadius.circular(6),
-        border: destacado ? Border.all(color: Colors.orange[300]!) : null,
+        border: Border.all(color: color.withOpacity(0.5)),
       ),
       child: Text(
         '$titulo: $valor',
         style: TextStyle(
           fontSize: 11,
           fontWeight: FontWeight.w600,
-          color: destacado ? Colors.orange[900] : null,
+          color: color,
         ),
       ),
     );
   }
 }
-
-// =============================================================
-// DATOS VISUALES DEL ESTADO
-// =============================================================
 
 class _DatosEstado {
   final String texto;

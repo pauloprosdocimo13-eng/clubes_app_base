@@ -26,38 +26,50 @@ class AdminInventarioTuSede {
   // VALIDACIÓN DE ROLES
   // ============================================================
 
-  /// Rol de TuSede que corresponde al rol Legacy actual.
-  ///
-  /// Ejemplo:
-  /// tesoreria Legacy -> tesoreria TuSede.
   final String rolSugeridoTuSede;
 
-  /// Indica que el rol central existe en la colección /roles
-  /// y se encuentra activo.
   final bool rolTuSedeValido;
 
-  /// Indica que el rol central tiene como legacyEquivalente
-  /// el mismo rol que actualmente utiliza Güemes.
   final bool rolCompatibleConLegacy;
+
+  // ============================================================
+  // PREPARACIÓN DE MIGRACIÓN
+  // ============================================================
+
+  final bool migracionPreparada;
+
+  final bool autorizadoMigracion;
+
+  final String rolPreparadoTuSede;
+
+  final String estadoPreparacion;
 
   const AdminInventarioTuSede({
     required this.email,
+
     required this.existeLegacy,
     required this.nombreLegacy,
     required this.rolLegacy,
+
     required this.existeTuSede,
     required this.nombreTuSede,
     required this.rolTuSede,
     required this.activoTuSede,
     required this.clubIdsTuSede,
     required this.tieneAccesoClub,
+
     required this.rolSugeridoTuSede,
     required this.rolTuSedeValido,
     required this.rolCompatibleConLegacy,
+
+    required this.migracionPreparada,
+    required this.autorizadoMigracion,
+    required this.rolPreparadoTuSede,
+    required this.estadoPreparacion,
   });
 
   // ============================================================
-  // NOMBRE PARA MOSTRAR
+  // NOMBRE
   // ============================================================
 
   String get nombre {
@@ -73,12 +85,39 @@ class AdminInventarioTuSede {
   }
 
   // ============================================================
-  // ESTADO DE MIGRACIÓN
+  // PREPARACIÓN
+  // ============================================================
+
+  bool get preparacionValida {
+    if (!migracionPreparada) {
+      return false;
+    }
+
+    if (!autorizadoMigracion) {
+      return false;
+    }
+
+    if (rolSugeridoTuSede.isEmpty) {
+      return false;
+    }
+
+    return rolPreparadoTuSede == rolSugeridoTuSede;
+  }
+
+  bool get puedePrepararse {
+    return existeLegacy &&
+        !existeTuSede &&
+        rolSugeridoTuSede.isNotEmpty &&
+        !migracionPreparada;
+  }
+
+  // ============================================================
+  // ESTADO
   // ============================================================
 
   EstadoMigracionAdmin get estado {
     // ----------------------------------------------------------
-    // EXISTE EN AMBOS SISTEMAS
+    // EXISTE EN AMBOS
     // ----------------------------------------------------------
 
     if (existeLegacy && existeTuSede) {
@@ -106,9 +145,11 @@ class AdminInventarioTuSede {
     // ----------------------------------------------------------
 
     if (existeLegacy && !existeTuSede) {
-      // Si ni siquiera encontramos un rol equivalente
-      // no conviene migrar todavía.
       if (rolSugeridoTuSede.isEmpty) {
+        return EstadoMigracionAdmin.revisar;
+      }
+
+      if (migracionPreparada && !preparacionValida) {
         return EstadoMigracionAdmin.revisar;
       }
 
@@ -138,47 +179,45 @@ class AdminInventarioTuSede {
     return EstadoMigracionAdmin.revisar;
   }
 
-  bool get estaVinculado {
-    return estado == EstadoMigracionAdmin.vinculado;
-  }
-
-  bool get pendienteMigracion {
-    return estado == EstadoMigracionAdmin.soloLegacy;
-  }
-
   // ============================================================
-  // MOTIVO PARA REVISAR
+  // MOTIVO REVISIÓN
   // ============================================================
 
   String get motivoRevision {
     if (existeLegacy && !existeTuSede && rolSugeridoTuSede.isEmpty) {
-      return 'No existe en TuSede un rol equivalente '
+      return 'No existe un rol TuSede equivalente '
           'al rol Legacy "$rolLegacy".';
     }
 
+    if (migracionPreparada && !autorizadoMigracion) {
+      return 'La migración está preparada '
+          'pero no se encuentra autorizada.';
+    }
+
+    if (migracionPreparada && rolPreparadoTuSede != rolSugeridoTuSede) {
+      return 'La autorización fue preparada con '
+          'el rol "$rolPreparadoTuSede", pero '
+          'el rol sugerido es "$rolSugeridoTuSede".';
+    }
+
     if (existeTuSede && !activoTuSede) {
-      return 'El usuario existe en TuSede pero está desactivado.';
+      return 'El usuario existe en TuSede '
+          'pero está desactivado.';
     }
 
     if (existeTuSede && !tieneAccesoClub) {
-      return 'El usuario existe en TuSede pero no tiene '
-          'acceso al club actual.';
+      return 'El usuario existe en TuSede '
+          'pero no tiene acceso al club actual.';
     }
 
     if (existeTuSede && !rolTuSedeValido) {
-      return 'El rol "$rolTuSede" no existe en el catálogo '
-          'de roles de TuSede o está desactivado.';
+      return 'El rol "$rolTuSede" no existe '
+          'en TuSede o está desactivado.';
     }
 
     if (existeLegacy && existeTuSede && !rolCompatibleConLegacy) {
-      final sugerido = rolSugeridoTuSede.isEmpty
-          ? 'sin equivalente'
-          : rolSugeridoTuSede;
-
-      return 'Los roles no coinciden. '
-          'Legacy: "$rolLegacy". '
-          'TuSede: "$rolTuSede". '
-          'Sugerido: "$sugerido".';
+      return 'Los roles Legacy y TuSede '
+          'no son compatibles.';
     }
 
     return '';

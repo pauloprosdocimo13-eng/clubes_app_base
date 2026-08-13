@@ -48,7 +48,7 @@ class ServicioInventarioAdminsTuSede {
     final clubId = ContextoClub.clubId.trim().toLowerCase();
 
     // ==========================================================
-    // 1. CATÁLOGO CENTRAL DE ROLES
+    // 1. CATÁLOGO DE ROLES
     // ==========================================================
 
     final rolesSnapshot = await ServicioFirebaseTuSede.firestore
@@ -72,20 +72,20 @@ class ServicioInventarioAdminsTuSede {
 
     if (rolesCentral.isEmpty) {
       throw const InventarioAdminsTuSedeException(
-        'No se encontró el catálogo central '
-        'de roles de TuSede.',
+        'No existe el catálogo de roles '
+        'de TuSede.',
       );
     }
 
     // ==========================================================
-    // 2. USUARIOS LEGACY
+    // 2. LEGACY
     // ==========================================================
 
     final legacySnapshot = await FirebaseFirestore.instance
         .collection('permisos_admin')
         .get();
 
-    final Map<String, Map<String, dynamic>> usuariosLegacy = {};
+    final Map<String, Map<String, dynamic>> legacy = {};
 
     for (final doc in legacySnapshot.docs) {
       final data = doc.data();
@@ -100,21 +100,21 @@ class ServicioInventarioAdminsTuSede {
         continue;
       }
 
-      usuariosLegacy[email] = {
+      legacy[email] = {
         'nombre': data['nombre']?.toString() ?? '',
         'rol': data['rol']?.toString().trim().toLowerCase() ?? '',
       };
     }
 
     // ==========================================================
-    // 3. USUARIOS CENTRALES TUSEDE
+    // 3. USUARIOS TUSEDE
     // ==========================================================
 
     final centralSnapshot = await ServicioFirebaseTuSede.firestore
         .collection('usuarios')
         .get();
 
-    final Map<String, Map<String, dynamic>> usuariosCentral = {};
+    final Map<String, Map<String, dynamic>> central = {};
 
     for (final doc in centralSnapshot.docs) {
       final data = doc.data();
@@ -136,70 +136,95 @@ class ServicioInventarioAdminsTuSede {
 
       final rol = data['rol']?.toString().trim().toLowerCase() ?? '';
 
-      final clubPrincipal =
+      final principal =
           data['clubPrincipal']?.toString().trim().toLowerCase() ?? '';
 
-      final bool esSuperAdmin = rol == 'superadmin';
+      final esSuperAdmin = rol == 'superadmin';
 
-      final bool tieneAccesoClub =
-          esSuperAdmin || clubes.contains(clubId) || clubPrincipal == clubId;
+      final tieneAcceso =
+          esSuperAdmin || clubes.contains(clubId) || principal == clubId;
 
-      // Para este inventario solamente
-      // mostramos usuarios relacionados
-      // con el club actual.
-      if (!tieneAccesoClub) {
+      if (!tieneAcceso) {
         continue;
       }
 
-      usuariosCentral[email] = {
+      central[email] = {
         'uid': doc.id,
         'nombre': data['nombre']?.toString() ?? '',
         'rol': rol,
         'activo': data['activo'] == true,
         'clubIds': clubes,
-        'tieneAccesoClub': tieneAccesoClub,
+        'tieneAccesoClub': tieneAcceso,
       };
     }
 
     // ==========================================================
-    // 4. UNIFICAR EMAILS
+    // 4. MIGRACIONES PREPARADAS
     // ==========================================================
 
-    final emails = <String>{...usuariosLegacy.keys, ...usuariosCentral.keys};
+    final migracionesSnapshot = await ServicioFirebaseTuSede.firestore
+        .collection('migraciones_admin')
+        .doc(clubId)
+        .collection('usuarios')
+        .get();
 
-    final List<AdminInventarioTuSede> resultado = [];
+    final Map<String, Map<String, dynamic>> migraciones = {};
+
+    for (final doc in migracionesSnapshot.docs) {
+      final data = doc.data();
+
+      final email = data['email']?.toString().trim().toLowerCase() ?? '';
+
+      if (email.isEmpty) {
+        continue;
+      }
+
+      migraciones[email] = {
+        'autorizado': data['autorizado'] == true,
+        'estado': data['estado']?.toString().trim().toLowerCase() ?? '',
+        'rolTuSede': data['rolTuSede']?.toString().trim().toLowerCase() ?? '',
+      };
+    }
+
+    // ==========================================================
+    // 5. UNIFICAR
+    // ==========================================================
+
+    final emails = <String>{
+      ...legacy.keys,
+      ...central.keys,
+      ...migraciones.keys,
+    };
+
+    final resultado = <AdminInventarioTuSede>[];
 
     for (final email in emails) {
-      final legacy = usuariosLegacy[email];
+      final legacyData = legacy[email];
 
-      final central = usuariosCentral[email];
+      final centralData = central[email];
 
-      final rolLegacy = legacy?['rol']?.toString().trim().toLowerCase() ?? '';
+      final migracionData = migraciones[email];
 
-      final rolTuSede = central?['rol']?.toString().trim().toLowerCase() ?? '';
+      final rolLegacy =
+          legacyData?['rol']?.toString().trim().toLowerCase() ?? '';
 
-      // ========================================================
-      // ROL SUGERIDO PARA MIGRACIÓN
-      // ========================================================
+      final rolTuSede =
+          centralData?['rol']?.toString().trim().toLowerCase() ?? '';
 
       final rolSugerido = _buscarRolSugerido(rolesCentral, rolLegacy);
-
-      // ========================================================
-      // VALIDAR ROL CENTRAL EXISTENTE
-      // ========================================================
 
       final datosRolCentral = rolTuSede.isEmpty
           ? null
           : rolesCentral[rolTuSede];
 
-      final bool rolTuSedeValido =
+      final rolTuSedeValido =
           datosRolCentral != null && datosRolCentral['activo'] == true;
 
-      bool rolCompatibleConLegacy = true;
+      bool rolCompatible = true;
 
-      if (legacy != null && central != null) {
+      if (legacyData != null && centralData != null) {
         if (!rolTuSedeValido) {
-          rolCompatibleConLegacy = false;
+          rolCompatible = false;
         } else {
           final equivalente =
               datosRolCentral!['legacyEquivalente']
@@ -208,7 +233,7 @@ class ServicioInventarioAdminsTuSede {
                   .toLowerCase() ??
               '';
 
-          rolCompatibleConLegacy = equivalente == rolLegacy;
+          rolCompatible = equivalente == rolLegacy;
         }
       }
 
@@ -216,29 +241,34 @@ class ServicioInventarioAdminsTuSede {
         AdminInventarioTuSede(
           email: email,
 
-          // Legacy
-          existeLegacy: legacy != null,
-          nombreLegacy: legacy?['nombre']?.toString() ?? '',
+          existeLegacy: legacyData != null,
+          nombreLegacy: legacyData?['nombre']?.toString() ?? '',
           rolLegacy: rolLegacy,
 
-          // TuSede
-          existeTuSede: central != null,
-          nombreTuSede: central?['nombre']?.toString() ?? '',
+          existeTuSede: centralData != null,
+          nombreTuSede: centralData?['nombre']?.toString() ?? '',
           rolTuSede: rolTuSede,
-          activoTuSede: central?['activo'] == true,
-          clubIdsTuSede: central?['clubIds'] as List<String>? ?? <String>[],
-          tieneAccesoClub: central?['tieneAccesoClub'] == true,
+          activoTuSede: centralData?['activo'] == true,
+          clubIdsTuSede: centralData?['clubIds'] as List<String>? ?? <String>[],
+          tieneAccesoClub: centralData?['tieneAccesoClub'] == true,
 
-          // Validación
           rolSugeridoTuSede: rolSugerido,
           rolTuSedeValido: rolTuSedeValido,
-          rolCompatibleConLegacy: rolCompatibleConLegacy,
+          rolCompatibleConLegacy: rolCompatible,
+
+          migracionPreparada: migracionData != null,
+
+          autorizadoMigracion: migracionData?['autorizado'] == true,
+
+          rolPreparadoTuSede: migracionData?['rolTuSede']?.toString() ?? '',
+
+          estadoPreparacion: migracionData?['estado']?.toString() ?? '',
         ),
       );
     }
 
     // ==========================================================
-    // 5. ORDENAR
+    // ORDEN
     // ==========================================================
 
     int prioridad(AdminInventarioTuSede admin) {
@@ -271,14 +301,14 @@ class ServicioInventarioAdminsTuSede {
   }
 
   // ============================================================
-  // BUSCAR ROL CENTRAL EQUIVALENTE
+  // ROL EQUIVALENTE
   // ============================================================
 
   static String _buscarRolSugerido(
     Map<String, Map<String, dynamic>> roles,
     String rolLegacy,
   ) {
-    if (rolLegacy.trim().isEmpty) {
+    if (rolLegacy.isEmpty) {
       return '';
     }
 
@@ -292,18 +322,6 @@ class ServicioInventarioAdminsTuSede {
       final equivalente =
           data['legacyEquivalente']?.toString().trim().toLowerCase() ?? '';
 
-      // IMPORTANTE:
-      //
-      // Cuando migramos administradores comunes
-      // buscamos únicamente roles con alcance CLUB.
-      //
-      // De esta forma:
-      //
-      // Legacy ADMIN -> TuSede ADMIN
-      //
-      // y NO:
-      //
-      // Legacy ADMIN -> SUPERADMIN.
       return activo && alcance == 'club' && equivalente == rolLegacy;
     }).toList();
 
