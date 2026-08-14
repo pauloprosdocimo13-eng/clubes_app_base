@@ -55,35 +55,51 @@ class _PantallaLoginAdminState extends State<PantallaLoginAdmin> {
   Future<void> _chequearSesionExistente() async {
     await Future.delayed(Duration.zero);
 
-    // Intentamos restaurar una sesión TuSede si existe.
-    //
-    // Pero esto NO decide si el usuario puede entrar al panel.
-    // La autoridad continúa siendo Firebase Legacy de Güemes.
-    try {
-      await ServicioSesionTuSede.restaurarSesion();
-    } catch (e) {
-      debugPrint('No se pudo restaurar TuSede: $e');
-    }
-
-    final User? usuarioActual = FirebaseAuth.instance.currentUser;
+    final User? usuarioLegacy = FirebaseAuth.instance.currentUser;
 
     if (!mounted) {
       return;
     }
 
     // ==========================================================
-    // IMPORTANTE
+    // USUARIO YA LOGUEADO EN GÜEMES
     // ==========================================================
     //
-    // Solo entramos automáticamente si existe una sesión
-    // válida en el Firebase Legacy del club.
+    // Esta es la situación de los administradores reales:
     //
-    // Una sesión TuSede por sí sola NO permite todavía
-    // ingresar al panel administrativo.
+    // - abren la aplicación;
+    // - tocan la ruedita;
+    // - Firebase Güemes ya recuerda su sesión.
+    //
+    // NO hacemos esperar al usuario por TuSede.
+    //
+    // Entra al panel inmediatamente y la vinculación
+    // central ocurre silenciosamente por detrás.
 
-    if (usuarioActual != null) {
+    if (usuarioLegacy != null) {
+      unawaited(_restaurarOVincularTuSede());
+
       _navegarAlPanel();
-    } else {
+
+      return;
+    }
+
+    // ==========================================================
+    // NO HAY SESIÓN LEGACY
+    // ==========================================================
+    //
+    // Aunque existiera accidentalmente una sesión central,
+    // TuSede por sí sola NO habilita todavía el panel.
+    //
+    // Legacy sigue siendo la autoridad durante la migración.
+
+    try {
+      await ServicioSesionTuSede.restaurarSesion();
+    } catch (_) {
+      // No bloqueamos el login.
+    }
+
+    if (mounted) {
       setState(() {
         _verificandoSesion = false;
       });
@@ -91,7 +107,40 @@ class _PantallaLoginAdminState extends State<PantallaLoginAdmin> {
   }
 
   // ============================================================
-  // NAVEGACIÓN PANEL
+  // RESTAURAR / VINCULAR TUSEDE EN SEGUNDO PLANO
+  // ============================================================
+
+  Future<void> _restaurarOVincularTuSede() async {
+    try {
+      // Primero comprobamos si el dispositivo ya
+      // tiene también una sesión central válida.
+
+      final usuarioCentral = await ServicioSesionTuSede.restaurarSesion();
+
+      if (usuarioCentral != null) {
+        debugPrint(
+          'TuSede: sesión central ya disponible '
+          'para ${usuarioCentral.email}.',
+        );
+
+        return;
+      }
+
+      // Si no existe sesión central, utilizamos
+      // automáticamente el puente 3F-3.
+
+      await ServicioVinculoTuSede.intentarVincularSesionExistente();
+    } catch (e) {
+      // Nunca afecta Güemes.
+      debugPrint(
+        'TuSede: vinculación automática '
+        'no bloqueante: $e',
+      );
+    }
+  }
+
+  // ============================================================
+  // NAVEGACIÓN
   // ============================================================
 
   void _navegarAlPanel() {
@@ -117,7 +166,7 @@ class _PantallaLoginAdminState extends State<PantallaLoginAdmin> {
   }
 
   // ============================================================
-  // LOGIN LEGACY - SIGUE SIENDO LA AUTORIDAD
+  // LOGIN LEGACY
   // ============================================================
 
   Future<void> _login() async {
@@ -137,13 +186,8 @@ class _PantallaLoginAdminState extends State<PantallaLoginAdmin> {
 
     try {
       // ========================================================
-      // PASO 1
+      // 1. GÜEMES SIGUE SIENDO LA AUTORIDAD
       // ========================================================
-      //
-      // Autenticación NORMAL del club.
-      //
-      // Este sigue siendo exactamente el requisito que existía
-      // antes de comenzar la migración a TuSede.
 
       await FirebaseAuth.instance.signInWithEmailAndPassword(
         email: email,
@@ -155,18 +199,16 @@ class _PantallaLoginAdminState extends State<PantallaLoginAdmin> {
       }
 
       // ========================================================
-      // PASO 2 - TUSEDE SHADOW
+      // 2. TUSEDE TRABAJA EN SEGUNDO PLANO
       // ========================================================
       //
-      // Firebase Güemes YA aceptó al administrador.
+      // El servicio intentará primero el nuevo puente
+      // seguro 3F-3.
       //
-      // Por eso entramos al panel normalmente.
+      // Si no puede usarlo, conserva el mecanismo
+      // anterior como respaldo.
       //
-      // En paralelo TuSede intenta reconocerlo.
-      //
-      // NO esperamos esta operación.
-      // NO puede bloquear el panel.
-      // NO modifica sus permisos actuales.
+      // Nunca bloquea el panel.
 
       unawaited(
         ServicioVinculoTuSede.intentarVincular(
@@ -176,10 +218,8 @@ class _PantallaLoginAdminState extends State<PantallaLoginAdmin> {
       );
 
       // ========================================================
-      // PASO 3
+      // 3. ENTRAR AL PANEL INMEDIATAMENTE
       // ========================================================
-      //
-      // El administrador entra exactamente como hasta hoy.
 
       _navegarAlPanel();
     } on FirebaseAuthException catch (e) {
@@ -214,12 +254,8 @@ class _PantallaLoginAdminState extends State<PantallaLoginAdmin> {
   }
 
   // ============================================================
-  // BOTÓN TEMPORAL PARA PRUEBAS TUSEDE
+  // BOTÓN TEMPORAL DE DESARROLLO
   // ============================================================
-  //
-  // Por ahora lo conservamos en nuestra rama de desarrollo.
-  //
-  // NO forma parte todavía del login definitivo.
 
   Future<void> _validarCuentaTuSede() async {
     final email = _emailController.text.trim();

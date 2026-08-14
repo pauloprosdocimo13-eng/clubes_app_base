@@ -47,17 +47,10 @@ class ServicioSesionTuSede {
   }
 
   // ============================================================
-  // SINCRONIZACIÓN CON FIREBASE LEGACY
+  // SINCRONIZACIÓN CON LEGACY
   // ============================================================
 
-  /// Durante la migración, el Firebase actual del club continúa
-  /// siendo la autoridad para ingresar al panel.
-  ///
-  /// Si ese usuario cierra sesión, TuSede debe cerrar también
-  /// su sesión secundaria para no dejar una cuenta central
-  /// abierta en una computadora compartida.
   static void _activarSincronizacionConLegacy() {
-    // Evitamos crear varios listeners.
     if (_suscripcionSesionLegacy != null) {
       return;
     }
@@ -132,6 +125,10 @@ class ServicioSesionTuSede {
     }
 
     try {
+      // ========================================================
+      // 1. AUTHENTICATION CENTRAL
+      // ========================================================
+
       final credential = await _auth.signInWithEmailAndPassword(
         email: email.trim(),
         password: password,
@@ -146,14 +143,47 @@ class ServicioSesionTuSede {
         );
       }
 
-      final usuario = await _cargarPerfilUsuario(firebaseUser.uid);
+      // ========================================================
+      // 2. PERFIL TUSEDE
+      // ========================================================
+
+      var usuario = await _buscarPerfilUsuario(firebaseUser.uid);
+
+      // ========================================================
+      // 3. AUTOALTA DESDE MIGRACIÓN PREPARADA
+      // ========================================================
+
+      if (usuario == null) {
+        debugPrint(
+          'TuSede: Authentication válido pero '
+          'todavía no existe perfil central.',
+        );
+
+        usuario = await _crearPerfilDesdeMigracion(firebaseUser);
+
+        debugPrint('===============================================');
+
+        debugPrint('PERFIL TUSEDE CREADO AUTOMÁTICAMENTE');
+
+        debugPrint('Usuario: ${usuario.nombre}');
+
+        debugPrint('Email: ${usuario.email}');
+
+        debugPrint('Rol: ${usuario.rol}');
+
+        debugPrint('Club: ${usuario.clubPrincipal}');
+
+        debugPrint('===============================================');
+      }
+
+      // ========================================================
+      // 4. VALIDAR PERFIL
+      // ========================================================
 
       _validarUsuario(usuario);
 
       ContextoUsuarioTuSede.establecerUsuario(usuario);
 
-      // A partir de este momento ambas sesiones quedan
-      // sincronizadas para el cierre.
       _activarSincronizacionConLegacy();
 
       debugPrint('===============================================');
@@ -166,7 +196,10 @@ class ServicioSesionTuSede {
 
       debugPrint('Club principal: ${usuario.clubPrincipal}');
 
-      debugPrint('Clubes permitidos: ${usuario.clubIds.join(', ')}');
+      debugPrint(
+        'Clubes permitidos: '
+        '${usuario.clubIds.join(', ')}',
+      );
 
       debugPrint('Superadmin: ${usuario.esSuperAdmin}');
 
@@ -183,6 +216,148 @@ class ServicioSesionTuSede {
   }
 
   // ============================================================
+  // BUSCAR PERFIL
+  // ============================================================
+
+  static Future<UsuarioTuSede?> _buscarPerfilUsuario(String uid) async {
+    final snapshot = await ServicioFirebaseTuSede.firestore
+        .collection('usuarios')
+        .doc(uid)
+        .get();
+
+    if (!snapshot.exists) {
+      return null;
+    }
+
+    final data = snapshot.data();
+
+    if (data == null) {
+      return null;
+    }
+
+    return UsuarioTuSede.fromMap(snapshot.id, data);
+  }
+
+  // ============================================================
+  // CREAR PERFIL DESDE AUTORIZACIÓN
+  // ============================================================
+
+  static Future<UsuarioTuSede> _crearPerfilDesdeMigracion(
+    User firebaseUser,
+  ) async {
+    final email = firebaseUser.email?.trim().toLowerCase();
+
+    if (email == null || email.isEmpty) {
+      throw const SesionTuSedeException(
+        'La cuenta autenticada no tiene email.',
+      );
+    }
+
+    final clubId = ContextoClub.clubId.trim().toLowerCase();
+
+    // Coincide con el formato utilizado
+    // durante 3F-1:
+    //
+    // diego@guemes.com
+    // ->
+    // diego%40guemes.com
+
+    final idMigracion = Uri.encodeComponent(email);
+
+    final referenciaMigracion = ServicioFirebaseTuSede.firestore
+        .collection('migraciones_admin')
+        .doc(clubId)
+        .collection('usuarios')
+        .doc(idMigracion);
+
+    final snapshotMigracion = await referenciaMigracion.get();
+
+    if (!snapshotMigracion.exists) {
+      throw const SesionTuSedeException(
+        'La cuenta existe en Authentication '
+        'pero todavía no tiene una migración '
+        'autorizada en TuSede.',
+      );
+    }
+
+    final migracion = snapshotMigracion.data();
+
+    if (migracion == null) {
+      throw const SesionTuSedeException(
+        'La autorización de migración está vacía.',
+      );
+    }
+
+    final emailPreparado =
+        migracion['email']?.toString().trim().toLowerCase() ?? '';
+
+    final clubPreparado =
+        migracion['clubId']?.toString().trim().toLowerCase() ?? '';
+
+    final rol = migracion['rolTuSede']?.toString().trim().toLowerCase() ?? '';
+
+    final nombre = migracion['nombre']?.toString().trim() ?? '';
+
+    final autorizado = migracion['autorizado'] == true;
+
+    final estado = migracion['estado']?.toString().trim().toLowerCase() ?? '';
+
+    if (!autorizado) {
+      throw const SesionTuSedeException(
+        'La migración de esta cuenta '
+        'no está autorizada.',
+      );
+    }
+
+    if (estado != 'preparado') {
+      throw SesionTuSedeException(
+        'La migración se encuentra '
+        'en estado "$estado".',
+      );
+    }
+
+    if (emailPreparado != email) {
+      throw const SesionTuSedeException(
+        'El email de la migración '
+        'no coincide con Authentication.',
+      );
+    }
+
+    if (clubPreparado != clubId) {
+      throw const SesionTuSedeException(
+        'La migración pertenece '
+        'a otro club.',
+      );
+    }
+
+    if (rol.isEmpty) {
+      throw const SesionTuSedeException(
+        'La migración no tiene '
+        'un rol TuSede asignado.',
+      );
+    }
+
+    final nombreFinal = nombre.isEmpty ? email : nombre;
+
+    final datosUsuario = <String, dynamic>{
+      'nombre': nombreFinal,
+      'email': email,
+      'rol': rol,
+      'clubPrincipal': clubId,
+      'clubIds': <String>[clubId],
+      'activo': true,
+    };
+
+    final referenciaUsuario = ServicioFirebaseTuSede.firestore
+        .collection('usuarios')
+        .doc(firebaseUser.uid);
+
+    await referenciaUsuario.set(datosUsuario);
+
+    return UsuarioTuSede.fromMap(firebaseUser.uid, datosUsuario);
+  }
+
+  // ============================================================
   // RESTAURAR SESIÓN
   // ============================================================
 
@@ -195,11 +370,25 @@ class ServicioSesionTuSede {
 
     if (firebaseUser == null) {
       ContextoUsuarioTuSede.limpiar();
+
       return null;
     }
 
     try {
-      final usuario = await _cargarPerfilUsuario(firebaseUser.uid);
+      final usuario = await _buscarPerfilUsuario(firebaseUser.uid);
+
+      // Si Authentication existe pero el perfil
+      // todavía no fue creado, esperamos al próximo
+      // login completo con contraseña.
+      //
+      // No creamos perfiles durante restauración
+      // porque acá no tenemos necesidad de hacerlo.
+
+      if (usuario == null) {
+        await cerrarSesion();
+
+        return null;
+      }
 
       _validarUsuario(usuario);
 
@@ -209,45 +398,21 @@ class ServicioSesionTuSede {
 
       debugPrint(
         'Sesión TuSede restaurada: '
-        '${usuario.nombre} (${usuario.rol})',
+        '${usuario.nombre} '
+        '(${usuario.rol})',
       );
 
       return usuario;
     } catch (e) {
       await cerrarSesion();
 
-      debugPrint('No se pudo restaurar la sesión TuSede: $e');
+      debugPrint(
+        'No se pudo restaurar '
+        'la sesión TuSede: $e',
+      );
 
       return null;
     }
-  }
-
-  // ============================================================
-  // CARGAR PERFIL
-  // ============================================================
-
-  static Future<UsuarioTuSede> _cargarPerfilUsuario(String uid) async {
-    final snapshot = await ServicioFirebaseTuSede.firestore
-        .collection('usuarios')
-        .doc(uid)
-        .get();
-
-    if (!snapshot.exists) {
-      throw const SesionTuSedeException(
-        'La cuenta existe en Authentication, '
-        'pero no tiene un perfil creado en TuSede.',
-      );
-    }
-
-    final data = snapshot.data();
-
-    if (data == null) {
-      throw const SesionTuSedeException(
-        'El perfil TuSede del usuario está vacío.',
-      );
-    }
-
-    return UsuarioTuSede.fromMap(snapshot.id, data);
   }
 
   // ============================================================
@@ -257,7 +422,8 @@ class ServicioSesionTuSede {
   static void _validarUsuario(UsuarioTuSede usuario) {
     if (!usuario.activo) {
       throw const SesionTuSedeException(
-        'Tu usuario TuSede se encuentra desactivado.',
+        'Tu usuario TuSede '
+        'se encuentra desactivado.',
       );
     }
 
@@ -265,14 +431,14 @@ class ServicioSesionTuSede {
 
     if (!usuario.tieneAccesoAClub(clubIdActual)) {
       throw SesionTuSedeException(
-        'Tu usuario no tiene acceso al club '
-        '"$clubIdActual".',
+        'Tu usuario no tiene acceso '
+        'al club "$clubIdActual".',
       );
     }
   }
 
   // ============================================================
-  // CERRAR SESIÓN TUSEDE
+  // CERRAR SESIÓN
   // ============================================================
 
   static Future<void> cerrarSesion() async {
@@ -290,7 +456,7 @@ class ServicioSesionTuSede {
   }
 
   // ============================================================
-  // MENSAJES DE AUTH
+  // MENSAJES AUTH
   // ============================================================
 
   static String _mensajeFirebaseAuth(FirebaseAuthException e) {
@@ -308,7 +474,8 @@ class ServicioSesionTuSede {
             'de TuSede son incorrectos.';
 
       case 'invalid-email':
-        return 'El correo ingresado no es válido.';
+        return 'El correo ingresado '
+            'no es válido.';
 
       case 'user-disabled':
         return 'Este usuario fue deshabilitado '
