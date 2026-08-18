@@ -7,6 +7,7 @@ import 'package:http/http.dart' as http;
 import 'servicio_control_tusede.dart';
 import 'servicio_firebase_tusede.dart';
 import 'servicio_sesion_tusede.dart';
+import 'contexto_club.dart';
 
 class ServicioVinculoTuSede {
   ServicioVinculoTuSede._();
@@ -207,7 +208,10 @@ class ServicioVinculoTuSede {
                       'Bearer $idToken',
                 },
                 body: jsonEncode({
-                  'clubId': 'guemes',
+                  'clubId':
+                      ContextoClub.clubId
+                        .trim()
+                        .toLowerCase(),
                 }),
               )
               .timeout(

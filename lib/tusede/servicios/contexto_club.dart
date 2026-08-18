@@ -6,7 +6,13 @@ class ContextoClub {
 
   ContextoClub._();
 
-  static bool get estaInicializado => _clubActual != null;
+  // ============================================================
+  // ESTADO
+  // ============================================================
+
+  static bool get estaInicializado {
+    return _clubActual != null;
+  }
 
   static ClubTuSede get clubActual {
     final club = _clubActual;
@@ -21,34 +27,94 @@ class ContextoClub {
     return club;
   }
 
-  static String get clubId => clubActual.id;
+  // ============================================================
+  // DATOS DEL CLUB ACTUAL
+  // ============================================================
 
-  static String get nombreClub => clubActual.nombre;
+  static String get clubId {
+    return clubActual.id;
+  }
+
+  static String get nombreClub {
+    return clubActual.nombre;
+  }
+
+  static String get flavorLegacy {
+    return clubActual.flavorLegacy;
+  }
+
+  // ============================================================
+  // INICIALIZACIÓN DESDE LA APP LEGACY
+  // ============================================================
 
   static void inicializarDesdeConfiguracion(
     ConfiguracionApp configuracion,
   ) {
-    final flavor = configuracion.nombreSabor.trim().toLowerCase();
+    final flavorLegacy =
+        configuracion.nombreSabor
+            .trim()
+            .toLowerCase();
+
+    // IMPORTANTE:
+    //
+    // Ya NO utilizamos nombreSabor para determinar
+    // automáticamente el club central.
+    //
+    // TuSede tiene su identificador propio.
+
+    final clubId =
+        _normalizarIdClub(
+      configuracion.clubIdTuSede,
+    );
 
     _clubActual = ClubTuSede(
-      id: _normalizarIdClub(flavor),
-      nombre: configuracion.nombreApp,
-      slug: _normalizarIdClub(flavor),
-      flavorLegacy: flavor,
+      id: clubId,
+
+      nombre:
+          configuracion.nombreApp,
+
+      slug: clubId,
+
+      flavorLegacy:
+          flavorLegacy,
+
       activo: true,
     );
   }
 
-  static void cambiarClub(ClubTuSede club) {
+  // ============================================================
+  // REEMPLAZAR CON INFORMACIÓN CENTRAL
+  // ============================================================
+  //
+  // Durante el bootstrap primero conocemos el club por la
+  // configuración local.
+  //
+  // Luego FirestoreTuSede carga clubes/{clubId} y reemplaza
+  // este objeto por los datos centrales reales.
+
+  static void cambiarClub(
+    ClubTuSede club,
+  ) {
     _clubActual = club;
   }
+
+  // ============================================================
+  // LIMPIAR
+  // ============================================================
 
   static void limpiar() {
     _clubActual = null;
   }
 
-  static String _normalizarIdClub(String valor) {
-    var resultado = valor.trim().toLowerCase();
+  // ============================================================
+  // NORMALIZACIÓN
+  // ============================================================
+
+  static String _normalizarIdClub(
+    String valor,
+  ) {
+    var resultado =
+        valor.trim().toLowerCase();
 
     resultado = resultado
         .replaceAll('á', 'a')
@@ -57,17 +123,27 @@ class ContextoClub {
         .replaceAll('ó', 'o')
         .replaceAll('ú', 'u')
         .replaceAll('ñ', 'n')
-        .replaceAll(RegExp(r'[^a-z0-9_-]'), '_')
-        .replaceAll(RegExp(r'_+'), '_');
+        .replaceAll(
+          RegExp(
+            r'[^a-z0-9_-]',
+          ),
+          '_',
+        )
+        .replaceAll(
+          RegExp(r'_+'),
+          '_',
+        );
 
-    resultado = resultado.replaceAll(
+    resultado =
+        resultado.replaceAll(
       RegExp(r'^_+|_+$'),
       '',
     );
 
     if (resultado.isEmpty) {
       throw ArgumentError(
-        'No se pudo generar un clubId válido.',
+        'No se pudo generar un clubId '
+        'válido para TuSede.',
       );
     }
 
