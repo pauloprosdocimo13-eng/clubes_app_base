@@ -1,22 +1,16 @@
 import 'package:flutter/foundation.dart';
 
 import 'contexto_club.dart';
-import 'servicio_firebase_tusede.dart';
 
 class ServicioControlTuSede {
   ServicioControlTuSede._();
 
   static bool _consultado = false;
 
-  // IMPORTANTE:
+  // Valor seguro por defecto.
   //
-  // El valor seguro por defecto es FALSE.
-  //
-  // Si Firebase TuSede no responde, no hay Internet,
-  // existe un error de configuración o cualquier otra
-  // situación inesperada, el Bridge simplemente no funciona.
-  //
-  // Güemes Legacy continúa normalmente.
+  // Si la configuración central no pudo cargarse,
+  // TuSede queda apagado y Legacy continúa normalmente.
   static bool _bridgeActivo = false;
 
   static bool get bridgeActivoCache {
@@ -26,79 +20,57 @@ class ServicioControlTuSede {
   // ============================================================
   // CONSULTAR INTERRUPTOR
   // ============================================================
+  //
+  // Desde 4B ya NO hacemos otra lectura a Firestore.
+  //
+  // app_bootstrap carga clubes/{clubId} una sola vez
+  // y guarda la configuración en ContextoClub.
+  //
+  // Esto evita:
+  // - lecturas duplicadas;
+  // - esperas innecesarias;
+  // - timeouts al abrir Administración.
 
   static Future<bool> bridgeActivo({
     bool forzarActualizacion = false,
   }) async {
-    if (_consultado && !forzarActualizacion) {
+    if (_consultado &&
+        !forzarActualizacion) {
       return _bridgeActivo;
     }
 
     try {
       // ========================================================
-      // FIREBASE CENTRAL
+      // CONTEXTO DISPONIBLE
       // ========================================================
 
-      if (!ServicioFirebaseTuSede.estaInicializado) {
-        final iniciado =
-            await ServicioFirebaseTuSede.inicializar();
-
-        if (!iniciado) {
-          _guardarResultado(false);
-
-          _log(
-            'Control TuSede: Firebase Central no disponible. '
-            'Bridge desactivado.',
-          );
-
-          return false;
-        }
-      }
-
-      // ========================================================
-      // LEER CONFIGURACIÓN DEL CLUB
-      // ========================================================
-
-      final clubId =
-          ContextoClub.clubId.trim().toLowerCase();
-
-      final snapshot =
-          await ServicioFirebaseTuSede.firestore
-              .collection('clubes')
-              .doc(clubId)
-              .get()
-              .timeout(
-                const Duration(seconds: 5),
-              );
-
-      if (!snapshot.exists) {
+      if (!ContextoClub.estaInicializado) {
         _guardarResultado(false);
 
         _log(
-          'Control TuSede: no existe clubes/$clubId. '
+          'Control TuSede: ContextoClub no inicializado. '
           'Bridge desactivado.',
         );
 
         return false;
       }
 
-      final data = snapshot.data();
+      final club =
+          ContextoClub.clubActual;
 
-      if (data == null) {
-        _guardarResultado(false);
+      // ========================================================
+      // CONFIGURACIÓN YA CARGADA DESDE TUSEDE CENTRAL
+      // ========================================================
 
-        return false;
-      }
-
-      // El club además debe estar activo.
       final clubActivo =
-          data['activo'] == true;
+          club.activo;
 
-      final bridge =
-          data['tusedeBridgeActivo'] == true;
+      final bridgeConfigurado =
+          club.tusedeBridgeActivo;
 
       final resultado =
-          clubActivo && bridge;
+          clubActivo &&
+          bridgeConfigurado;
 
       _guardarResultado(
         resultado,
@@ -106,9 +78,9 @@ class ServicioControlTuSede {
 
       _log(
         'Control TuSede: '
-        'club=$clubId, '
+        'club=${club.id}, '
         'activo=$clubActivo, '
-        'bridge=$bridge.',
+        'bridge=$bridgeConfigurado.',
       );
 
       return resultado;
@@ -117,11 +89,9 @@ class ServicioControlTuSede {
       // FAIL-SAFE
       // ========================================================
       //
-      // Cualquier error significa:
-      //
-      // NO ejecutar TuSede.
-      //
-      // Nunca significa impedir el acceso a Güemes.
+      // Ante cualquier error:
+      // TuSede OFF.
+      // Legacy sigue funcionando.
 
       _guardarResultado(false);
 
@@ -141,23 +111,28 @@ class ServicioControlTuSede {
   static void _guardarResultado(
     bool activo,
   ) {
-    _bridgeActivo = activo;
-    _consultado = true;
+    _bridgeActivo =
+        activo;
+
+    _consultado =
+        true;
   }
 
   static void invalidarCache() {
-    _consultado = false;
-    _bridgeActivo = false;
+    _consultado =
+        false;
+
+    _bridgeActivo =
+        false;
   }
 
   // ============================================================
-  // LOGS
+  // LOG
   // ============================================================
 
   static void _log(
     String mensaje,
   ) {
-    // En producción evitamos llenar la consola.
     if (kDebugMode) {
       debugPrint(
         mensaje,

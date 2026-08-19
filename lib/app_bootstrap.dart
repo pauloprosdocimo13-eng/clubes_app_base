@@ -140,6 +140,30 @@ Future<void> _inicializarTuSedeCentral() async {
     );
 
     debugPrint(
+      'Nombre corto: ${ContextoClub.nombreCorto}',
+    );
+
+    debugPrint(
+      'Color primario: ${ContextoClub.colorPrimarioHex}',
+    );
+
+    debugPrint(
+      'Color secundario: ${ContextoClub.colorSecundarioHex}',
+    );
+
+    debugPrint(
+      'Lema: ${ContextoClub.lema}',
+    );
+
+    debugPrint(
+      'Version config: ${ContextoClub.versionConfiguracion}',
+    );
+
+    debugPrint(
+      'Modulos activos: ${ContextoClub.modulosActivos.join(', ')}',
+    );
+
+    debugPrint(
       'Proyecto central: tu-sede-app',
     );
 
