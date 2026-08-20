@@ -3,6 +3,8 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import '../../configuracion/configuracion_app.dart';
 import '../../configuracion/admin_permisos.dart';
+import '../../tusede/configuracion/modulos_tusede.dart';
+import '../../tusede/servicios/servicio_modulos_tusede.dart';
 
 // --- IMPORTAMOS TODOS LOS MÓDULOS DE GESTIÓN ---
 import '../admin/pantalla_admin_socios.dart';
@@ -87,11 +89,22 @@ class _PantallaAdminDesktopState extends State<PantallaAdminDesktop> {
             String label, {
             bool requiereModulo = false,
             String? keyModulo,
+            String? moduloTuSede,
           }) {
+            // 1. Permisos Legacy por rol.
             if (!AdminPermisos.puedeVer(_rolUsuario, label)) return;
 
+            // 2. Configuración Legacy del módulo.
             if (requiereModulo && keyModulo != null) {
               if (modulosActivos[keyModulo] != true) return;
+            }
+
+            // 3. Configuración central TuSede.
+            // TuSede puede restringir un módulo, pero nunca fuerza
+            // la habilitación de algo apagado en Legacy.
+            if (moduloTuSede != null &&
+                !ServicioModulosTuSede.activo(moduloTuSede)) {
+              return;
             }
 
             pantallas.add(pantalla);
@@ -110,21 +123,25 @@ class _PantallaAdminDesktopState extends State<PantallaAdminDesktop> {
             PantallaAdminAsistencia(config: widget.config),
             Icons.checklist,
             'Tomar Asistencia',
+            moduloTuSede: ModulosTuSede.asistencias,
           );
           agregarModulo(
             PantallaAdminCalendario(config: widget.config),
             Icons.calendar_month,
             'Agenda / Reservas',
+            moduloTuSede: ModulosTuSede.reservas,
           );
           agregarModulo(
             PantallaAdminScanner(config: widget.config),
             Icons.qr_code_scanner,
             'Escanear Ingreso',
+            moduloTuSede: ModulosTuSede.socios,
           );
           agregarModulo(
             PantallaAdminFinanzas(config: widget.config),
             Icons.attach_money,
             'Caja y Finanzas',
+            moduloTuSede: ModulosTuSede.finanzas,
           );
 
           // --- 3. ADMINISTRACIÓN DE SOCIOS ---
@@ -132,16 +149,19 @@ class _PantallaAdminDesktopState extends State<PantallaAdminDesktop> {
             PantallaAdminSocios(config: widget.config),
             Icons.groups,
             'Padrón Socios',
+            moduloTuSede: ModulosTuSede.socios,
           );
           agregarModulo(
             PantallaAdminPrecios(config: widget.config),
             Icons.price_change,
             'Config. Precios',
+            moduloTuSede: ModulosTuSede.cuotas,
           );
           agregarModulo(
             PantallaAdminPagosConfig(config: widget.config),
             Icons.account_balance,
             'Configurar Pagos',
+            moduloTuSede: ModulosTuSede.cuotas,
           );
 
           // --- 4. GESTIÓN DEL CLUB ---
@@ -149,6 +169,7 @@ class _PantallaAdminDesktopState extends State<PantallaAdminDesktop> {
             PantallaAdminEspacios(config: widget.config),
             Icons.stadium,
             'Configurar Espacios',
+            moduloTuSede: ModulosTuSede.espacios,
           );
 
           agregarModulo(
@@ -157,6 +178,7 @@ class _PantallaAdminDesktopState extends State<PantallaAdminDesktop> {
             'Tienda Oficial',
             requiereModulo: true,
             keyModulo: 'tienda',
+            moduloTuSede: ModulosTuSede.productos,
           );
 
           agregarModulo(
@@ -165,6 +187,7 @@ class _PantallaAdminDesktopState extends State<PantallaAdminDesktop> {
             'Gestionar Rifas',
             requiereModulo: true,
             keyModulo: 'sorteos',
+            moduloTuSede: ModulosTuSede.sorteos,
           );
 
           // --- 5. COMUNICACIÓN Y CONTENIDO ---
@@ -172,11 +195,13 @@ class _PantallaAdminDesktopState extends State<PantallaAdminDesktop> {
             PantallaAdminNoticias(config: widget.config),
             Icons.newspaper,
             'Publicar Noticia',
+            moduloTuSede: ModulosTuSede.noticias,
           );
           agregarModulo(
             PantallaAdminAvisoEntrada(config: widget.config),
             Icons.campaign,
             'Configurar Pop-up',
+            moduloTuSede: ModulosTuSede.avisos,
           );
 
           // --- MÓDULO PUBLICIDAD AGREGADO ---
@@ -202,6 +227,7 @@ class _PantallaAdminDesktopState extends State<PantallaAdminDesktop> {
             'Votación Figura',
             requiereModulo: true,
             keyModulo: 'votacion',
+            moduloTuSede: ModulosTuSede.votacion,
           );
 
           // --- 6. CONFIGURACIÓN TÉCNICA ---
@@ -209,6 +235,7 @@ class _PantallaAdminDesktopState extends State<PantallaAdminDesktop> {
             PantallaAdminDeportes(config: widget.config),
             Icons.settings,
             'Configurar Tiras',
+            moduloTuSede: ModulosTuSede.deportes,
           );
 
           // --- 7. SEGURIDAD Y USUARIOS ---

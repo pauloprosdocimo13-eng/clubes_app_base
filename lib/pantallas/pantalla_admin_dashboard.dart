@@ -3,6 +3,8 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import '../../configuracion/configuracion_app.dart';
 import '../../configuracion/admin_permisos.dart'; // <--- IMPORTANTE
+import '../tusede/configuracion/modulos_tusede.dart';
+import '../tusede/servicios/servicio_modulos_tusede.dart';
 
 // PANTALLAS ADMIN (Básicas)
 import 'pantalla_admin_partidos.dart';
@@ -169,8 +171,22 @@ class _PantallaAdminDashboardState extends State<PantallaAdminDashboard> {
 
   // --- FUNCIÓN HELPER PARA VERIFICAR VISIBILIDAD ---
   // Combina si el módulo está activo globalmente Y si el usuario tiene permiso
-  bool _puedeVer(String titulo, {bool moduloActivo = true}) {
-    if (!moduloActivo) return false; // Si está apagado globalmente, nadie lo ve
+  bool _puedeVer(
+    String titulo, {
+    bool moduloActivo = true,
+    String? moduloTuSede,
+  }) {
+    // 1. Configuración Legacy: si el módulo está apagado, nadie lo ve.
+    if (!moduloActivo) return false;
+
+    // 2. Configuración central TuSede: solo puede restringir.
+    // Si TuSede no pudo cargar su configuración, el servicio conserva Legacy.
+    if (moduloTuSede != null &&
+        !ServicioModulosTuSede.activo(moduloTuSede)) {
+      return false;
+    }
+
+    // 3. Permisos Legacy por rol.
     return AdminPermisos.puedeVer(_rolUsuario, titulo);
   }
 
@@ -313,7 +329,11 @@ class _PantallaAdminDashboardState extends State<PantallaAdminDashboard> {
                   ),
 
                 // PRODE
-                if (_puedeVer("Gestión Prode", moduloActivo: _mostrarProde))
+                if (_puedeVer(
+                  "Gestión Prode",
+                  moduloActivo: _mostrarProde,
+                  moduloTuSede: ModulosTuSede.prode,
+                ))
                   _TarjetaAdmin(
                     titulo: "Gestión Prode",
                     subtitulo: "Crear fechas y resultados",
@@ -334,6 +354,7 @@ class _PantallaAdminDashboardState extends State<PantallaAdminDashboard> {
                 if (_puedeVer(
                   "Votación Figura",
                   moduloActivo: _mostrarVotacion,
+                  moduloTuSede: ModulosTuSede.votacion,
                 ))
                   _TarjetaAdmin(
                     titulo: "Votación Figura",
@@ -352,7 +373,11 @@ class _PantallaAdminDashboardState extends State<PantallaAdminDashboard> {
                   ),
 
                 // TIENDA
-                if (_puedeVer("Tienda Oficial", moduloActivo: _mostrarTienda))
+                if (_puedeVer(
+                  "Tienda Oficial",
+                  moduloActivo: _mostrarTienda,
+                  moduloTuSede: ModulosTuSede.productos,
+                ))
                   _TarjetaAdmin(
                     titulo: "Tienda Oficial",
                     subtitulo: "Gestionar Productos y Precios",
@@ -370,7 +395,11 @@ class _PantallaAdminDashboardState extends State<PantallaAdminDashboard> {
                   ),
 
                 // SORTEOS
-                if (_puedeVer("Gestionar Rifas", moduloActivo: _mostrarSorteos))
+                if (_puedeVer(
+                  "Gestionar Rifas",
+                  moduloActivo: _mostrarSorteos,
+                  moduloTuSede: ModulosTuSede.sorteos,
+                ))
                   _TarjetaAdmin(
                     titulo: "Gestionar Rifas",
                     subtitulo: "Crear sorteos y controlar números",
@@ -390,7 +419,10 @@ class _PantallaAdminDashboardState extends State<PantallaAdminDashboard> {
                 // INSTITUCIONAL (SOCIOS, PAGOS Y GESTIÓN)
                 if (_mostrarModuloSocios) ...[
                   // 1. Asistencia
-                  if (_puedeVer("Tomar Asistencia"))
+                  if (_puedeVer(
+                    "Tomar Asistencia",
+                    moduloTuSede: ModulosTuSede.asistencias,
+                  ))
                     _TarjetaAdmin(
                       titulo: "Tomar Asistencia",
                       subtitulo: "Control diario de presentes",
@@ -406,7 +438,10 @@ class _PantallaAdminDashboardState extends State<PantallaAdminDashboard> {
                     ),
 
                   // 2. Finanzas
-                  if (_puedeVer("Caja y Finanzas"))
+                  if (_puedeVer(
+                    "Caja y Finanzas",
+                    moduloTuSede: ModulosTuSede.finanzas,
+                  ))
                     _TarjetaAdmin(
                       titulo: "Caja y Finanzas",
                       subtitulo: "Ingresos y Egresos del Club",
@@ -422,7 +457,10 @@ class _PantallaAdminDashboardState extends State<PantallaAdminDashboard> {
                     ),
 
                   // 3. Escáner
-                  if (_puedeVer("Escanear Ingreso"))
+                  if (_puedeVer(
+                    "Escanear Ingreso",
+                    moduloTuSede: ModulosTuSede.socios,
+                  ))
                     _TarjetaAdmin(
                       titulo: "Escanear Ingreso",
                       subtitulo: "Validar QR de Carnet Digital",
@@ -438,7 +476,10 @@ class _PantallaAdminDashboardState extends State<PantallaAdminDashboard> {
                     ),
 
                   // 4. Padrón
-                  if (_puedeVer("Padrón Socios"))
+                  if (_puedeVer(
+                    "Padrón Socios",
+                    moduloTuSede: ModulosTuSede.socios,
+                  ))
                     _TarjetaAdmin(
                       titulo: "Padrón Socios",
                       subtitulo: "Altas, bajas y cuotas",
@@ -454,7 +495,10 @@ class _PantallaAdminDashboardState extends State<PantallaAdminDashboard> {
                     ),
 
                   // 6. Precios
-                  if (_puedeVer("Config. Precios"))
+                  if (_puedeVer(
+                    "Config. Precios",
+                    moduloTuSede: ModulosTuSede.cuotas,
+                  ))
                     _TarjetaAdmin(
                       titulo: "Config. Precios",
                       subtitulo: "Valor cuota mensual",
@@ -470,7 +514,10 @@ class _PantallaAdminDashboardState extends State<PantallaAdminDashboard> {
                     ),
 
                   // 7. Pagos Config
-                  if (_puedeVer("Configurar Pagos"))
+                  if (_puedeVer(
+                    "Configurar Pagos",
+                    moduloTuSede: ModulosTuSede.cuotas,
+                  ))
                     _TarjetaAdmin(
                       titulo: "Configurar Pagos",
                       subtitulo: "Link de MP, CBU y Alias",
@@ -488,7 +535,10 @@ class _PantallaAdminDashboardState extends State<PantallaAdminDashboard> {
 
                 // RESERVAS
                 if (_mostrarModuloReservas) ...[
-                  if (_puedeVer("Agenda / Reservas"))
+                  if (_puedeVer(
+                    "Agenda / Reservas",
+                    moduloTuSede: ModulosTuSede.reservas,
+                  ))
                     _TarjetaAdmin(
                       titulo: "Agenda / Reservas",
                       subtitulo: "Ver ocupación y anotar",
@@ -505,7 +555,10 @@ class _PantallaAdminDashboardState extends State<PantallaAdminDashboard> {
                       },
                     ),
 
-                  if (_puedeVer("Configurar Espacios"))
+                  if (_puedeVer(
+                    "Configurar Espacios",
+                    moduloTuSede: ModulosTuSede.espacios,
+                  ))
                     _TarjetaAdmin(
                       titulo: "Configurar Espacios",
                       subtitulo: "Crear Canchas, Salones, Buffet",
@@ -526,7 +579,10 @@ class _PantallaAdminDashboardState extends State<PantallaAdminDashboard> {
                 const Divider(height: 30),
 
                 // DEPORTIVOS
-                if (_puedeVer("Gestionar Partidos"))
+                if (_puedeVer(
+                  "Gestionar Partidos",
+                  moduloTuSede: ModulosTuSede.partidos,
+                ))
                   _TarjetaAdmin(
                     titulo: "Gestionar Partidos",
                     subtitulo: "Resultados para $_deporteSeleccionadoNombre",
@@ -545,7 +601,10 @@ class _PantallaAdminDashboardState extends State<PantallaAdminDashboard> {
                     },
                   ),
 
-                if (_puedeVer("Rivales y Ubicaciones"))
+                if (_puedeVer(
+                  "Rivales y Ubicaciones",
+                  moduloTuSede: ModulosTuSede.deportes,
+                ))
                   _TarjetaAdmin(
                     titulo: "Rivales y Ubicaciones",
                     subtitulo: "Direcciones para $_deporteSeleccionadoNombre",
@@ -564,7 +623,10 @@ class _PantallaAdminDashboardState extends State<PantallaAdminDashboard> {
                     },
                   ),
 
-                if (_puedeVer("Gestionar Plantel"))
+                if (_puedeVer(
+                  "Gestionar Plantel",
+                  moduloTuSede: ModulosTuSede.jugadores,
+                ))
                   _TarjetaAdmin(
                     titulo: "Gestionar Plantel",
                     subtitulo: "Jugadores de $_deporteSeleccionadoNombre",
@@ -583,7 +645,10 @@ class _PantallaAdminDashboardState extends State<PantallaAdminDashboard> {
                     },
                   ),
 
-                if (_puedeVer("Avisos Urgentes"))
+                if (_puedeVer(
+                  "Avisos Urgentes",
+                  moduloTuSede: ModulosTuSede.avisos,
+                ))
                   _TarjetaAdmin(
                     titulo: "Avisos Urgentes",
                     subtitulo: "Alertas para $_deporteSeleccionadoNombre",
@@ -603,7 +668,10 @@ class _PantallaAdminDashboardState extends State<PantallaAdminDashboard> {
                   ),
 
                 // GLOBALES
-                if (_puedeVer("Publicar Noticia"))
+                if (_puedeVer(
+                  "Publicar Noticia",
+                  moduloTuSede: ModulosTuSede.noticias,
+                ))
                   _TarjetaAdmin(
                     titulo: "Publicar Noticia",
                     subtitulo: "Novedades Generales del Club",
@@ -620,7 +688,10 @@ class _PantallaAdminDashboardState extends State<PantallaAdminDashboard> {
                     },
                   ),
 
-                if (_puedeVer("Configurar Pop-up"))
+                if (_puedeVer(
+                  "Configurar Pop-up",
+                  moduloTuSede: ModulosTuSede.avisos,
+                ))
                   _TarjetaAdmin(
                     titulo: "Configurar Pop-up",
                     subtitulo: "Aviso emergente al iniciar la app",
@@ -637,7 +708,10 @@ class _PantallaAdminDashboardState extends State<PantallaAdminDashboard> {
                     },
                   ),
 
-                if (_puedeVer("Subir Fotos"))
+                if (_puedeVer(
+                  "Subir Fotos",
+                  moduloTuSede: ModulosTuSede.galeria,
+                ))
                   _TarjetaAdmin(
                     titulo: "Subir Fotos",
                     subtitulo: "Administrar Galería y Álbumes",
@@ -673,7 +747,10 @@ class _PantallaAdminDashboardState extends State<PantallaAdminDashboard> {
                     },
                   ),
 
-                if (_puedeVer("Configurar Tiras"))
+                if (_puedeVer(
+                  "Configurar Tiras",
+                  moduloTuSede: ModulosTuSede.deportes,
+                ))
                   _TarjetaAdmin(
                     titulo: "Configurar Tiras",
                     subtitulo: "Agregar o quitar deportes",
