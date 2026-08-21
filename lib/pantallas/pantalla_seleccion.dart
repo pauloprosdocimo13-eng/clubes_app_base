@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import '../configuracion/configuracion_app.dart';
+import '../tusede/servicios/contexto_club.dart';
 import '../servicios/servicio_aviso_entrada.dart';
 import '../servicios/servicio_version.dart';
 import '../widgets/estado_carga.dart';
@@ -40,6 +41,17 @@ class _PantallaSeleccionState extends State<PantallaSeleccion> {
 
   @override
   Widget build(BuildContext context) {
+    // ============================================================
+    // ETAPA 4E-1D - IDENTIDAD DINAMICA TUSEDE
+    // ============================================================
+    final Color colorPrimario = ContextoClub.colorPrimario;
+    final Color colorSecundario = ContextoClub.colorSecundario;
+
+    final Color colorFondoSuperior = Color.alphaBlend(
+      Colors.black.withAlpha(170),
+      colorSecundario,
+    );
+
     return Scaffold(
       body: Container(
         decoration: BoxDecoration(
@@ -47,8 +59,8 @@ class _PantallaSeleccionState extends State<PantallaSeleccion> {
             begin: Alignment.topCenter,
             end: Alignment.bottomCenter,
             colors: [
-              Colors.black,
-              widget.config.colorPrimario.withOpacity(0.8),
+              colorFondoSuperior,
+              colorPrimario.withOpacity(0.88),
             ],
           ),
         ),
@@ -62,14 +74,14 @@ class _PantallaSeleccionState extends State<PantallaSeleccion> {
               if (snapshot.connectionState == ConnectionState.waiting) {
                 return EstadoCarga(
                   estado: TipoEstadoPantalla.cargando,
-                  colorPrimario: widget.config.colorPrimario,
+                  colorPrimario: colorPrimario,
                 );
               }
 
               if (snapshot.hasError) {
                 return EstadoCarga(
                   estado: TipoEstadoPantalla.error,
-                  colorPrimario: widget.config.colorPrimario,
+                  colorPrimario: colorPrimario,
                   onReintentar: () => setState(() {}),
                 );
               }
@@ -190,8 +202,7 @@ class _PantallaSeleccionState extends State<PantallaSeleccion> {
                                 child: ElevatedButton(
                                   style: ElevatedButton.styleFrom(
                                     backgroundColor: Colors.white,
-                                    foregroundColor:
-                                        widget.config.colorPrimario,
+                                    foregroundColor: colorPrimario,
                                     padding: const EdgeInsets.symmetric(
                                       vertical: 20,
                                     ),

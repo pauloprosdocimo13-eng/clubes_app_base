@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../configuracion/configuracion_app.dart';
+import '../tusede/servicios/contexto_club.dart';
 import '../servicios/servicio_firebase.dart';
 import 'pantalla_seleccion.dart'; 
 import 'pantalla_seleccion_actividad.dart'; 
@@ -62,6 +63,21 @@ class _PantallaSplashState extends State<PantallaSplash> {
 
   @override
   Widget build(BuildContext context) {
+    // ============================================================
+    // ETAPA 4E-1C - IDENTIDAD DINAMICA EN SPLASH
+    // ============================================================
+    final String nombreClub = ContextoClub.nombreClub.trim().isNotEmpty
+        ? ContextoClub.nombreClub.trim()
+        : widget.config.nombreApp;
+    final String lemaClub = ContextoClub.lema.trim();
+    final Color colorPrimario = ContextoClub.colorPrimario;
+    final Color colorSecundario = ContextoClub.colorSecundario;
+
+    final Color colorFondoInferior = Color.alphaBlend(
+      Colors.black.withAlpha(150),
+      colorSecundario,
+    );
+
     return Scaffold(
       body: Container(
         width: double.infinity,
@@ -71,8 +87,8 @@ class _PantallaSplashState extends State<PantallaSplash> {
             begin: Alignment.topCenter,
             end: Alignment.bottomCenter,
             colors: [
-              widget.config.colorPrimario,
-              Colors.black,
+              colorPrimario,
+              colorFondoInferior,
             ],
           ),
         ),
@@ -106,7 +122,7 @@ class _PantallaSplashState extends State<PantallaSplash> {
                   
                   // Nombre del Club
                   Text(
-                    widget.config.nombreApp.toUpperCase(),
+                    nombreClub.toUpperCase(),
                     textAlign: TextAlign.center,
                     style: const TextStyle(
                       color: Colors.white,
@@ -134,6 +150,21 @@ class _PantallaSplashState extends State<PantallaSplash> {
                       letterSpacing: 4.0,
                     ),
                   ),
+                  if (lemaClub.isNotEmpty) ...[
+                    const SizedBox(height: 10),
+                    Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 24),
+                      child: Text(
+                        lemaClub,
+                        textAlign: TextAlign.center,
+                        style: const TextStyle(
+                          color: Colors.white70,
+                          fontSize: 12,
+                          fontStyle: FontStyle.italic,
+                        ),
+                      ),
+                    ),
+                  ],
                 ],
               ),
             ),

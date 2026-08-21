@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'configuracion/configuracion_app.dart';
+import 'tusede/servicios/contexto_club.dart';
 import 'pantallas/pantalla_splash.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 
@@ -11,9 +12,20 @@ class MiAplicacion extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    // ============================================================
+    // ETAPA 4E-1B - IDENTIDAD GLOBAL TUSEDE
+    // ============================================================
+    // ContextoClub ya fue cargado antes de runApp().
+    // Sus colores tienen fallback automático a ConfiguracionApp.
+    final String nombreClub = ContextoClub.nombreClub.trim().isNotEmpty
+        ? ContextoClub.nombreClub.trim()
+        : config.nombreApp;
+    final Color colorPrimario = ContextoClub.colorPrimario;
+    final Color colorSecundario = ContextoClub.colorSecundario;
+
     return MaterialApp(
       navigatorKey: navigatorKey,
-      title: config.nombreApp,
+      title: nombreClub,
       debugShowCheckedModeBanner: false,
       localizationsDelegates: const [
         GlobalMaterialLocalizations.delegate,
@@ -24,14 +36,14 @@ class MiAplicacion extends StatelessWidget {
         Locale('es', 'AR'),
       ],
       theme: ThemeData(
-        primaryColor: config.colorPrimario,
+        primaryColor: colorPrimario,
         colorScheme: ColorScheme.fromSeed(
-          seedColor: config.colorPrimario,
-          secondary: config.colorSecundario,
+          seedColor: colorPrimario,
+          secondary: colorSecundario,
         ),
         useMaterial3: true,
         appBarTheme: AppBarTheme(
-          backgroundColor: config.colorPrimario,
+          backgroundColor: colorPrimario,
           foregroundColor: Colors.white,
         ),
       ),

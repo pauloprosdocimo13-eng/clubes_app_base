@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import '../configuracion/configuracion_app.dart';
+import '../tusede/servicios/contexto_club.dart';
 import '../servicios/servicio_actividades.dart';
 import '../servicios/servicio_aviso_entrada.dart';
 import '../servicios/servicio_version.dart';
@@ -86,7 +87,7 @@ class _PantallaSeleccionActividadState extends State<PantallaSeleccionActividad>
         builder: (context) => Scaffold(
           appBar: AppBar(
             title: const Text("Noticias del Club"),
-            backgroundColor: widget.config.colorPrimario,
+            backgroundColor: ContextoClub.colorPrimario,
             foregroundColor: Colors.white,
           ),
           body: PantallaNoticias(config: widget.config),
@@ -172,7 +173,7 @@ class _PantallaSeleccionActividadState extends State<PantallaSeleccionActividad>
                   height: 55,
                   child: ElevatedButton(
                     style: ElevatedButton.styleFrom(
-                      backgroundColor: widget.config.colorPrimario,
+                      backgroundColor: ContextoClub.colorPrimario,
                       foregroundColor: Colors.white,
                       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(15)),
                     ),
@@ -233,10 +234,20 @@ class _PantallaSeleccionActividadState extends State<PantallaSeleccionActividad>
 
   @override
   Widget build(BuildContext context) {
+    // ============================================================
+    // ETAPA 4E-1D - IDENTIDAD DINAMICA TUSEDE
+    // ============================================================
+    final String nombreClub = ContextoClub.nombreClub.trim().isNotEmpty
+        ? ContextoClub.nombreClub.trim()
+        : widget.config.nombreApp;
+    final String lemaClub = ContextoClub.lema.trim();
+    final Color colorPrimario = ContextoClub.colorPrimario;
+    final Color colorSecundario = ContextoClub.colorSecundario;
+
     if (_cargandoPortal) {
       return Scaffold(
         backgroundColor: Colors.grey[100],
-        body: Center(child: CircularProgressIndicator(color: widget.config.colorPrimario)),
+        body: Center(child: CircularProgressIndicator(color: colorPrimario)),
       );
     }
 
@@ -251,13 +262,23 @@ class _PantallaSeleccionActividadState extends State<PantallaSeleccionActividad>
                 padding: const EdgeInsets.only(top: 60, bottom: 30, left: 20, right: 20),
                 width: double.infinity,
                 decoration: BoxDecoration(
-                  color: widget.config.colorPrimario,
+                  gradient: LinearGradient(
+                    begin: Alignment.topLeft,
+                    end: Alignment.bottomRight,
+                    colors: [
+                      colorPrimario,
+                      Color.alphaBlend(
+                        Colors.black.withAlpha(70),
+                        colorSecundario,
+                      ),
+                    ],
+                  ),
                   borderRadius: const BorderRadius.only(
                     bottomLeft: Radius.circular(40),
                     bottomRight: Radius.circular(40),
                   ),
                   boxShadow: [
-                    BoxShadow(color: widget.config.colorPrimario.withOpacity(0.4), blurRadius: 15, offset: const Offset(0, 10)),
+                    BoxShadow(color: colorPrimario.withOpacity(0.4), blurRadius: 15, offset: const Offset(0, 10)),
                   ],
                 ),
                 child: Column(
@@ -269,16 +290,40 @@ class _PantallaSeleccionActividadState extends State<PantallaSeleccionActividad>
                     ),
                     const SizedBox(height: 15),
                     Text(
-                      widget.config.nombreApp.toUpperCase(),
+                      nombreClub.toUpperCase(),
                       textAlign: TextAlign.center,
                       style: const TextStyle(color: Colors.white, fontSize: 22, fontWeight: FontWeight.bold, letterSpacing: 1.0),
                     ),
                     const SizedBox(height: 5),
                     Container(
                       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
-                      decoration: BoxDecoration(color: Colors.white24, borderRadius: BorderRadius.circular(15)),
-                      child: const Text("Portal Institucional", style: TextStyle(color: Colors.white, fontSize: 12)),
+                      decoration: BoxDecoration(
+                        color: Color.alphaBlend(
+                          Colors.white.withAlpha(35),
+                          colorSecundario,
+                        ),
+                        borderRadius: BorderRadius.circular(15),
+                      ),
+                      child: const Text(
+                        "Portal Institucional",
+                        style: TextStyle(color: Colors.white, fontSize: 12),
+                      ),
                     ),
+                    if (lemaClub.isNotEmpty) ...[
+                      const SizedBox(height: 8),
+                      Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 20),
+                        child: Text(
+                          lemaClub,
+                          textAlign: TextAlign.center,
+                          style: const TextStyle(
+                            color: Colors.white70,
+                            fontSize: 12,
+                            fontStyle: FontStyle.italic,
+                          ),
+                        ),
+                      ),
+                    ],
                   ],
                 ),
               ),
@@ -330,7 +375,7 @@ class _PantallaSeleccionActividadState extends State<PantallaSeleccionActividad>
                         padding: EdgeInsets.only(left: 5, bottom: 10),
                         child: Text("Novedades", style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Colors.black54)),
                       ),
-                      _TarjetaNoticias(config: widget.config, alPresionar: () => _irANoticias(context)),
+                      _TarjetaNoticias(colorPrimario: colorPrimario, alPresionar: () => _irANoticias(context)),
                       const SizedBox(height: 25),
 
                       // --- SECCIÓN: ACTIVIDADES DEL CLUB ---
@@ -481,10 +526,13 @@ class _FilaInfoInfo extends StatelessWidget {
 }
 
 class _TarjetaNoticias extends StatelessWidget {
-  final ConfiguracionApp config;
+  final Color colorPrimario;
   final VoidCallback alPresionar;
 
-  const _TarjetaNoticias({required this.config, required this.alPresionar});
+  const _TarjetaNoticias({
+    required this.colorPrimario,
+    required this.alPresionar,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -500,7 +548,7 @@ class _TarjetaNoticias extends StatelessWidget {
           decoration: BoxDecoration(
             borderRadius: BorderRadius.circular(20),
             gradient: LinearGradient(
-              colors: [config.colorPrimario, Colors.black87],
+              colors: [colorPrimario, Colors.black87],
               begin: Alignment.topLeft,
               end: Alignment.bottomRight,
             ),

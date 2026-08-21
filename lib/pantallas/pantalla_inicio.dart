@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:url_launcher/url_launcher.dart';
 import '../configuracion/configuracion_app.dart';
+import '../tusede/servicios/contexto_club.dart';
 import '../widgets/boton_menu.dart';
 
 // Importamos el widget de sugerencias
@@ -144,6 +145,27 @@ class _PantallaInicioState extends State<PantallaInicio> {
 
   @override
   Widget build(BuildContext context) {
+    // ============================================================
+    // ETAPA 4E-1 - IDENTIDAD VISUAL DINAMICA TUSEDE
+    // ============================================================
+    // ContextoClub ya fue inicializado desde ConfiguracionApp y,
+    // si TuSede Central respondió correctamente, contiene la
+    // identidad remota del club. Sus getters de color mantienen
+    // fallback automático a los valores Legacy.
+    final String nombreClub = ContextoClub.nombreClub.trim().isNotEmpty
+        ? ContextoClub.nombreClub.trim()
+        : widget.config.nombreApp;
+    final String lemaClub = ContextoClub.lema.trim();
+    final Color colorPrimario = ContextoClub.colorPrimario;
+    final Color colorSecundario = ContextoClub.colorSecundario;
+
+    // Oscurecemos levemente el color secundario para conservar
+    // buena lectura del AppBar y del texto blanco sobre el fondo.
+    final Color colorFondoSuperior = Color.alphaBlend(
+      Colors.black.withAlpha(120),
+      colorSecundario,
+    );
+
     return Scaffold(
       extendBodyBehindAppBar: true,
       appBar: AppBar(
@@ -151,7 +173,7 @@ class _PantallaInicioState extends State<PantallaInicio> {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Text(
-              widget.config.nombreApp,
+              nombreClub,
               style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
             ),
             Text(
@@ -191,7 +213,7 @@ class _PantallaInicioState extends State<PantallaInicio> {
           gradient: LinearGradient(
             begin: Alignment.topCenter,
             end: Alignment.bottomCenter,
-            colors: [Colors.black, widget.config.colorPrimario],
+            colors: [colorFondoSuperior, colorPrimario],
           ),
         ),
         child: SafeArea(
@@ -200,13 +222,31 @@ class _PantallaInicioState extends State<PantallaInicio> {
               Column(
                 children: [
                   const SizedBox(height: 10),
-                  const Text("Menú Principal", style: TextStyle(color: Colors.white70, fontSize: 16)),
+                  const Text(
+                    "Menú Principal",
+                    style: TextStyle(color: Colors.white70, fontSize: 16),
+                  ),
+                  if (lemaClub.isNotEmpty) ...[
+                    const SizedBox(height: 4),
+                    Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 20),
+                      child: Text(
+                        lemaClub,
+                        textAlign: TextAlign.center,
+                        style: const TextStyle(
+                          color: Colors.white70,
+                          fontSize: 12,
+                          fontStyle: FontStyle.italic,
+                        ),
+                      ),
+                    ),
+                  ],
                   const SizedBox(height: 10),
 
                   // --- GRILLA DE BOTONES ---
                   Expanded(
                     child: _cargandoConfig
-                        ? Center(child: CircularProgressIndicator(color: widget.config.colorPrimario))
+                        ? Center(child: CircularProgressIndicator(color: colorPrimario))
                         : StreamBuilder<DocumentSnapshot>(
                             stream: FirebaseFirestore.instance.collection('configuracion').doc('stream').snapshots(),
                             builder: (context, snapshotStream) {
@@ -334,7 +374,7 @@ class _PantallaInicioState extends State<PantallaInicio> {
                                     BotonMenu(
                                       titulo: "Fixture y Resultados",
                                       icono: Icons.scoreboard,
-                                      colorPrimario: widget.config.colorPrimario,
+                                      colorPrimario: colorPrimario,
                                       alPresionar: () {
                                         _navegarA(PantallaResultados(config: widget.config, deporteId: widget.deporteId, tituloDeporte: widget.deporteTitulo));
                                       },
@@ -342,7 +382,7 @@ class _PantallaInicioState extends State<PantallaInicio> {
                                     BotonMenu(
                                       titulo: "Noticias",
                                       icono: Icons.newspaper,
-                                      colorPrimario: widget.config.colorPrimario,
+                                      colorPrimario: colorPrimario,
                                       alPresionar: () => _navegarA(
                                         Scaffold(
                                           appBar: AppBar(title: const Text("Noticias")),
@@ -353,7 +393,7 @@ class _PantallaInicioState extends State<PantallaInicio> {
                                     BotonMenu(
                                       titulo: "Jugadores",
                                       icono: Icons.groups,
-                                      colorPrimario: widget.config.colorPrimario,
+                                      colorPrimario: colorPrimario,
                                       alPresionar: () {
                                         _navegarA(PantallaJugadores(config: widget.config, deporteId: widget.deporteId, tituloDeporte: widget.deporteTitulo, categorias: _categoriasDelDeporte));
                                       },
@@ -361,12 +401,12 @@ class _PantallaInicioState extends State<PantallaInicio> {
                                     BotonMenu(
                                       titulo: "Galería",
                                       icono: Icons.photo_library,
-                                      colorPrimario: widget.config.colorPrimario,
+                                      colorPrimario: colorPrimario,
                                       alPresionar: () => _navegarA(
                                         Scaffold(
                                           appBar: AppBar(
                                             title: Text("Galería ${widget.deporteTitulo}"),
-                                            backgroundColor: widget.config.colorPrimario,
+                                            backgroundColor: colorPrimario,
                                             foregroundColor: Colors.white,
                                           ),
                                           body: PantallaGaleria(config: widget.config, deporteId: widget.deporteId),
@@ -376,12 +416,12 @@ class _PantallaInicioState extends State<PantallaInicio> {
                                     BotonMenu(
                                       titulo: "Avisos",
                                       icono: Icons.notifications_active,
-                                      colorPrimario: widget.config.colorPrimario,
+                                      colorPrimario: colorPrimario,
                                       alPresionar: () => _navegarA(
                                         Scaffold(
                                           appBar: AppBar(
                                             title: Text("Avisos ${widget.deporteTitulo}"),
-                                            backgroundColor: widget.config.colorPrimario,
+                                            backgroundColor: colorPrimario,
                                             foregroundColor: Colors.white,
                                           ),
                                           body: PantallaAvisos(config: widget.config, deporteId: widget.deporteId),
@@ -391,13 +431,13 @@ class _PantallaInicioState extends State<PantallaInicio> {
                                     BotonMenu(
                                       titulo: "Rivales",
                                       icono: Icons.location_on,
-                                      colorPrimario: widget.config.colorPrimario,
+                                      colorPrimario: colorPrimario,
                                       alPresionar: () => _navegarA(PantallaRivales(config: widget.config, deporteId: widget.deporteId)),
                                     ),
                                     BotonMenu(
                                       titulo: "Posiciones",
                                       icono: Icons.bar_chart,
-                                      colorPrimario: widget.config.colorPrimario,
+                                      colorPrimario: colorPrimario,
                                       alPresionar: _abrirTablaPosiciones,
                                     ),
                                   ]);
