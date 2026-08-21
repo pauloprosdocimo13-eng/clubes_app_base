@@ -40,7 +40,7 @@ android {
         // ¡ATENCIÓN! Sacamos el applicationId de acá porque ahora lo define cada "sabor"
         minSdk = 24
         targetSdk = 36
-        versionCode = 77
+        versionCode = 78
         versionName = "1.1.0"
         multiDexEnabled = true
 

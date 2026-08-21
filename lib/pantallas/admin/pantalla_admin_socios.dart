@@ -108,20 +108,105 @@ class _PantallaAdminSociosState extends State<PantallaAdminSocios> {
     ).then((_) => _cargarPreciosEnMemoria());
   }
 
+  void _agregarAuditoriaAlBatch({
+    required WriteBatch batch,
+    required FirebaseFirestore db,
+    required String accion,
+    required String socioId,
+    required Map<String, dynamic> datosSocio,
+    Map<String, dynamic>? cambios,
+    String? detalle,
+  }) {
+    final user = FirebaseAuth.instance.currentUser;
+
+    batch.set(db.collection('auditoria_socios').doc(), {
+      'accion': accion,
+      'socio_id': socioId,
+      'dni': (datosSocio['dni'] ?? socioId).toString(),
+      'nombre': (datosSocio['nombre'] ?? '').toString(),
+      'apellido': (datosSocio['apellido'] ?? '').toString(),
+      'familia_id': (datosSocio['familia_id'] ?? '').toString(),
+      'es_titular': datosSocio['es_titular'] == true,
+      'usuario_email': user?.email ?? 'Desconocido',
+      'usuario_uid': user?.uid ?? '',
+      'fecha': FieldValue.serverTimestamp(),
+      if (cambios != null && cambios.isNotEmpty) 'cambios': cambios,
+      if (detalle != null && detalle.trim().isNotEmpty)
+        'detalle': detalle.trim(),
+    });
+  }
+
+  String _valorAuditoriaTexto(dynamic valor) {
+    if (valor == null) return "-";
+    if (valor is List) return valor.join(", ");
+    if (valor is Map) return valor.toString();
+    return valor.toString();
+  }
+
+  String _resumenCambiosAuditoria(Map<String, dynamic> cambios) {
+    if (cambios.isEmpty) return "";
+
+    final lineas = <String>[];
+
+    cambios.forEach((campo, valor) {
+      if (valor is Map) {
+        final antes = _valorAuditoriaTexto(valor['anterior']);
+        final despues = _valorAuditoriaTexto(valor['nuevo']);
+        lineas.add("$campo: $antes → $despues");
+      }
+    });
+
+    return lineas.join("\n");
+  }
+
   Future<void> _toggleAptoFisico(String docId, bool valorActual) async {
     try {
-      await FirebaseFirestore.instance.collection('socios').doc(docId).update({
-        'apto_fisico': !valorActual,
+      final db = FirebaseFirestore.instance;
+      final doc = await db.collection('socios').doc(docId).get();
+
+      if (!doc.exists) {
+        throw "No se encontró el socio.";
+      }
+
+      final data = doc.data() ?? <String, dynamic>{};
+      final nuevoValor = !valorActual;
+      final batch = db.batch();
+
+      batch.update(doc.reference, {
+        'apto_fisico': nuevoValor,
+        'modificado_en': FieldValue.serverTimestamp(),
+        'modificado_por_email':
+            FirebaseAuth.instance.currentUser?.email ?? 'Desconocido',
+        'modificado_por_uid':
+            FirebaseAuth.instance.currentUser?.uid ?? '',
       });
+
+      _agregarAuditoriaAlBatch(
+        batch: batch,
+        db: db,
+        accion: 'modificacion',
+        socioId: docId,
+        datosSocio: data,
+        cambios: {
+          'apto_fisico': {
+            'anterior': valorActual,
+            'nuevo': nuevoValor,
+          },
+        },
+        detalle: 'Cambio de estado de apto físico',
+      );
+
+      await batch.commit();
+
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text(
-              !valorActual
+              nuevoValor
                   ? "✅ Apto físico registrado"
                   : "❌ Apto físico marcado como pendiente",
             ),
-            backgroundColor: !valorActual ? Colors.green : Colors.orange,
+            backgroundColor: nuevoValor ? Colors.green : Colors.orange,
             duration: const Duration(seconds: 1),
           ),
         );
@@ -136,7 +221,7 @@ class _PantallaAdminSociosState extends State<PantallaAdminSocios> {
   }
 
   void _editarNotaInterna(String docId, String notaActual) {
-    final TextEditingController _notaCtrl = TextEditingController(
+    final TextEditingController notaCtrl = TextEditingController(
       text: notaActual,
     );
 
@@ -148,7 +233,7 @@ class _PantallaAdminSociosState extends State<PantallaAdminSocios> {
           style: TextStyle(fontSize: 16),
         ),
         content: TextField(
-          controller: _notaCtrl,
+          controller: notaCtrl,
           maxLines: 3,
           decoration: const InputDecoration(
             hintText: "Ej: Pagó cuota anual, Solo viene martes, etc.",
@@ -167,12 +252,51 @@ class _PantallaAdminSociosState extends State<PantallaAdminSocios> {
             ),
             onPressed: () async {
               try {
-                await FirebaseFirestore.instance
-                    .collection('socios')
-                    .doc(docId)
-                    .update({'notas_internas': _notaCtrl.text.trim()});
+                final nuevoValor = notaCtrl.text.trim();
+
+                if (nuevoValor == notaActual.trim()) {
+                  if (ctx.mounted) Navigator.pop(ctx);
+                  return;
+                }
+
+                final db = FirebaseFirestore.instance;
+                final doc = await db.collection('socios').doc(docId).get();
+
+                if (!doc.exists) {
+                  throw "No se encontró el socio.";
+                }
+
+                final data = doc.data() ?? <String, dynamic>{};
+                final batch = db.batch();
+
+                batch.update(doc.reference, {
+                  'notas_internas': nuevoValor,
+                  'modificado_en': FieldValue.serverTimestamp(),
+                  'modificado_por_email':
+                      FirebaseAuth.instance.currentUser?.email ?? 'Desconocido',
+                  'modificado_por_uid':
+                      FirebaseAuth.instance.currentUser?.uid ?? '',
+                });
+
+                _agregarAuditoriaAlBatch(
+                  batch: batch,
+                  db: db,
+                  accion: 'modificacion',
+                  socioId: docId,
+                  datosSocio: data,
+                  cambios: {
+                    'notas_internas': {
+                      'anterior': notaActual,
+                      'nuevo': nuevoValor,
+                    },
+                  },
+                  detalle: 'Edición de nota interna',
+                );
+
+                await batch.commit();
+
                 if (mounted) {
-                  Navigator.pop(ctx);
+                  if (ctx.mounted) Navigator.pop(ctx);
                   ScaffoldMessenger.of(context).showSnackBar(
                     const SnackBar(
                       content: Text("Nota guardada"),
@@ -337,8 +461,12 @@ class _PantallaAdminSociosState extends State<PantallaAdminSocios> {
       if (table == null) throw "El Excel está vacío.";
 
       int importados = 0;
+      int omitidosExistentes = 0;
+      int omitidosInvalidos = 0;
+      final dnisProcesados = <String>{};
+
       final db = FirebaseFirestore.instance;
-      final batchSize = 400;
+      final batchSize = 350;
       WriteBatch batch = db.batch();
       int contadorBatch = 0;
 
@@ -369,7 +497,40 @@ class _PantallaAdminSociosState extends State<PantallaAdminSocios> {
         String aptoFisicoStr = getVal(row, 9).toUpperCase();
         String notasInternasStr = getVal(row, 10);
 
-        if (dni.isEmpty) continue;
+        if (dni.isEmpty ||
+            !RegExp(r'^\d+$').hasMatch(dni) ||
+            RegExp(r'^0+$').hasMatch(dni)) {
+          omitidosInvalidos++;
+          continue;
+        }
+
+        if (!dnisProcesados.add(dni)) {
+          omitidosExistentes++;
+          continue;
+        }
+
+        final ref = db.collection('socios').doc(dni);
+        final docSocio = await ref.get();
+
+        // IMPORTANTE:
+        // La importación ya no modifica documentos que ya existen.
+        // Así un Excel nunca puede pisar accidentalmente un socio activo
+        // ni uno que esté en la papelera.
+        if (docSocio.exists) {
+          omitidosExistentes++;
+          continue;
+        }
+
+        final queryMismoDni = await db
+            .collection('socios')
+            .where('dni', isEqualTo: dni)
+            .limit(1)
+            .get();
+
+        if (queryMismoDni.docs.isNotEmpty) {
+          omitidosExistentes++;
+          continue;
+        }
 
         bool esTitular = true;
         String familiaId = dni;
@@ -392,16 +553,7 @@ class _PantallaAdminSociosState extends State<PantallaAdminSocios> {
 
         int descuento = int.tryParse(descuentoStr) ?? 0;
 
-        DocumentReference ref = db.collection('socios').doc(dni);
-
-        DocumentSnapshot docSocio = await ref.get();
-        String dbUltimoPago = '';
-        if (docSocio.exists) {
-          final d = docSocio.data() as Map<String, dynamic>;
-          dbUltimoPago = d['ultimo_mes_pago'] ?? '';
-        }
-
-        Map<String, dynamic> datosUsuario = {
+        final Map<String, dynamic> datosUsuario = {
           'nombre': nombre,
           'apellido': apellido,
           'dni': dni,
@@ -412,11 +564,26 @@ class _PantallaAdminSociosState extends State<PantallaAdminSocios> {
           'familia_id': familiaId,
           'porcentaje_descuento': descuento,
           'busqueda': "$nombre $apellido $dni".toLowerCase(),
+          'fecha_alta': FieldValue.serverTimestamp(),
+          'creado_el': FieldValue.serverTimestamp(),
+          'creado_por_email':
+              FirebaseAuth.instance.currentUser?.email ?? 'Desconocido',
+          'creado_por_uid':
+              FirebaseAuth.instance.currentUser?.uid ?? '',
+          'rol': 'socio',
+          'nro_socio': dni,
+          'actividades': [
+            actividad.isEmpty ? 'Cuota Social' : actividad,
+          ],
+          'al_dia': false,
+          'eliminado': false,
         };
 
         if (aptoFisicoStr == 'SI' || aptoFisicoStr == 'TRUE') {
           datosUsuario['apto_fisico'] = true;
         } else if (aptoFisicoStr == 'NO' || aptoFisicoStr == 'FALSE') {
+          datosUsuario['apto_fisico'] = false;
+        } else {
           datosUsuario['apto_fisico'] = false;
         }
 
@@ -424,29 +591,24 @@ class _PantallaAdminSociosState extends State<PantallaAdminSocios> {
           datosUsuario['notas_internas'] = notasInternasStr;
         }
 
-        if (!docSocio.exists) {
-          if (!datosUsuario.containsKey('apto_fisico')) {
-            datosUsuario['apto_fisico'] = false;
-          }
-          datosUsuario['fecha_alta'] = FieldValue.serverTimestamp();
-          datosUsuario['rol'] = 'socio';
-          datosUsuario['nro_socio'] = dni;
-          datosUsuario['actividades'] = [
-            actividad.isEmpty ? 'Cuota Social' : actividad,
-          ];
-          datosUsuario['al_dia'] = false;
-        }
-
         if (ultimoPago.isNotEmpty) {
-          if (dbUltimoPago.isEmpty || ultimoPago.compareTo(dbUltimoPago) > 0) {
-            datosUsuario['ultimo_mes_pago'] = ultimoPago;
-            datosUsuario['al_dia'] = estaAlDia;
-          }
+          datosUsuario['ultimo_mes_pago'] = ultimoPago;
+          datosUsuario['al_dia'] = estaAlDia;
         }
 
-        batch.set(ref, datosUsuario, SetOptions(merge: true));
+        batch.set(ref, datosUsuario);
+
+        _agregarAuditoriaAlBatch(
+          batch: batch,
+          db: db,
+          accion: 'alta',
+          socioId: dni,
+          datosSocio: datosUsuario,
+          detalle: 'Alta mediante importación de Excel',
+        );
+
         importados++;
-        contadorBatch++;
+        contadorBatch += 2;
 
         if (contadorBatch >= batchSize) {
           await batch.commit();
@@ -454,24 +616,42 @@ class _PantallaAdminSociosState extends State<PantallaAdminSocios> {
           contadorBatch = 0;
         }
       }
+
       if (contadorBatch > 0) await batch.commit();
 
-      setState(() => _procesando = false);
-      _mostrarResultadoImportacion(importados);
+      if (mounted) {
+        setState(() => _procesando = false);
+        _mostrarResultadoImportacion(
+          importados,
+          omitidosExistentes,
+          omitidosInvalidos,
+        );
+      }
     } catch (e) {
-      setState(() => _procesando = false);
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text("Error: $e"), backgroundColor: Colors.red),
-      );
+      if (mounted) {
+        setState(() => _procesando = false);
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text("Error: $e"), backgroundColor: Colors.red),
+        );
+      }
     }
   }
 
-  void _mostrarResultadoImportacion(int imp) {
+  void _mostrarResultadoImportacion(
+    int importados,
+    int omitidosExistentes,
+    int omitidosInvalidos,
+  ) {
     showDialog(
       context: context,
       builder: (ctx) => AlertDialog(
-        title: const Text("Operación Finalizada"),
-        content: Text("Se procesaron $imp registros correctamente."),
+        title: const Text("Importación finalizada"),
+        content: Text(
+          "Nuevos socios importados: $importados\n"
+          "Omitidos porque el DNI ya existía: $omitidosExistentes\n"
+          "Omitidos por DNI inválido: $omitidosInvalidos\n\n"
+          "Por seguridad, ningún DNI existente fue modificado.",
+        ),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(ctx),
@@ -625,6 +805,8 @@ class _PantallaAdminSociosState extends State<PantallaAdminSocios> {
       final batch = db.batch();
 
       for (final doc in documentos.values) {
+        final datosSocio = doc.data() ?? <String, dynamic>{};
+
         batch.update(doc.reference, {
           'eliminado': true,
           'estado_baja': 'eliminado',
@@ -634,6 +816,21 @@ class _PantallaAdminSociosState extends State<PantallaAdminSocios> {
           'motivo_eliminacion': motivo.trim(),
           'baja_operacion_id': operacionId,
         });
+
+        _agregarAuditoriaAlBatch(
+          batch: batch,
+          db: db,
+          accion: 'baja',
+          socioId: doc.id,
+          datosSocio: datosSocio,
+          cambios: {
+            'eliminado': {
+              'anterior': datosSocio['eliminado'] == true,
+              'nuevo': true,
+            },
+          },
+          detalle: motivo.trim(),
+        );
       }
 
       await batch.commit();
@@ -728,6 +925,8 @@ class _PantallaAdminSociosState extends State<PantallaAdminSocios> {
       final batch = db.batch();
 
       for (final doc in documentos.values) {
+        final datosSocio = doc.data() ?? <String, dynamic>{};
+
         batch.update(doc.reference, {
           'eliminado': false,
           'estado_baja': 'restaurado',
@@ -735,6 +934,21 @@ class _PantallaAdminSociosState extends State<PantallaAdminSocios> {
           'restaurado_por_email': adminEmail,
           'restaurado_por_uid': adminUid,
         });
+
+        _agregarAuditoriaAlBatch(
+          batch: batch,
+          db: db,
+          accion: 'restauracion',
+          socioId: doc.id,
+          datosSocio: datosSocio,
+          cambios: {
+            'eliminado': {
+              'anterior': true,
+              'nuevo': false,
+            },
+          },
+          detalle: 'Socio restaurado desde la papelera',
+        );
       }
 
       await batch.commit();
@@ -881,6 +1095,160 @@ class _PantallaAdminSociosState extends State<PantallaAdminSocios> {
                         tooltip: "Restaurar socio",
                         onPressed: () => _restaurarSocio(doc.id, data),
                       ),
+                    ),
+                  );
+                },
+              );
+            },
+          ),
+        ),
+      ),
+    );
+  }
+
+  void _mostrarHistorialAuditoria() {
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => Scaffold(
+          appBar: AppBar(
+            title: const Text("Historial de Socios"),
+            backgroundColor: Colors.grey[900],
+            foregroundColor: Colors.white,
+          ),
+          body: StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
+            stream: FirebaseFirestore.instance
+                .collection('auditoria_socios')
+                .snapshots(),
+            builder: (context, snapshot) {
+              if (snapshot.hasError) {
+                return Center(
+                  child: Padding(
+                    padding: const EdgeInsets.all(20),
+                    child: Text(
+                      "No se pudo cargar el historial:\n${snapshot.error}",
+                      textAlign: TextAlign.center,
+                    ),
+                  ),
+                );
+              }
+
+              if (!snapshot.hasData) {
+                return const Center(child: CircularProgressIndicator());
+              }
+
+              final docs = snapshot.data!.docs.toList();
+
+              docs.sort((a, b) {
+                final fechaA = a.data()['fecha'];
+                final fechaB = b.data()['fecha'];
+
+                if (fechaA is Timestamp && fechaB is Timestamp) {
+                  return fechaB.compareTo(fechaA);
+                }
+                if (fechaA is Timestamp) return -1;
+                if (fechaB is Timestamp) return 1;
+                return 0;
+              });
+
+              if (docs.isEmpty) {
+                return const Center(
+                  child: Padding(
+                    padding: EdgeInsets.all(30),
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(Icons.history, size: 60, color: Colors.grey),
+                        SizedBox(height: 12),
+                        Text(
+                          "Todavía no hay movimientos auditados.",
+                          style: TextStyle(fontSize: 16, color: Colors.grey),
+                        ),
+                      ],
+                    ),
+                  ),
+                );
+              }
+
+              return ListView.separated(
+                padding: const EdgeInsets.all(10),
+                itemCount: docs.length,
+                separatorBuilder: (_, __) => const SizedBox(height: 4),
+                itemBuilder: (context, index) {
+                  final data = docs[index].data();
+                  final accion =
+                      (data['accion'] ?? 'modificacion').toString();
+                  final fechaRaw = data['fecha'];
+
+                  String fechaTexto = "Fecha no disponible";
+                  if (fechaRaw is Timestamp) {
+                    fechaTexto = DateFormat(
+                      'dd/MM/yyyy HH:mm',
+                    ).format(fechaRaw.toDate());
+                  }
+
+                  IconData icono = Icons.edit_note;
+                  Color color = Colors.blue;
+
+                  if (accion == 'alta') {
+                    icono = Icons.person_add_alt_1;
+                    color = Colors.green;
+                  } else if (accion == 'baja') {
+                    icono = Icons.person_off;
+                    color = Colors.red;
+                  } else if (accion == 'restauracion') {
+                    icono = Icons.restore;
+                    color = Colors.orange;
+                  }
+
+                  final cambiosRaw = data['cambios'];
+                  final cambios = cambiosRaw is Map
+                      ? Map<String, dynamic>.from(cambiosRaw)
+                      : <String, dynamic>{};
+
+                  final resumenCambios = _resumenCambiosAuditoria(cambios);
+                  final detalle = (data['detalle'] ?? '').toString();
+
+                  return Card(
+                    child: ExpansionTile(
+                      leading: CircleAvatar(
+                        backgroundColor: color.withOpacity(0.12),
+                        child: Icon(icono, color: color),
+                      ),
+                      title: Text(
+                        "${data['apellido'] ?? ''}, ${data['nombre'] ?? ''}",
+                        style: const TextStyle(fontWeight: FontWeight.bold),
+                      ),
+                      subtitle: Text(
+                        "${accion.toUpperCase()} • DNI: ${data['dni'] ?? data['socio_id'] ?? '-'}\n"
+                        "$fechaTexto • ${data['usuario_email'] ?? 'Desconocido'}",
+                      ),
+                      childrenPadding: const EdgeInsets.fromLTRB(16, 0, 16, 14),
+                      children: [
+                        if (detalle.isNotEmpty)
+                          Align(
+                            alignment: Alignment.centerLeft,
+                            child: Padding(
+                              padding: const EdgeInsets.only(bottom: 8),
+                              child: Text(
+                                "Detalle: $detalle",
+                                style: const TextStyle(
+                                  fontWeight: FontWeight.w600,
+                                ),
+                              ),
+                            ),
+                          ),
+                        if (resumenCambios.isNotEmpty)
+                          Align(
+                            alignment: Alignment.centerLeft,
+                            child: SelectableText(resumenCambios),
+                          ),
+                        if (detalle.isEmpty && resumenCambios.isEmpty)
+                          const Align(
+                            alignment: Alignment.centerLeft,
+                            child: Text("Sin detalle adicional."),
+                          ),
+                      ],
                     ),
                   );
                 },
@@ -1661,6 +2029,11 @@ class _PantallaAdminSociosState extends State<PantallaAdminSocios> {
               onPressed: _importarDesdeExcel,
             ),
           ],
+          IconButton(
+            icon: const Icon(Icons.history),
+            tooltip: "Historial de cambios",
+            onPressed: _mostrarHistorialAuditoria,
+          ),
           IconButton(
             icon: const Icon(Icons.delete_outline),
             tooltip: "Papelera de socios",
