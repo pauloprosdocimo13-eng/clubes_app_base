@@ -1,18 +1,29 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
-import 'package:shared_preferences/shared_preferences.dart';
 import '../configuracion/configuracion_app.dart';
 
 class ServicioAvisoEntrada {
-  static const _prefKey = 'ultimo_aviso_entrada_visto';
+  ServicioAvisoEntrada._();
+
+  // Evita que el mismo aviso aparezca varias veces durante una misma
+  // ejecución de la app. Al cerrar y volver a abrir la aplicación, estas
+  // variables vuelven a su valor inicial y el aviso puede mostrarse de nuevo.
+  static bool _mostradoEnEstaSesion = false;
+  static bool _mostrando = false;
 
   static Future<void> mostrarSiCorresponde(
     BuildContext context,
     ConfiguracionApp config, {
     Duration delay = const Duration(milliseconds: 500),
   }) async {
+    // Si ya se mostró en esta apertura de la app, no repetimos el diálogo.
+    if (_mostradoEnEstaSesion || _mostrando) return;
+
     await Future.delayed(delay);
     if (!context.mounted) return;
+
+    // Volvemos a controlar por si otra llamada llegó durante el delay.
+    if (_mostradoEnEstaSesion || _mostrando) return;
 
     try {
       final doc = await FirebaseFirestore.instance
@@ -26,11 +37,9 @@ class ServicioAvisoEntrada {
       final activo = data['activo'] ?? false;
       if (!activo) return;
 
-      final avisoId = _generarIdAviso(data);
-      final prefs = await SharedPreferences.getInstance();
-      if (prefs.getString(_prefKey) == avisoId) return;
-
       if (!context.mounted) return;
+
+      _mostrando = true;
 
       await showDialog<void>(
         context: context,
@@ -43,18 +52,14 @@ class ServicioAvisoEntrada {
         ),
       );
 
-      await prefs.setString(_prefKey, avisoId);
+      // Se marca como visto únicamente para esta ejecución de la app.
+      // No se guarda nada en SharedPreferences ni en el dispositivo.
+      _mostradoEnEstaSesion = true;
     } catch (e) {
       debugPrint('Error chequeando aviso de entrada: $e');
+    } finally {
+      _mostrando = false;
     }
-  }
-
-  static String _generarIdAviso(Map<String, dynamic> data) {
-    final titulo = data['titulo'] ?? '';
-    final mensaje = data['mensaje'] ?? '';
-    final imagen = data['imagen_url'] ?? '';
-    final actualizado = data['actualizado_en']?.toString() ?? '';
-    return '$titulo|$mensaje|$imagen|$actualizado'.hashCode.toString();
   }
 }
 
@@ -82,7 +87,9 @@ class _DialogoAvisoEntrada extends StatelessWidget {
           children: [
             if (imagenUrl.isNotEmpty)
               ClipRRect(
-                borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
+                borderRadius: const BorderRadius.vertical(
+                  top: Radius.circular(20),
+                ),
                 child: ConstrainedBox(
                   constraints: const BoxConstraints(
                     maxHeight: 350,
@@ -97,7 +104,9 @@ class _DialogoAvisoEntrada extends StatelessWidget {
                       return SizedBox(
                         height: 150,
                         child: Center(
-                          child: CircularProgressIndicator(color: config.colorPrimario),
+                          child: CircularProgressIndicator(
+                            color: config.colorPrimario,
+                          ),
                         ),
                       );
                     },
@@ -114,7 +123,11 @@ class _DialogoAvisoEntrada extends StatelessWidget {
             else
               Padding(
                 padding: const EdgeInsets.only(top: 20),
-                child: Icon(Icons.campaign, size: 50, color: config.colorPrimario),
+                child: Icon(
+                  Icons.campaign,
+                  size: 50,
+                  color: config.colorPrimario,
+                ),
               ),
             Padding(
               padding: const EdgeInsets.all(20),
@@ -130,7 +143,8 @@ class _DialogoAvisoEntrada extends StatelessWidget {
                         fontSize: 18,
                       ),
                     ),
-                  if (titulo.isNotEmpty && mensaje.isNotEmpty) const SizedBox(height: 10),
+                  if (titulo.isNotEmpty && mensaje.isNotEmpty)
+                    const SizedBox(height: 10),
                   if (mensaje.isNotEmpty)
                     Text(
                       mensaje,
@@ -150,11 +164,16 @@ class _DialogoAvisoEntrada extends StatelessWidget {
             style: ElevatedButton.styleFrom(
               backgroundColor: config.colorPrimario,
               foregroundColor: Colors.white,
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(10),
+              ),
               padding: const EdgeInsets.symmetric(vertical: 12),
             ),
             onPressed: () => Navigator.pop(context),
-            child: const Text('ENTENDIDO', style: TextStyle(fontWeight: FontWeight.bold)),
+            child: const Text(
+              'ENTENDIDO',
+              style: TextStyle(fontWeight: FontWeight.bold),
+            ),
           ),
         ),
       ],

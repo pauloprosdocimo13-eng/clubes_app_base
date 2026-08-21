@@ -224,6 +224,11 @@ class _PantallaAdminSociosState extends State<PantallaAdminSocios> {
 
       for (var doc in query.docs) {
         var data = doc.data();
+
+        // Los socios dados de baja permanecen en Firestore para auditoría,
+        // pero no deben salir en el padrón activo exportado.
+        if (data['eliminado'] == true) continue;
+
         String dni = data['dni'] ?? '';
         String familiaId = data['familia_id'] ?? '';
         bool esTitular = data['es_titular'] == true;
@@ -478,30 +483,209 @@ class _PantallaAdminSociosState extends State<PantallaAdminSocios> {
   }
 
   Future<void> _borrarSocio(String docId, Map<String, dynamic> data) async {
-    bool esTitular = data['es_titular'] == true;
-    String familiaId = esTitular ? docId : (data['familia_id'] ?? docId);
+    final bool esTitular = data['es_titular'] == true;
+    final String familiaId = esTitular ? docId : (data['familia_id'] ?? docId);
+    final motivoCtrl = TextEditingController();
+    String? errorMotivo;
 
-    bool confirmar =
-        await showDialog(
+    final String? motivo = await showDialog<String>(
+      context: context,
+      barrierDismissible: false,
+      builder: (ctx) {
+        return StatefulBuilder(
+          builder: (context, setStateDialog) {
+            return AlertDialog(
+              title: const Text("Dar de baja al socio"),
+              content: SingleChildScrollView(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      "${data['apellido'] ?? ''}, ${data['nombre'] ?? ''}",
+                      style: const TextStyle(
+                        fontWeight: FontWeight.bold,
+                        fontSize: 16,
+                      ),
+                    ),
+                    Text(
+                      "DNI: ${data['dni'] ?? docId}",
+                      style: const TextStyle(color: Colors.grey),
+                    ),
+                    const SizedBox(height: 15),
+                    Container(
+                      width: double.infinity,
+                      padding: const EdgeInsets.all(10),
+                      decoration: BoxDecoration(
+                        color: esTitular ? Colors.red[50] : Colors.orange[50],
+                        borderRadius: BorderRadius.circular(8),
+                        border: Border.all(
+                          color: esTitular ? Colors.red : Colors.orange,
+                        ),
+                      ),
+                      child: Text(
+                        esTitular
+                            ? "ATENCIÓN: es TITULAR. La baja se aplicará a toda su familia, pero ningún registro se borrará definitivamente."
+                            : "El socio dejará de aparecer en el padrón activo, pero quedará guardado en la papelera y podrá restaurarse.",
+                        style: TextStyle(
+                          color: esTitular ? Colors.red[900] : Colors.orange[900],
+                          fontSize: 12,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 15),
+                    TextField(
+                      controller: motivoCtrl,
+                      maxLines: 3,
+                      autofocus: true,
+                      decoration: InputDecoration(
+                        labelText: "Motivo de la baja *",
+                        hintText: "Ej: duplicado, dejó la institución, dato incorrecto...",
+                        border: const OutlineInputBorder(),
+                        errorText: errorMotivo,
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    const Text(
+                      "La baja quedará registrada con fecha y usuario administrador.",
+                      style: TextStyle(fontSize: 11, color: Colors.grey),
+                    ),
+                  ],
+                ),
+              ),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.pop(ctx),
+                  child: const Text("CANCELAR"),
+                ),
+                ElevatedButton.icon(
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: Colors.red,
+                    foregroundColor: Colors.white,
+                  ),
+                  icon: const Icon(Icons.delete_outline),
+                  label: const Text("DAR DE BAJA"),
+                  onPressed: () {
+                    final valor = motivoCtrl.text.trim();
+                    if (valor.isEmpty) {
+                      setStateDialog(() {
+                        errorMotivo = "Ingresá un motivo para continuar";
+                      });
+                      return;
+                    }
+                    Navigator.pop(ctx, valor);
+                  },
+                ),
+              ],
+            );
+          },
+        );
+      },
+    );
+
+    motivoCtrl.dispose();
+    if (motivo == null || motivo.trim().isEmpty) return;
+
+    try {
+      final db = FirebaseFirestore.instance;
+      final userAdmin = FirebaseAuth.instance.currentUser;
+      final String adminEmail = userAdmin?.email ?? 'Desconocido';
+      final String adminUid = userAdmin?.uid ?? '';
+      final String operacionId =
+          '${DateTime.now().millisecondsSinceEpoch}_$docId';
+
+      final Map<String, DocumentSnapshot<Map<String, dynamic>>> documentos = {};
+
+      if (esTitular) {
+        final queryFamilia = await db
+            .collection('socios')
+            .where('familia_id', isEqualTo: familiaId)
+            .get();
+
+        for (final doc in queryFamilia.docs) {
+          documentos[doc.id] = doc;
+        }
+
+        final titularDoc = await db.collection('socios').doc(docId).get();
+        if (titularDoc.exists) {
+          documentos[docId] = titularDoc;
+        }
+      } else {
+        final socioDoc = await db.collection('socios').doc(docId).get();
+        if (socioDoc.exists) {
+          documentos[docId] = socioDoc;
+        }
+      }
+
+      if (documentos.isEmpty) {
+        throw "No se encontró el socio a dar de baja.";
+      }
+
+      final batch = db.batch();
+
+      for (final doc in documentos.values) {
+        batch.update(doc.reference, {
+          'eliminado': true,
+          'estado_baja': 'eliminado',
+          'eliminado_en': FieldValue.serverTimestamp(),
+          'eliminado_por_email': adminEmail,
+          'eliminado_por_uid': adminUid,
+          'motivo_eliminacion': motivo.trim(),
+          'baja_operacion_id': operacionId,
+        });
+      }
+
+      await batch.commit();
+
+      if (mounted) {
+        final cantidad = documentos.length;
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              cantidad == 1
+                  ? "Socio dado de baja. Quedó disponible en la papelera."
+                  : "$cantidad integrantes dados de baja. Quedaron disponibles en la papelera.",
+            ),
+            backgroundColor: Colors.orange[800],
+          ),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text("Error al dar de baja: $e")));
+      }
+    }
+  }
+
+  Future<void> _restaurarSocio(
+    String docId,
+    Map<String, dynamic> data,
+  ) async {
+    final bool esTitular = data['es_titular'] == true;
+    final String nombre =
+        "${data['apellido'] ?? ''}, ${data['nombre'] ?? ''}".trim();
+
+    final confirmar =
+        await showDialog<bool>(
           context: context,
           builder: (ctx) => AlertDialog(
-            title: const Text("¿Eliminar Socio?"),
+            title: const Text("Restaurar socio"),
             content: Text(
               esTitular
-                  ? "ATENCIÓN: Es TITULAR. Se borrará a TODA su familia."
-                  : "¿Seguro deseas eliminar a este integrante?",
+                  ? "¿Querés restaurar a $nombre y a los integrantes dados de baja en la misma operación?"
+                  : "¿Querés restaurar a $nombre al padrón activo?",
             ),
             actions: [
               TextButton(
                 onPressed: () => Navigator.pop(ctx, false),
                 child: const Text("CANCELAR"),
               ),
-              TextButton(
+              ElevatedButton(
                 onPressed: () => Navigator.pop(ctx, true),
-                child: const Text(
-                  "ELIMINAR",
-                  style: TextStyle(color: Colors.red),
-                ),
+                child: const Text("RESTAURAR"),
               ),
             ],
           ),
@@ -512,28 +696,200 @@ class _PantallaAdminSociosState extends State<PantallaAdminSocios> {
 
     try {
       final db = FirebaseFirestore.instance;
-      if (esTitular) {
-        var batch = db.batch();
-        var queryFamilia = await db
+      final userAdmin = FirebaseAuth.instance.currentUser;
+      final String adminEmail = userAdmin?.email ?? 'Desconocido';
+      final String adminUid = userAdmin?.uid ?? '';
+      final String operacionId =
+          (data['baja_operacion_id'] ?? '').toString().trim();
+
+      final Map<String, DocumentSnapshot<Map<String, dynamic>>> documentos = {};
+
+      if (esTitular && operacionId.isNotEmpty) {
+        final query = await db
             .collection('socios')
-            .where('familia_id', isEqualTo: familiaId)
+            .where('baja_operacion_id', isEqualTo: operacionId)
             .get();
-        for (var doc in queryFamilia.docs) batch.delete(doc.reference);
-        batch.delete(db.collection('socios').doc(docId));
-        await batch.commit();
-      } else {
-        await db.collection('socios').doc(docId).delete();
+
+        for (final doc in query.docs) {
+          final d = doc.data();
+          if (d['eliminado'] == true) {
+            documentos[doc.id] = doc;
+          }
+        }
       }
-      if (mounted)
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(const SnackBar(content: Text("Eliminado.")));
+
+      if (documentos.isEmpty) {
+        final socioDoc = await db.collection('socios').doc(docId).get();
+        if (socioDoc.exists) {
+          documentos[docId] = socioDoc;
+        }
+      }
+
+      final batch = db.batch();
+
+      for (final doc in documentos.values) {
+        batch.update(doc.reference, {
+          'eliminado': false,
+          'estado_baja': 'restaurado',
+          'restaurado_en': FieldValue.serverTimestamp(),
+          'restaurado_por_email': adminEmail,
+          'restaurado_por_uid': adminUid,
+        });
+      }
+
+      await batch.commit();
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              documentos.length == 1
+                  ? "Socio restaurado correctamente."
+                  : "${documentos.length} integrantes restaurados correctamente.",
+            ),
+            backgroundColor: Colors.green,
+          ),
+        );
+      }
     } catch (e) {
-      if (mounted)
+      if (mounted) {
         ScaffoldMessenger.of(
           context,
-        ).showSnackBar(SnackBar(content: Text("Error: $e")));
+        ).showSnackBar(SnackBar(content: Text("Error al restaurar: $e")));
+      }
     }
+  }
+
+  void _mostrarSociosEliminados() {
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => Scaffold(
+          appBar: AppBar(
+            title: const Text("Papelera de Socios"),
+            backgroundColor: Colors.grey[900],
+            foregroundColor: Colors.white,
+          ),
+          body: StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
+            stream: FirebaseFirestore.instance.collection('socios').snapshots(),
+            builder: (context, snapshot) {
+              if (snapshot.hasError) {
+                return Center(
+                  child: Padding(
+                    padding: const EdgeInsets.all(20),
+                    child: Text(
+                      "No se pudo cargar la papelera:\n${snapshot.error}",
+                      textAlign: TextAlign.center,
+                    ),
+                  ),
+                );
+              }
+
+              if (!snapshot.hasData) {
+                return const Center(child: CircularProgressIndicator());
+              }
+
+              final docs = snapshot.data!.docs
+                  .where((doc) => doc.data()['eliminado'] == true)
+                  .toList();
+
+              docs.sort((a, b) {
+                final fechaA = a.data()['eliminado_en'];
+                final fechaB = b.data()['eliminado_en'];
+
+                if (fechaA is Timestamp && fechaB is Timestamp) {
+                  return fechaB.compareTo(fechaA);
+                }
+                if (fechaA is Timestamp) return -1;
+                if (fechaB is Timestamp) return 1;
+                return 0;
+              });
+
+              if (docs.isEmpty) {
+                return const Center(
+                  child: Padding(
+                    padding: EdgeInsets.all(30),
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(
+                          Icons.delete_outline,
+                          size: 60,
+                          color: Colors.grey,
+                        ),
+                        SizedBox(height: 12),
+                        Text(
+                          "No hay socios en la papelera.",
+                          style: TextStyle(fontSize: 16, color: Colors.grey),
+                        ),
+                      ],
+                    ),
+                  ),
+                );
+              }
+
+              return ListView.separated(
+                padding: const EdgeInsets.all(10),
+                itemCount: docs.length,
+                separatorBuilder: (_, __) => const SizedBox(height: 4),
+                itemBuilder: (context, index) {
+                  final doc = docs[index];
+                  final data = doc.data();
+                  final fechaRaw = data['eliminado_en'];
+
+                  String fechaTexto = "Fecha no disponible";
+                  if (fechaRaw is Timestamp) {
+                    fechaTexto = DateFormat(
+                      'dd/MM/yyyy HH:mm',
+                    ).format(fechaRaw.toDate());
+                  }
+
+                  final String eliminadoPor =
+                      (data['eliminado_por_email'] ?? 'Desconocido').toString();
+                  final String motivo =
+                      (data['motivo_eliminacion'] ?? 'Sin motivo').toString();
+
+                  return Card(
+                    child: ListTile(
+                      leading: CircleAvatar(
+                        backgroundColor: Colors.red[50],
+                        child: const Icon(Icons.person_off, color: Colors.red),
+                      ),
+                      title: Text(
+                        "${data['apellido'] ?? ''}, ${data['nombre'] ?? ''}",
+                        style: const TextStyle(fontWeight: FontWeight.bold),
+                      ),
+                      subtitle: Padding(
+                        padding: const EdgeInsets.only(top: 4),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text("DNI: ${data['dni'] ?? doc.id}"),
+                            Text("Baja: $fechaTexto"),
+                            Text("Por: $eliminadoPor"),
+                            Text(
+                              "Motivo: $motivo",
+                              style: const TextStyle(
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                      trailing: IconButton(
+                        icon: const Icon(Icons.restore, color: Colors.green),
+                        tooltip: "Restaurar socio",
+                        onPressed: () => _restaurarSocio(doc.id, data),
+                      ),
+                    ),
+                  );
+                },
+              );
+            },
+          ),
+        ),
+      ),
+    );
   }
 
   Future<void> _generarYCompartirReciboPDF(
@@ -1306,6 +1662,11 @@ class _PantallaAdminSociosState extends State<PantallaAdminSocios> {
             ),
           ],
           IconButton(
+            icon: const Icon(Icons.delete_outline),
+            tooltip: "Papelera de socios",
+            onPressed: _mostrarSociosEliminados,
+          ),
+          IconButton(
             icon: const Icon(Icons.price_change),
             tooltip: "Precios",
             onPressed: _irAConfigurarPrecios,
@@ -1369,6 +1730,9 @@ class _PantallaAdminSociosState extends State<PantallaAdminSocios> {
                 // --- LÓGICA DE FILTRADO ---
                 docs = docs.where((d) {
                   final data = d.data() as Map<String, dynamic>;
+
+                  // Los socios dados de baja no se muestran en el padrón activo.
+                  if (data['eliminado'] == true) return false;
 
                   // 1. Filtro por Búsqueda de Texto
                   if (_busqueda.isNotEmpty) {

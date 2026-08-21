@@ -14,6 +14,105 @@ import 'package:pdf/widgets.dart' as pw;
 import '../../configuracion/configuracion_app.dart';
 import 'package:file_saver/file_saver.dart';
 
+
+const List<String> _categoriasFinanzasBase = [
+  'Cuotas',
+  'Alquileres',
+  'Mantenimiento',
+  'Servicios',
+  'Materiales',
+  'Torneos',
+  'Sueldos',
+  'Merchandising',
+];
+
+const String _opcionAgregarCategoria = '__agregar_categoria__';
+
+class _RepositorioCategoriasFinanzas {
+  static DocumentReference<Map<String, dynamic>> get _docRef =>
+      FirebaseFirestore.instance
+          .collection('configuracion')
+          .doc('categorias_finanzas');
+
+  static Future<List<String>> cargar() async {
+    final categorias = List<String>.from(_categoriasFinanzasBase);
+
+    try {
+      final doc = await _docRef.get();
+      if (doc.exists) {
+        final data = doc.data() ?? <String, dynamic>{};
+        final guardadas = data['categorias'];
+        if (guardadas is List) {
+          for (final item in guardadas) {
+            _agregarSinDuplicar(categorias, item?.toString() ?? '');
+          }
+        }
+      }
+    } catch (e) {
+      debugPrint('Error cargando categorías de finanzas: $e');
+    }
+
+    return categorias;
+  }
+
+  static Future<List<String>> agregar(String nombre) async {
+    final nombreLimpio = _limpiarNombre(nombre);
+    if (nombreLimpio.isEmpty) {
+      throw ArgumentError('La categoría no puede estar vacía.');
+    }
+
+    return FirebaseFirestore.instance.runTransaction<List<String>>((tx) async {
+      final snapshot = await tx.get(_docRef);
+      final categorias = List<String>.from(_categoriasFinanzasBase);
+
+      if (snapshot.exists) {
+        final data = snapshot.data() ?? <String, dynamic>{};
+        final guardadas = data['categorias'];
+        if (guardadas is List) {
+          for (final item in guardadas) {
+            _agregarSinDuplicar(categorias, item?.toString() ?? '');
+          }
+        }
+      }
+
+      final existe = categorias.any(
+        (c) => c.toLowerCase() == nombreLimpio.toLowerCase(),
+      );
+
+      if (!existe) {
+        categorias.add(nombreLimpio);
+      }
+
+      tx.set(
+        _docRef,
+        {
+          'categorias': categorias,
+          'actualizado_en': FieldValue.serverTimestamp(),
+        },
+        SetOptions(merge: true),
+      );
+
+      return categorias;
+    });
+  }
+
+  static String _limpiarNombre(String valor) {
+    return valor.trim().replaceAll(RegExp(r'\s+'), ' ');
+  }
+
+  static void _agregarSinDuplicar(List<String> lista, String valor) {
+    final limpio = _limpiarNombre(valor);
+    if (limpio.isEmpty) return;
+
+    final existe = lista.any(
+      (c) => c.toLowerCase() == limpio.toLowerCase(),
+    );
+    if (!existe) {
+      lista.add(limpio);
+    }
+  }
+}
+
 class PantallaAdminFinanzas extends StatefulWidget {
   final ConfiguracionApp config;
   const PantallaAdminFinanzas({super.key, required this.config});
@@ -35,11 +134,26 @@ class _PantallaAdminFinanzasState extends State<PantallaAdminFinanzas>
 
   String? _filtroCategoria;
   String _filtroTexto = "";
+  List<String> _categoriasFinanzas = List<String>.from(_categoriasFinanzasBase);
 
   @override
   void initState() {
     super.initState();
     _tabController = TabController(length: 3, vsync: this);
+    _cargarCategoriasFinanzas();
+  }
+
+  Future<void> _cargarCategoriasFinanzas() async {
+    final categorias = await _RepositorioCategoriasFinanzas.cargar();
+    if (!mounted) return;
+
+    setState(() {
+      _categoriasFinanzas = categorias;
+      if (_filtroCategoria != null &&
+          !_categoriasFinanzas.contains(_filtroCategoria)) {
+        _filtroCategoria = null;
+      }
+    });
   }
 
   Future<void> _seleccionarRangoFecha() async {
@@ -98,24 +212,18 @@ class _PantallaAdminFinanzasState extends State<PantallaAdminFinanzas>
                       labelText: "Categoría",
                       border: OutlineInputBorder(),
                     ),
-                    items:
-                        [
-                              'Todas',
-                              'Alquileres',
-                              'Cuotas',
-                              'Mantenimiento',
-                              'Servicios',
-                              'Materiales',
-                              'Torneos',
-                              'Sueldos',
-                            ]
-                            .map(
-                              (c) => DropdownMenuItem(
-                                value: c == 'Todas' ? null : c,
-                                child: Text(c),
-                              ),
-                            )
-                            .toList(),
+                    items: [
+                      const DropdownMenuItem<String>(
+                        value: null,
+                        child: Text('Todas'),
+                      ),
+                      ..._categoriasFinanzas.map(
+                        (c) => DropdownMenuItem<String>(
+                          value: c,
+                          child: Text(c),
+                        ),
+                      ),
+                    ],
                     onChanged: (v) => setStateDialog(() => catTemp = v),
                   ),
                 ],
@@ -202,6 +310,11 @@ class _PantallaAdminFinanzasState extends State<PantallaAdminFinanzas>
           ),
           _TabNuevoMovimiento(
             config: widget.config,
+            categoriasIniciales: _categoriasFinanzas,
+            alCategoriasActualizadas: (categorias) {
+              if (!mounted) return;
+              setState(() => _categoriasFinanzas = categorias);
+            },
             alGuardar: () {
               _tabController.animateTo(0);
               setState(() {});
@@ -609,6 +722,7 @@ class _TabMovimientos extends StatelessWidget {
                         if (cat == 'Alquileres') icon = Icons.sports_soccer;
                         if (cat == 'Cuotas') icon = Icons.receipt_long;
                         if (cat == 'Mantenimiento') icon = Icons.build;
+                        if (cat == 'Merchandising') icon = Icons.shopping_bag;
 
                         return ListTile(
                           contentPadding: const EdgeInsets.symmetric(
@@ -1227,7 +1341,16 @@ class _TabRecaudacionActividadState extends State<_TabRecaudacionActividad> {
 class _TabNuevoMovimiento extends StatefulWidget {
   final ConfiguracionApp config;
   final VoidCallback alGuardar;
-  const _TabNuevoMovimiento({required this.config, required this.alGuardar});
+  final List<String> categoriasIniciales;
+  final ValueChanged<List<String>> alCategoriasActualizadas;
+
+  const _TabNuevoMovimiento({
+    required this.config,
+    required this.alGuardar,
+    required this.categoriasIniciales,
+    required this.alCategoriasActualizadas,
+  });
+
   @override
   State<_TabNuevoMovimiento> createState() => _TabNuevoMovimientoState();
 }
@@ -1239,6 +1362,7 @@ class _TabNuevoMovimientoState extends State<_TabNuevoMovimiento> {
   String _metodo = 'Efectivo';
   String _categoria = 'Cuotas';
   bool _guardando = false;
+  List<String> _categorias = List<String>.from(_categoriasFinanzasBase);
 
   DateTime _fechaMovimiento = DateTime.now();
 
@@ -1256,7 +1380,151 @@ class _TabNuevoMovimientoState extends State<_TabNuevoMovimiento> {
   @override
   void initState() {
     super.initState();
+    _categorias = _combinarCategorias(widget.categoriasIniciales);
     _cargarActividades();
+    _cargarCategorias();
+  }
+
+  @override
+  void didUpdateWidget(covariant _TabNuevoMovimiento oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.categoriasIniciales != widget.categoriasIniciales) {
+      final nuevas = _combinarCategorias(widget.categoriasIniciales);
+      if (!_listasIguales(_categorias, nuevas)) {
+        setState(() => _categorias = nuevas);
+      }
+    }
+  }
+
+  List<String> _combinarCategorias(List<String> adicionales) {
+    final resultado = List<String>.from(_categoriasFinanzasBase);
+    for (final item in adicionales) {
+      final limpio = item.trim().replaceAll(RegExp(r'\s+'), ' ');
+      if (limpio.isEmpty) continue;
+      final existe = resultado.any(
+        (c) => c.toLowerCase() == limpio.toLowerCase(),
+      );
+      if (!existe) resultado.add(limpio);
+    }
+    return resultado;
+  }
+
+  bool _listasIguales(List<String> a, List<String> b) {
+    if (a.length != b.length) return false;
+    for (var i = 0; i < a.length; i++) {
+      if (a[i] != b[i]) return false;
+    }
+    return true;
+  }
+
+  Future<void> _cargarCategorias() async {
+    final categorias = await _RepositorioCategoriasFinanzas.cargar();
+    if (!mounted) return;
+
+    setState(() {
+      _categorias = categorias;
+      if (!_categorias.contains(_categoria)) {
+        _categoria = _categorias.isNotEmpty ? _categorias.first : 'Cuotas';
+      }
+    });
+    widget.alCategoriasActualizadas(List<String>.from(categorias));
+  }
+
+  Future<void> _agregarNuevaCategoria() async {
+    final controller = TextEditingController();
+
+    final nombre = await showDialog<String>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Agregar nueva categoría'),
+        content: TextField(
+          controller: controller,
+          autofocus: true,
+          textCapitalization: TextCapitalization.sentences,
+          decoration: const InputDecoration(
+            labelText: 'Nombre de la categoría',
+            hintText: 'Ej: Buffet, Eventos, Transporte...',
+            border: OutlineInputBorder(),
+          ),
+          onSubmitted: (valor) {
+            final limpio = valor.trim();
+            if (limpio.isNotEmpty) Navigator.pop(ctx, limpio);
+          },
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('CANCELAR'),
+          ),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(
+              backgroundColor: widget.config.colorPrimario,
+              foregroundColor: Colors.white,
+            ),
+            onPressed: () {
+              final limpio = controller.text.trim();
+              if (limpio.isEmpty) {
+                ScaffoldMessenger.of(ctx).showSnackBar(
+                  const SnackBar(
+                    content: Text('Escribí un nombre para la categoría.'),
+                  ),
+                );
+                return;
+              }
+              Navigator.pop(ctx, limpio);
+            },
+            child: const Text('AGREGAR'),
+          ),
+        ],
+      ),
+    );
+
+    controller.dispose();
+    if (nombre == null || nombre.trim().isEmpty || !mounted) return;
+
+    final nombreLimpio = nombre.trim().replaceAll(RegExp(r'\s+'), ' ');
+    final existente = _categorias.where(
+      (c) => c.toLowerCase() == nombreLimpio.toLowerCase(),
+    );
+
+    if (existente.isNotEmpty) {
+      setState(() => _categoria = existente.first);
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('La categoría "${existente.first}" ya existe.')),
+      );
+      return;
+    }
+
+    try {
+      final categorias = await _RepositorioCategoriasFinanzas.agregar(nombreLimpio);
+      if (!mounted) return;
+
+      final creada = categorias.firstWhere(
+        (c) => c.toLowerCase() == nombreLimpio.toLowerCase(),
+        orElse: () => nombreLimpio,
+      );
+
+      setState(() {
+        _categorias = categorias;
+        _categoria = creada;
+      });
+      widget.alCategoriasActualizadas(List<String>.from(categorias));
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Categoría "$creada" agregada correctamente.'),
+          backgroundColor: Colors.green,
+        ),
+      );
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('No se pudo agregar la categoría: $e'),
+          backgroundColor: Colors.red,
+        ),
+      );
+    }
   }
 
   Future<void> _cargarActividades() async {
@@ -1762,27 +2030,38 @@ class _TabNuevoMovimientoState extends State<_TabNuevoMovimiento> {
                     border: OutlineInputBorder(),
                     contentPadding: EdgeInsets.symmetric(horizontal: 10),
                   ),
-                  items:
-                      [
-                            'Cuotas',
-                            'Alquileres',
-                            'Mantenimiento',
-                            'Servicios',
-                            'Materiales',
-                            'Torneos',
-                            'Sueldos',
-                          ]
-                          .map(
-                            (m) => DropdownMenuItem(
-                              value: m,
-                              child: Text(
-                                m,
-                                style: const TextStyle(fontSize: 13),
-                              ),
-                            ),
-                          )
-                          .toList(),
-                  onChanged: (v) => setState(() => _categoria = v!),
+                  items: [
+                    ..._categorias.map(
+                      (m) => DropdownMenuItem<String>(
+                        value: m,
+                        child: Text(
+                          m,
+                          style: const TextStyle(fontSize: 13),
+                        ),
+                      ),
+                    ),
+                    const DropdownMenuItem<String>(
+                      value: _opcionAgregarCategoria,
+                      child: Row(
+                        children: [
+                          Icon(Icons.add_circle_outline, size: 18),
+                          SizedBox(width: 8),
+                          Text(
+                            'Agregar nueva categoría...',
+                            style: TextStyle(fontWeight: FontWeight.bold),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                  onChanged: (v) async {
+                    if (v == null) return;
+                    if (v == _opcionAgregarCategoria) {
+                      await _agregarNuevaCategoria();
+                      return;
+                    }
+                    setState(() => _categoria = v);
+                  },
                 ),
               ),
             ],

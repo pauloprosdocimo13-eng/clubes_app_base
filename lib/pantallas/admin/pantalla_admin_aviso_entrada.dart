@@ -83,7 +83,7 @@ class _PantallaAdminAvisoEntradaState extends State<PantallaAdminAvisoEntrada> {
                   // SWITCH ON/OFF
                   SwitchListTile(
                     title: const Text("Activar Aviso al Entrar"),
-                    subtitle: const Text("Si está activo, los usuarios verán esto al abrir la app."),
+                    subtitle: const Text("Si está activo, se mostrará una vez cada vez que el usuario abra la app."),
                     value: _activo,
                     activeColor: widget.config.colorPrimario,
                     onChanged: (val) => setState(() => _activo = val),
