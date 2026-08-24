@@ -1,118 +1,169 @@
-<!DOCTYPE html><html><head>
-  <!--
-    If you are serving your web app in a path other than the root, change the
-    href value below to reflect the base path you are serving from.
-
-    The path provided below has to start and end with a slash "/" in order for
-    it to work correctly.
-
-    For more details:
-    * https://developer.mozilla.org/en-US/docs/Web/HTML/Element/base
-
-    This is a placeholder for base href that will be replaced by the value of
-    the `--base-href` argument provided to `flutter build`.
-  -->
+<!DOCTYPE html>
+<html lang="es">
+<head>
   <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
   <meta http-equiv="Pragma" content="no-cache">
   <meta http-equiv="Expires" content="0">
+
   <base href="$FLUTTER_BASE_HREF">
 
   <meta charset="UTF-8">
   <meta content="IE=Edge" http-equiv="X-UA-Compatible">
-  <meta name="description" content="A new Flutter project.">
 
-  <!-- iOS meta tags & icons -->
+  <meta
+    name="description"
+    content="TuSede - Plataforma de gestión para clubes e instituciones."
+  >
+
   <meta name="mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black">
-  <meta name="apple-mobile-web-app-title" content="clubes_app_base">
-  <link rel="apple-touch-icon" href="icons/Icon-192.png">
+  <meta name="apple-mobile-web-app-title" content="TuSede">
 
-  <!-- Favicon -->
+  <link rel="apple-touch-icon" href="icons/Icon-192.png">
   <link rel="icon" type="image/png" href="favicon.png">
 
-  <title>clubes_app_base</title>
+  <title>TuSede</title>
   <link rel="manifest" href="manifest.json">
-  
-  
-  <meta content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" name="viewport">
-  
-  <!-- cominezo del splash screen para web -->
+
+  <meta
+    content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no"
+    name="viewport"
+  >
+
+  <!-- Splash previo al inicio de Flutter.
+       Es neutro de TuSede porque todavía no se cargó ContextoClub. -->
   <style id="splash-screen-style">
-    html {
-      height: 100%
-    }
-
+    html,
     body {
+      width: 100%;
+      height: 100%;
       margin: 0;
-      min-height: 100%;
-      background-color: #ffffff;
-          background-size: 100% 100%;
+      padding: 0;
+      background: #0f172a;
+      font-family: Arial, Helvetica, sans-serif;
     }
 
-    .center {
-      margin: 0;
-      position: absolute;
-      top: 50%;
-      left: 50%;
-      -ms-transform: translate(-50%, -50%);
-      transform: translate(-50%, -50%);
+    #splash {
+      position: fixed;
+      inset: 0;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background:
+        radial-gradient(
+          circle at 50% 35%,
+          #1e3a5f 0%,
+          #0f172a 55%,
+          #090e19 100%
+        );
+      z-index: 999999;
     }
 
-    .contain {
-      display:block;
-      width:100%; height:100%;
+    .tusede-splash-content {
+      width: min(88vw, 720px);
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      text-align: center;
+      padding: 24px;
+      box-sizing: border-box;
+    }
+
+    .tusede-logo {
+      display: block;
+      width: min(76vw, 560px);
+      max-height: 300px;
       object-fit: contain;
+      filter: drop-shadow(0 14px 30px rgba(0, 0, 0, 0.28));
+      animation: tusede-logo-in 0.65s ease-out both;
     }
 
-    .stretch {
-      display:block;
-      width:100%; height:100%;
+    .tusede-subtitle {
+      margin-top: 10px;
+      color: rgba(255, 255, 255, 0.72);
+      font-size: 13px;
+      font-weight: 600;
+      letter-spacing: 2px;
+      text-transform: uppercase;
     }
 
-    .cover {
-      display:block;
-      width:100%; height:100%;
-      object-fit: cover;
+    .tusede-loader {
+      width: 30px;
+      height: 30px;
+      margin-top: 34px;
+      border: 3px solid rgba(255, 255, 255, 0.18);
+      border-top-color: #ffffff;
+      border-radius: 50%;
+      animation: tusede-spin 0.8s linear infinite;
     }
 
-    .bottom {
-      position: absolute;
-      bottom: 0;
-      left: 50%;
-      -ms-transform: translate(-50%, 0);
-      transform: translate(-50%, 0);
+    @keyframes tusede-spin {
+      to {
+        transform: rotate(360deg);
+      }
     }
 
-    .bottomLeft {
-      position: absolute;
-      bottom: 0;
-      left: 0;
+    @keyframes tusede-logo-in {
+      from {
+        opacity: 0;
+        transform: scale(0.94);
+      }
+
+      to {
+        opacity: 1;
+        transform: scale(1);
+      }
     }
 
-    .bottomRight {
-      position: absolute;
-      bottom: 0;
-      right: 0;
+    @media (max-width: 600px) {
+      .tusede-logo {
+        width: min(86vw, 430px);
+      }
+
+      .tusede-subtitle {
+        font-size: 11px;
+        letter-spacing: 1.4px;
+      }
     }
   </style>
+
   <script id="splash-screen-script">
     function removeSplashFromWeb() {
       document.getElementById("splash")?.remove();
       document.getElementById("splash-branding")?.remove();
       document.body.style.background = "transparent";
     }
+
+    // Flutter emite este evento cuando ya dibujó su primer frame.
+    // En ese momento retiramos el splash HTML para dejar visible la app.
+    window.addEventListener(
+      "flutter-first-frame",
+      function () {
+        window.setTimeout(removeSplashFromWeb, 100);
+      },
+      { once: true }
+    );
   </script>
 </head>
+
 <body>
-  <picture id="splash">
-      <source srcset="splash/img/light-1x.png 1x, splash/img/light-2x.png 2x, splash/img/light-3x.png 3x, splash/img/light-4x.png 4x" media="(prefers-color-scheme: light)">
-      <source srcset="splash/img/dark-1x.png 1x, splash/img/dark-2x.png 2x, splash/img/dark-3x.png 3x, splash/img/dark-4x.png 4x" media="(prefers-color-scheme: dark)">
-      <img class="center" aria-hidden="true" src="splash/img/light-1x.png" alt="">
-  </picture>
-  
-  <!-- fin del splash screen para web -->
-  
-  <script src="flutter_bootstrap.js" async=""></script>
+  <div id="splash" aria-hidden="true">
+    <div class="tusede-splash-content">
+      <img
+        class="tusede-logo"
+        src="tusede_logo.png"
+        alt="TuSede"
+      >
 
+      <div class="tusede-subtitle">
+        Gestión para clubes e instituciones
+      </div>
 
-</body></html>
+      <div class="tusede-loader"></div>
+    </div>
+  </div>
+
+  <script src="flutter_bootstrap.js" async></script>
+</body>
+</html>

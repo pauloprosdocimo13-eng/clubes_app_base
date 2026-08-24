@@ -13,6 +13,7 @@ import 'pantalla_reservas.dart';
 import 'socios/pantalla_acceso_socio.dart';
 import 'pantalla_login_admin.dart';
 import '../widgets/banner_publicidad.dart'; // IMPORTAMOS EL BANNER DE PUBLICIDAD
+import '../widgets/logo_club_tusede.dart';
 
 class PantallaSeleccionActividad extends StatefulWidget {
   final ConfiguracionApp config;
@@ -286,7 +287,15 @@ class _PantallaSeleccionActividadState extends State<PantallaSeleccionActividad>
                     CircleAvatar(
                       radius: 40,
                       backgroundColor: Colors.white,
-                      backgroundImage: AssetImage(widget.config.rutaLogo),
+                      child: Padding(
+                        padding: const EdgeInsets.all(5),
+                        child: LogoClubTuSede(
+                          config: widget.config,
+                          width: 70,
+                          height: 70,
+                          fit: BoxFit.contain,
+                        ),
+                      ),
                     ),
                     const SizedBox(height: 15),
                     Text(

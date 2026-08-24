@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import '../configuracion/configuracion_app.dart';
 import '../tusede/servicios/contexto_club.dart';
 import '../servicios/servicio_firebase.dart';
+import '../widgets/logo_club_tusede.dart';
 import 'pantalla_seleccion.dart'; 
 import 'pantalla_seleccion_actividad.dart'; 
 
@@ -116,7 +117,12 @@ class _PantallaSplashState extends State<PantallaSplash> {
                         )
                       ],
                     ),
-                    child: Image.asset(widget.config.rutaLogo),
+                    child: LogoClubTuSede(
+                      config: widget.config,
+                      width: 160,
+                      height: 160,
+                      fit: BoxFit.contain,
+                    ),
                   ),
                   const SizedBox(height: 35),
                   

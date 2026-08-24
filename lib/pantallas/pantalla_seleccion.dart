@@ -5,6 +5,7 @@ import '../tusede/servicios/contexto_club.dart';
 import '../servicios/servicio_aviso_entrada.dart';
 import '../servicios/servicio_version.dart';
 import '../widgets/estado_carga.dart';
+import '../widgets/logo_club_tusede.dart';
 // PANTALLAS DE NAVEGACIÓN
 import 'pantalla_inicio.dart';
 import 'socios/pantalla_acceso_socio.dart';
@@ -120,7 +121,12 @@ class _PantallaSeleccionState extends State<PantallaSeleccion> {
                         const SizedBox(width: 40),
 
                         // LOGO CENTRAL
-                        Image.asset(widget.config.rutaLogo, height: 100),
+                        LogoClubTuSede(
+                          config: widget.config,
+                          width: 100,
+                          height: 100,
+                          fit: BoxFit.contain,
+                        ),
 
                         // BOTÓN DE ACCESO ADMIN (Salvavidas)
                         IconButton(

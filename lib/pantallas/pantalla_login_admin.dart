@@ -4,6 +4,8 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 
 import '../configuracion/configuracion_app.dart';
+import '../tusede/servicios/contexto_club.dart';
+import '../widgets/logo_club_tusede.dart';
 import '../tusede/servicios/servicio_vinculo_tusede.dart';
 import 'desktop/pantalla_admin_desktop.dart';
 import 'pantalla_admin_dashboard.dart';
@@ -259,6 +261,8 @@ class _PantallaLoginAdminState
   Widget build(
     BuildContext context,
   ) {
+    final Color colorPrimario = ContextoClub.colorPrimario;
+
     if (_verificandoSesion) {
       return Scaffold(
         backgroundColor:
@@ -266,8 +270,7 @@ class _PantallaLoginAdminState
         body: Center(
           child:
               CircularProgressIndicator(
-            color:
-                widget.config.colorPrimario,
+            color: colorPrimario,
           ),
         ),
       );
@@ -293,23 +296,12 @@ class _PantallaLoginAdminState
               mainAxisAlignment:
                   MainAxisAlignment.center,
               children: [
-                if (widget
-                    .config
-                    .rutaLogo
-                    .isNotEmpty)
-                  Image.asset(
-                    widget.config.rutaLogo,
-                    height: 100,
-                  )
-                else
-                  Icon(
-                    Icons
-                        .admin_panel_settings,
-                    size: 80,
-                    color:
-                        widget.config
-                            .colorPrimario,
-                  ),
+                LogoClubTuSede(
+                  config: widget.config,
+                  width: 110,
+                  height: 110,
+                  fit: BoxFit.contain,
+                ),
 
                 const SizedBox(
                   height: 20,
@@ -323,9 +315,7 @@ class _PantallaLoginAdminState
                         24,
                     fontWeight:
                         FontWeight.bold,
-                    color:
-                        widget.config
-                            .colorPrimario,
+                    color: colorPrimario,
                   ),
                 ),
 
@@ -389,9 +379,7 @@ class _PantallaLoginAdminState
                     style:
                         ElevatedButton
                             .styleFrom(
-                      backgroundColor:
-                          widget.config
-                              .colorPrimario,
+                      backgroundColor: colorPrimario,
                       foregroundColor:
                           Colors.white,
                       shape:
