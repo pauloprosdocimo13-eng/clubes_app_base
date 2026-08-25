@@ -1,0 +1,15 @@
+flutter_native_splash:
+  color: "#0F172A"
+  image: assets/tusede/splash_icon.png
+
+  android: true
+  ios: true
+  web: false
+
+  android_gravity: center
+  ios_content_mode: center
+
+  android_12:
+    color: "#0F172A"
+    image: assets/tusede/splash_icon.png
+    icon_background_color: "#0F172A"
