@@ -1,0 +1,471 @@
+﻿E:\1_Desarrollo_Software\App\App para clubes\clubes_app_base\lib\configuracion\admin_permisos.dart:52: .collection('configuracion')
+E:\1_Desarrollo_Software\App\App para clubes\clubes_app_base\lib\configuracion\admin_permisos.dart:72: .collection('permisos_admin')
+E:\1_Desarrollo_Software\App\App para clubes\clubes_app_base\lib\pantallas\admin\prode\pantalla_admin_detalle_fecha.dart:29: .collection('prode_fechas')
+E:\1_Desarrollo_Software\App\App para clubes\clubes_app_base\lib\pantallas\admin\prode\pantalla_admin_detalle_fecha.dart:56: .collection('configuracion')
+E:\1_Desarrollo_Software\App\App para clubes\clubes_app_base\lib\pantallas\admin\prode\pantalla_admin_detalle_fecha.dart:227: .collection('prode_fechas')
+E:\1_Desarrollo_Software\App\App para clubes\clubes_app_base\lib\pantallas\admin\prode\pantalla_admin_detalle_fecha.dart:380: .collection('prode_fechas')
+E:\1_Desarrollo_Software\App\App para clubes\clubes_app_base\lib\pantallas\admin\prode\pantalla_admin_detalle_fecha.dart:392: .collection('prode_fechas')
+E:\1_Desarrollo_Software\App\App para clubes\clubes_app_base\lib\pantallas\admin\prode\pantalla_admin_detalle_fecha.dart:403: .collection('prode_fechas')
+E:\1_Desarrollo_Software\App\App para clubes\clubes_app_base\lib\pantallas\admin\prode\pantalla_admin_detalle_fecha.dart:419: .collection('prode_votos')
+E:\1_Desarrollo_Software\App\App para clubes\clubes_app_base\lib\pantallas\admin\prode\pantalla_admin_detalle_fecha.dart:485: .collection('prode_fechas')
+E:\1_Desarrollo_Software\App\App para clubes\clubes_app_base\lib\pantallas\admin\prode\pantalla_admin_detalle_fecha.dart:497: .collection('prode_fechas')
+E:\1_Desarrollo_Software\App\App para clubes\clubes_app_base\lib\pantallas\admin\prode\pantalla_admin_detalle_fecha.dart:521: .collection('prode_fechas')
+E:\1_Desarrollo_Software\App\App para clubes\clubes_app_base\lib\pantallas\admin\prode\pantalla_admin_prode.dart:35: await FirebaseFirestore.instance.collection('prode_fechas').add(
+E:\1_Desarrollo_Software\App\App para clubes\clubes_app_base\lib\pantallas\admin\prode\pantalla_admin_prode.dart:69: .collection('prode_fechas')
+E:\1_Desarrollo_Software\App\App para clubes\clubes_app_base\lib\pantallas\admin\prode\pantalla_admin_prode.dart:97: .collection('prode_fechas')
+E:\1_Desarrollo_Software\App\App para clubes\clubes_app_base\lib\pantallas\admin\votacion\pantalla_admin_votacion.dart:28: .collection('configuracion')
+E:\1_Desarrollo_Software\App\App para clubes\clubes_app_base\lib\pantallas\admin\votacion\pantalla_admin_votacion.dart:97: .collection('jugadores')
+E:\1_Desarrollo_Software\App\App para clubes\clubes_app_base\lib\pantallas\admin\votacion\pantalla_admin_votacion.dart:119: await db.collection('votaciones').add({
+E:\1_Desarrollo_Software\App\App para clubes\clubes_app_base\lib\pantallas\admin\votacion\pantalla_admin_votacion.dart:261: .collection('votaciones')
+E:\1_Desarrollo_Software\App\App para clubes\clubes_app_base\lib\pantallas\admin\votacion\pantalla_admin_votacion.dart:307: .collection('votaciones')
+E:\1_Desarrollo_Software\App\App para clubes\clubes_app_base\lib\pantallas\admin\votacion\pantalla_admin_votacion.dart:330: .collection('votaciones')
+E:\1_Desarrollo_Software\App\App para clubes\clubes_app_base\lib\pantallas\admin\votacion\pantalla_admin_votacion.dart:392: .collection('votaciones')
+E:\1_Desarrollo_Software\App\App para clubes\clubes_app_base\lib\pantallas\admin\pantalla_admin_asistencia.dart:75: .collection('configuracion')
+E:\1_Desarrollo_Software\App\App para clubes\clubes_app_base\lib\pantallas\admin\pantalla_admin_asistencia.dart:119: .collection('asistencias')
+E:\1_Desarrollo_Software\App\App para clubes\clubes_app_base\lib\pantallas\admin\pantalla_admin_asistencia.dart:161: .collection('asistencias')
+E:\1_Desarrollo_Software\App\App para clubes\clubes_app_base\lib\pantallas\admin\pantalla_admin_asistencia.dart:202: .collection('asistencias')
+E:\1_Desarrollo_Software\App\App para clubes\clubes_app_base\lib\pantallas\admin\pantalla_admin_asistencia.dart:219: .collection('socios')
+E:\1_Desarrollo_Software\App\App para clubes\clubes_app_base\lib\pantallas\admin\pantalla_admin_asistencia.dart:297: .collection('asistencias')
+E:\1_Desarrollo_Software\App\App para clubes\clubes_app_base\lib\pantallas\admin\pantalla_admin_asistencia.dart:353: .collection('socios')
+E:\1_Desarrollo_Software\App\App para clubes\clubes_app_base\lib\pantallas\admin\pantalla_admin_asistencia.dart:580: .collection('socios')
+E:\1_Desarrollo_Software\App\App para clubes\clubes_app_base\lib\pantallas\admin\pantalla_admin_aviso_entrada.dart:31: final doc = await FirebaseFirestore.instance.collection('configuracion').doc('aviso_entrada').get();
+E:\1_Desarrollo_Software\App\App para clubes\clubes_app_base\lib\pantallas\admin\pantalla_admin_aviso_entrada.dart:49: await FirebaseFirestore.instance.collection('configuracion').doc('aviso_entrada').set({
+E:\1_Desarrollo_Software\App\App para clubes\clubes_app_base\lib\pantallas\admin\pantalla_admin_calendario.dart:106: await FirebaseFirestore.instance.collection('vencimientos').add({
+E:\1_Desarrollo_Software\App\App para clubes\clubes_app_base\lib\pantallas\admin\pantalla_admin_calendario.dart:281: .collection('movimientos')
+E:\1_Desarrollo_Software\App\App para clubes\clubes_app_base\lib\pantallas\admin\pantalla_admin_calendario.dart:300: .collection('reservas')
+E:\1_Desarrollo_Software\App\App para clubes\clubes_app_base\lib\pantallas\admin\pantalla_admin_calendario.dart:403: .collection('reservas')
+E:\1_Desarrollo_Software\App\App para clubes\clubes_app_base\lib\pantallas\admin\pantalla_admin_calendario.dart:431: .collection('reservas')
+E:\1_Desarrollo_Software\App\App para clubes\clubes_app_base\lib\pantallas\admin\pantalla_admin_calendario.dart:470: .collection('movimientos')
+E:\1_Desarrollo_Software\App\App para clubes\clubes_app_base\lib\pantallas\admin\pantalla_admin_calendario.dart:495: .collection('reservas')
+E:\1_Desarrollo_Software\App\App para clubes\clubes_app_base\lib\pantallas\admin\pantalla_admin_calendario.dart:500: .collection('reservas')
+E:\1_Desarrollo_Software\App\App para clubes\clubes_app_base\lib\pantallas\admin\pantalla_admin_calendario.dart:534: .collection('reservas')
+E:\1_Desarrollo_Software\App\App para clubes\clubes_app_base\lib\pantallas\admin\pantalla_admin_calendario.dart:542: .collection('reservas')
+E:\1_Desarrollo_Software\App\App para clubes\clubes_app_base\lib\pantallas\admin\pantalla_admin_calendario.dart:594: .collection('vencimientos')
+E:\1_Desarrollo_Software\App\App para clubes\clubes_app_base\lib\pantallas\admin\pantalla_admin_calendario.dart:607: .collection('reservas')
+E:\1_Desarrollo_Software\App\App para clubes\clubes_app_base\lib\pantallas\admin\pantalla_admin_calendario.dart:857: .collection('vencimientos')
+E:\1_Desarrollo_Software\App\App para clubes\clubes_app_base\lib\pantallas\admin\pantalla_admin_calendario.dart:907: .collection('espacios')
+E:\1_Desarrollo_Software\App\App para clubes\clubes_app_base\lib\pantallas\admin\pantalla_admin_calendario.dart:976: .collection('vencimientos')
+E:\1_Desarrollo_Software\App\App para clubes\clubes_app_base\lib\pantallas\admin\pantalla_admin_calendario.dart:1060: .collection('movimientos')
+E:\1_Desarrollo_Software\App\App para clubes\clubes_app_base\lib\pantallas\admin\pantalla_admin_calendario.dart:1079: .collection('vencimientos')
+E:\1_Desarrollo_Software\App\App para clubes\clubes_app_base\lib\pantallas\admin\pantalla_admin_calendario.dart:1139: .collection('reservas')
+E:\1_Desarrollo_Software\App\App para clubes\clubes_app_base\lib\pantallas\admin\pantalla_admin_config_club.dart:42: .collection('configuracion')
+E:\1_Desarrollo_Software\App\App para clubes\clubes_app_base\lib\pantallas\admin\pantalla_admin_config_club.dart:66: await FirebaseFirestore.instance.collection('configuracion').doc('general').set(
+E:\1_Desarrollo_Software\App\App para clubes\clubes_app_base\lib\pantallas\admin\pantalla_admin_espacios.dart:27: future: FirebaseFirestore.instance.collection('configuracion').doc('reservas').get(),
+E:\1_Desarrollo_Software\App\App para clubes\clubes_app_base\lib\pantallas\admin\pantalla_admin_espacios.dart:61: await FirebaseFirestore.instance.collection('configuracion').doc('reservas').set({
+E:\1_Desarrollo_Software\App\App para clubes\clubes_app_base\lib\pantallas\admin\pantalla_admin_espacios.dart:98: FirebaseFirestore.instance.collection('espacios').doc(id).delete();
+E:\1_Desarrollo_Software\App\App para clubes\clubes_app_base\lib\pantallas\admin\pantalla_admin_espacios.dart:130: stream: FirebaseFirestore.instance.collection('espacios').snapshots(),
+E:\1_Desarrollo_Software\App\App para clubes\clubes_app_base\lib\pantallas\admin\pantalla_admin_espacios.dart:212: await FirebaseFirestore.instance.collection('espacios').add(datos);
+E:\1_Desarrollo_Software\App\App para clubes\clubes_app_base\lib\pantallas\admin\pantalla_admin_espacios.dart:214: await FirebaseFirestore.instance.collection('espacios').doc(widget.id).update(datos);
+E:\1_Desarrollo_Software\App\App para clubes\clubes_app_base\lib\pantallas\admin\pantalla_admin_finanzas.dart:34: .collection('configuracion')
+E:\1_Desarrollo_Software\App\App para clubes\clubes_app_base\lib\pantallas\admin\pantalla_admin_finanzas.dart:427: .collection('movimientos_eliminados')
+E:\1_Desarrollo_Software\App\App para clubes\clubes_app_base\lib\pantallas\admin\pantalla_admin_finanzas.dart:437: .collection('movimientos')
+E:\1_Desarrollo_Software\App\App para clubes\clubes_app_base\lib\pantallas\admin\pantalla_admin_finanzas.dart:588: .collection('movimientos')
+E:\1_Desarrollo_Software\App\App para clubes\clubes_app_base\lib\pantallas\admin\pantalla_admin_finanzas.dart:882: .collection('configuracion')
+E:\1_Desarrollo_Software\App\App para clubes\clubes_app_base\lib\pantallas\admin\pantalla_admin_finanzas.dart:1057: .collection('movimientos')
+E:\1_Desarrollo_Software\App\App para clubes\clubes_app_base\lib\pantallas\admin\pantalla_admin_finanzas.dart:1533: .collection('configuracion')
+E:\1_Desarrollo_Software\App\App para clubes\clubes_app_base\lib\pantallas\admin\pantalla_admin_finanzas.dart:1616: .collection('socios')
+E:\1_Desarrollo_Software\App\App para clubes\clubes_app_base\lib\pantallas\admin\pantalla_admin_finanzas.dart:1750: .collection('configuracion')
+E:\1_Desarrollo_Software\App\App para clubes\clubes_app_base\lib\pantallas\admin\pantalla_admin_finanzas.dart:1835: await FirebaseFirestore.instance.collection('movimientos').add({
+E:\1_Desarrollo_Software\App\App para clubes\clubes_app_base\lib\pantallas\admin\pantalla_admin_formulario_familia.dart:89: .collection('configuracion')
+E:\1_Desarrollo_Software\App\App para clubes\clubes_app_base\lib\pantallas\admin\pantalla_admin_formulario_familia.dart:118: .collection('socios')
+E:\1_Desarrollo_Software\App\App para clubes\clubes_app_base\lib\pantallas\admin\pantalla_admin_formulario_familia.dart:124: .collection('socios')
+E:\1_Desarrollo_Software\App\App para clubes\clubes_app_base\lib\pantallas\admin\pantalla_admin_formulario_familia.dart:163: .collection('socios')
+E:\1_Desarrollo_Software\App\App para clubes\clubes_app_base\lib\pantallas\admin\pantalla_admin_formulario_familia.dart:665: batch.set(db.collection('auditoria_socios').doc(), {
+E:\1_Desarrollo_Software\App\App para clubes\clubes_app_base\lib\pantallas\admin\pantalla_admin_formulario_familia.dart:755: final docPorId = await db.collection('socios').doc(dni).get();
+E:\1_Desarrollo_Software\App\App para clubes\clubes_app_base\lib\pantallas\admin\pantalla_admin_formulario_familia.dart:762: .collection('socios')
+E:\1_Desarrollo_Software\App\App para clubes\clubes_app_base\lib\pantallas\admin\pantalla_admin_formulario_familia.dart:909: db.collection('socios').doc(titularDocId),
+E:\1_Desarrollo_Software\App\App para clubes\clubes_app_base\lib\pantallas\admin\pantalla_admin_formulario_familia.dart:1003: db.collection('socios').doc(docIdHijo),
+E:\1_Desarrollo_Software\App\App para clubes\clubes_app_base\lib\pantallas\admin\pantalla_admin_formulario_familia.dart:1018: batch.update(db.collection('socios').doc(docId), {
+E:\1_Desarrollo_Software\App\App para clubes\clubes_app_base\lib\pantallas\admin\pantalla_admin_formulario_producto.dart:42: final doc = await FirebaseFirestore.instance.collection('tienda').doc(widget.productoId).get();
+E:\1_Desarrollo_Software\App\App para clubes\clubes_app_base\lib\pantallas\admin\pantalla_admin_formulario_producto.dart:82: await FirebaseFirestore.instance.collection('tienda').add({
+E:\1_Desarrollo_Software\App\App para clubes\clubes_app_base\lib\pantallas\admin\pantalla_admin_formulario_producto.dart:88: await FirebaseFirestore.instance.collection('tienda').doc(widget.productoId).update(datos);
+E:\1_Desarrollo_Software\App\App para clubes\clubes_app_base\lib\pantallas\admin\pantalla_admin_formulario_sorteo.dart:42: final doc = await FirebaseFirestore.instance.collection('sorteos').doc(widget.sorteoId).get();
+E:\1_Desarrollo_Software\App\App para clubes\clubes_app_base\lib\pantallas\admin\pantalla_admin_formulario_sorteo.dart:82: await FirebaseFirestore.instance.collection('sorteos').add({
+E:\1_Desarrollo_Software\App\App para clubes\clubes_app_base\lib\pantallas\admin\pantalla_admin_formulario_sorteo.dart:89: await FirebaseFirestore.instance.collection('sorteos').doc(widget.sorteoId).update(datos);
+E:\1_Desarrollo_Software\App\App para clubes\clubes_app_base\lib\pantallas\admin\pantalla_admin_gestion_numeros.dart:37: final doc = await FirebaseFirestore.instance.collection('sorteos').doc(widget.sorteoId).get();
+E:\1_Desarrollo_Software\App\App para clubes\clubes_app_base\lib\pantallas\admin\pantalla_admin_gestion_numeros.dart:134: await FirebaseFirestore.instance.collection('sorteos').doc(widget.sorteoId).update({
+E:\1_Desarrollo_Software\App\App para clubes\clubes_app_base\lib\pantallas\admin\pantalla_admin_matriz_permisos.dart:64: .collection('configuracion')
+E:\1_Desarrollo_Software\App\App para clubes\clubes_app_base\lib\pantallas\admin\pantalla_admin_matriz_permisos.dart:89: .collection('configuracion')
+E:\1_Desarrollo_Software\App\App para clubes\clubes_app_base\lib\pantallas\admin\pantalla_admin_minuto.dart:54: .collection('configuracion')
+E:\1_Desarrollo_Software\App\App para clubes\clubes_app_base\lib\pantallas\admin\pantalla_admin_minuto.dart:116: .collection('jugadores')
+E:\1_Desarrollo_Software\App\App para clubes\clubes_app_base\lib\pantallas\admin\pantalla_admin_minuto.dart:206: .collection('historial_partidos')
+E:\1_Desarrollo_Software\App\App para clubes\clubes_app_base\lib\pantallas\admin\pantalla_admin_minuto.dart:229: .collection('partidos_en_vivo')
+E:\1_Desarrollo_Software\App\App para clubes\clubes_app_base\lib\pantallas\admin\pantalla_admin_minuto.dart:252: .collection('partidos_en_vivo')
+E:\1_Desarrollo_Software\App\App para clubes\clubes_app_base\lib\pantallas\admin\pantalla_admin_minuto.dart:276: .collection('historial_partidos')
+E:\1_Desarrollo_Software\App\App para clubes\clubes_app_base\lib\pantallas\admin\pantalla_admin_minuto.dart:286: .collection('partidos_en_vivo')
+E:\1_Desarrollo_Software\App\App para clubes\clubes_app_base\lib\pantallas\admin\pantalla_admin_minuto.dart:317: .collection('partidos_en_vivo')
+E:\1_Desarrollo_Software\App\App para clubes\clubes_app_base\lib\pantallas\admin\pantalla_admin_minuto.dart:351: .collection('partidos_en_vivo')
+E:\1_Desarrollo_Software\App\App para clubes\clubes_app_base\lib\pantallas\admin\pantalla_admin_minuto.dart:745: .collection('partidos_en_vivo')
+E:\1_Desarrollo_Software\App\App para clubes\clubes_app_base\lib\pantallas\admin\pantalla_admin_minuto.dart:806: .collection('rivales')
+E:\1_Desarrollo_Software\App\App para clubes\clubes_app_base\lib\pantallas\admin\pantalla_admin_pagos_config.dart:30: .collection('configuracion')
+E:\1_Desarrollo_Software\App\App para clubes\clubes_app_base\lib\pantallas\admin\pantalla_admin_pagos_config.dart:49: .collection('configuracion')
+E:\1_Desarrollo_Software\App\App para clubes\clubes_app_base\lib\pantallas\admin\pantalla_admin_precios.dart:27: .collection('configuracion')
+E:\1_Desarrollo_Software\App\App para clubes\clubes_app_base\lib\pantallas\admin\pantalla_admin_precios.dart:63: .collection('configuracion')
+E:\1_Desarrollo_Software\App\App para clubes\clubes_app_base\lib\pantallas\admin\pantalla_admin_precios.dart:112: .collection('configuracion')
+E:\1_Desarrollo_Software\App\App para clubes\clubes_app_base\lib\pantallas\admin\pantalla_admin_realizar_sorteo.dart:49: final doc = await FirebaseFirestore.instance.collection('sorteos').doc(widget.sorteoId).get();
+E:\1_Desarrollo_Software\App\App para clubes\clubes_app_base\lib\pantallas\admin\pantalla_admin_realizar_sorteo.dart:181: await FirebaseFirestore.instance.collection('sorteos').doc(widget.sorteoId).update({
+E:\1_Desarrollo_Software\App\App para clubes\clubes_app_base\lib\pantallas\admin\pantalla_admin_realizar_sorteo.dart:279: await FirebaseFirestore.instance.collection('sorteos').doc(widget.sorteoId).update({'ganadores_lista': _ganadores});
+E:\1_Desarrollo_Software\App\App para clubes\clubes_app_base\lib\pantallas\admin\pantalla_admin_rivales.dart:44: FirebaseFirestore.instance.collection('rivales').doc(id).delete();
+E:\1_Desarrollo_Software\App\App para clubes\clubes_app_base\lib\pantallas\admin\pantalla_admin_rivales.dart:69: .collection('rivales')
+E:\1_Desarrollo_Software\App\App para clubes\clubes_app_base\lib\pantallas\admin\pantalla_admin_rivales.dart:169: await FirebaseFirestore.instance.collection('rivales').add(datos);
+E:\1_Desarrollo_Software\App\App para clubes\clubes_app_base\lib\pantallas\admin\pantalla_admin_rivales.dart:171: await FirebaseFirestore.instance.collection('rivales').doc(widget.id).update(datos);
+E:\1_Desarrollo_Software\App\App para clubes\clubes_app_base\lib\pantallas\admin\pantalla_admin_scanner.dart:30: final doc = await FirebaseFirestore.instance.collection('socios').doc(socioId).get();
+E:\1_Desarrollo_Software\App\App para clubes\clubes_app_base\lib\pantallas\admin\pantalla_admin_socios.dart:50: .collection('configuracion')
+E:\1_Desarrollo_Software\App\App para clubes\clubes_app_base\lib\pantallas\admin\pantalla_admin_socios.dart:122: batch.set(db.collection('auditoria_socios').doc(), {
+E:\1_Desarrollo_Software\App\App para clubes\clubes_app_base\lib\pantallas\admin\pantalla_admin_socios.dart:165: final doc = await db.collection('socios').doc(docId).get();
+E:\1_Desarrollo_Software\App\App para clubes\clubes_app_base\lib\pantallas\admin\pantalla_admin_socios.dart:263: final doc = await db.collection('socios').doc(docId).get();
+E:\1_Desarrollo_Software\App\App para clubes\clubes_app_base\lib\pantallas\admin\pantalla_admin_socios.dart:326: final query = await FirebaseFirestore.instance.collection('socios').get();
+E:\1_Desarrollo_Software\App\App para clubes\clubes_app_base\lib\pantallas\admin\pantalla_admin_socios.dart:512: final ref = db.collection('socios').doc(dni);
+E:\1_Desarrollo_Software\App\App para clubes\clubes_app_base\lib\pantallas\admin\pantalla_admin_socios.dart:525: .collection('socios')
+E:\1_Desarrollo_Software\App\App para clubes\clubes_app_base\lib\pantallas\admin\pantalla_admin_socios.dart:782: .collection('socios')
+E:\1_Desarrollo_Software\App\App para clubes\clubes_app_base\lib\pantallas\admin\pantalla_admin_socios.dart:790: final titularDoc = await db.collection('socios').doc(docId).get();
+E:\1_Desarrollo_Software\App\App para clubes\clubes_app_base\lib\pantallas\admin\pantalla_admin_socios.dart:795: final socioDoc = await db.collection('socios').doc(docId).get();
+E:\1_Desarrollo_Software\App\App para clubes\clubes_app_base\lib\pantallas\admin\pantalla_admin_socios.dart:906: .collection('socios')
+E:\1_Desarrollo_Software\App\App para clubes\clubes_app_base\lib\pantallas\admin\pantalla_admin_socios.dart:919: final socioDoc = await db.collection('socios').doc(docId).get();
+E:\1_Desarrollo_Software\App\App para clubes\clubes_app_base\lib\pantallas\admin\pantalla_admin_socios.dart:988: stream: FirebaseFirestore.instance.collection('socios').snapshots(),
+E:\1_Desarrollo_Software\App\App para clubes\clubes_app_base\lib\pantallas\admin\pantalla_admin_socios.dart:1121: .collection('auditoria_socios')
+E:\1_Desarrollo_Software\App\App para clubes\clubes_app_base\lib\pantallas\admin\pantalla_admin_socios.dart:1821: batch.update(db.collection('socios').doc(docId), {
+E:\1_Desarrollo_Software\App\App para clubes\clubes_app_base\lib\pantallas\admin\pantalla_admin_socios.dart:1850: batch.set(db.collection('movimientos').doc(), {
+E:\1_Desarrollo_Software\App\App para clubes\clubes_app_base\lib\pantallas\admin\pantalla_admin_socios.dart:2095: .collection('socios')
+E:\1_Desarrollo_Software\App\App para clubes\clubes_app_base\lib\pantallas\admin\pantalla_admin_sorteos.dart:23: FirebaseFirestore.instance.collection('sorteos').doc(id).delete();
+E:\1_Desarrollo_Software\App\App para clubes\clubes_app_base\lib\pantallas\admin\pantalla_admin_sorteos.dart:56: .collection('sorteos')
+E:\1_Desarrollo_Software\App\App para clubes\clubes_app_base\lib\pantallas\admin\pantalla_admin_stream.dart:27: final doc = await FirebaseFirestore.instance.collection('configuracion').doc('stream').get();
+E:\1_Desarrollo_Software\App\App para clubes\clubes_app_base\lib\pantallas\admin\pantalla_admin_stream.dart:43: await FirebaseFirestore.instance.collection('configuracion').doc('stream').set({
+E:\1_Desarrollo_Software\App\App para clubes\clubes_app_base\lib\pantallas\admin\pantalla_admin_tienda.dart:21: FirebaseFirestore.instance.collection('tienda').doc(id).delete();
+E:\1_Desarrollo_Software\App\App para clubes\clubes_app_base\lib\pantallas\admin\pantalla_admin_tienda.dart:54: .collection('tienda')
+E:\1_Desarrollo_Software\App\App para clubes\clubes_app_base\lib\pantallas\admin\pantalla_admin_usuarios.dart:80: .collection('permisos_admin')
+E:\1_Desarrollo_Software\App\App para clubes\clubes_app_base\lib\pantallas\admin\pantalla_admin_usuarios.dart:133: .collection('permisos_admin')
+E:\1_Desarrollo_Software\App\App para clubes\clubes_app_base\lib\pantallas\admin\pantalla_admin_usuarios.dart:423: .collection('permisos_admin')
+E:\1_Desarrollo_Software\App\App para clubes\clubes_app_base\lib\pantallas\desktop\pantalla_admin_desktop.dart:72: .collection('configuracion')
+E:\1_Desarrollo_Software\App\App para clubes\clubes_app_base\lib\pantallas\prode\pantalla_prode_usuario.dart:56: .collection('prode_fechas')
+E:\1_Desarrollo_Software\App\App para clubes\clubes_app_base\lib\pantallas\prode\pantalla_prode_usuario.dart:77: .collection('prode_votos')
+E:\1_Desarrollo_Software\App\App para clubes\clubes_app_base\lib\pantallas\prode\pantalla_prode_usuario.dart:124: await FirebaseFirestore.instance.collection('prode_votos').add({
+E:\1_Desarrollo_Software\App\App para clubes\clubes_app_base\lib\pantallas\prode\pantalla_prode_usuario.dart:178: .collection('prode_fechas')
+E:\1_Desarrollo_Software\App\App para clubes\clubes_app_base\lib\pantallas\socios\pantalla_acceso_socio.dart:34: .collection('socios')
+E:\1_Desarrollo_Software\App\App para clubes\clubes_app_base\lib\pantallas\votacion\pantalla_votacion_usuario.dart:20: .collection('votaciones')
+E:\1_Desarrollo_Software\App\App para clubes\clubes_app_base\lib\pantallas\votacion\pantalla_votacion_usuario.dart:126: await FirebaseFirestore.instance.collection('votaciones').doc(widget.votacionId).update({
+E:\1_Desarrollo_Software\App\App para clubes\clubes_app_base\lib\pantallas\votacion\pantalla_votacion_usuario.dart:151: stream: FirebaseFirestore.instance.collection('votaciones').doc(widget.votacionId).snapshots(),
+E:\1_Desarrollo_Software\App\App para clubes\clubes_app_base\lib\pantallas\pantalla_admin_avisos.dart:22: FirebaseFirestore.instance.collection('avisos').doc(id).delete();
+E:\1_Desarrollo_Software\App\App para clubes\clubes_app_base\lib\pantallas\pantalla_admin_avisos.dart:57: .collection('avisos')
+E:\1_Desarrollo_Software\App\App para clubes\clubes_app_base\lib\pantallas\pantalla_admin_dashboard.dart:107: .collection('configuracion')
+E:\1_Desarrollo_Software\App\App para clubes\clubes_app_base\lib\pantallas\pantalla_admin_deportes.dart:66: final doc = await FirebaseFirestore.instance.collection('configuracion').doc('general').get();
+E:\1_Desarrollo_Software\App\App para clubes\clubes_app_base\lib\pantallas\pantalla_admin_deportes.dart:241: await FirebaseFirestore.instance.collection('configuracion').doc('general').update({
+E:\1_Desarrollo_Software\App\App para clubes\clubes_app_base\lib\pantallas\pantalla_admin_deportes.dart:270: .collection('jugadores')
+E:\1_Desarrollo_Software\App\App para clubes\clubes_app_base\lib\pantallas\pantalla_admin_deportes.dart:277: .collection('partidos')
+E:\1_Desarrollo_Software\App\App para clubes\clubes_app_base\lib\pantallas\pantalla_admin_deportes.dart:330: await FirebaseFirestore.instance.collection('configuracion').doc('general').update({
+E:\1_Desarrollo_Software\App\App para clubes\clubes_app_base\lib\pantallas\pantalla_admin_formulario_aviso.dart:44: .collection('avisos')
+E:\1_Desarrollo_Software\App\App para clubes\clubes_app_base\lib\pantallas\pantalla_admin_formulario_aviso.dart:79: await FirebaseFirestore.instance.collection('avisos').add(datos);
+E:\1_Desarrollo_Software\App\App para clubes\clubes_app_base\lib\pantallas\pantalla_admin_formulario_aviso.dart:82: .collection('avisos')
+E:\1_Desarrollo_Software\App\App para clubes\clubes_app_base\lib\pantallas\pantalla_admin_formulario_galeria.dart:55: final doc = await FirebaseFirestore.instance.collection('configuracion').doc('general').get();
+E:\1_Desarrollo_Software\App\App para clubes\clubes_app_base\lib\pantallas\pantalla_admin_formulario_galeria.dart:107: final doc = await FirebaseFirestore.instance.collection('galeria').doc(widget.fotoId).get();
+E:\1_Desarrollo_Software\App\App para clubes\clubes_app_base\lib\pantallas\pantalla_admin_formulario_galeria.dart:147: await FirebaseFirestore.instance.collection('galeria').add(datos);
+E:\1_Desarrollo_Software\App\App para clubes\clubes_app_base\lib\pantallas\pantalla_admin_formulario_galeria.dart:149: await FirebaseFirestore.instance.collection('galeria').doc(widget.fotoId).update(datos);
+E:\1_Desarrollo_Software\App\App para clubes\clubes_app_base\lib\pantallas\pantalla_admin_formulario_jugador.dart:64: .collection('configuracion')
+E:\1_Desarrollo_Software\App\App para clubes\clubes_app_base\lib\pantallas\pantalla_admin_formulario_jugador.dart:112: .collection('jugadores')
+E:\1_Desarrollo_Software\App\App para clubes\clubes_app_base\lib\pantallas\pantalla_admin_formulario_jugador.dart:181: await FirebaseFirestore.instance.collection('jugadores').add(datos);
+E:\1_Desarrollo_Software\App\App para clubes\clubes_app_base\lib\pantallas\pantalla_admin_formulario_jugador.dart:184: .collection('jugadores')
+E:\1_Desarrollo_Software\App\App para clubes\clubes_app_base\lib\pantallas\pantalla_admin_formulario_noticia.dart:44: final doc = await FirebaseFirestore.instance.collection('noticias').doc(widget.noticiaId).get();
+E:\1_Desarrollo_Software\App\App para clubes\clubes_app_base\lib\pantallas\pantalla_admin_formulario_noticia.dart:80: await FirebaseFirestore.instance.collection('noticias').add(datos);
+E:\1_Desarrollo_Software\App\App para clubes\clubes_app_base\lib\pantallas\pantalla_admin_formulario_noticia.dart:83: await FirebaseFirestore.instance.collection('noticias').doc(widget.noticiaId).update(datos);
+E:\1_Desarrollo_Software\App\App para clubes\clubes_app_base\lib\pantallas\pantalla_admin_formulario_partido.dart:90: .collection('configuracion')
+E:\1_Desarrollo_Software\App\App para clubes\clubes_app_base\lib\pantallas\pantalla_admin_formulario_partido.dart:150: .collection('partidos')
+E:\1_Desarrollo_Software\App\App para clubes\clubes_app_base\lib\pantallas\pantalla_admin_formulario_partido.dart:191: .collection('historial_partidos')
+E:\1_Desarrollo_Software\App\App para clubes\clubes_app_base\lib\pantallas\pantalla_admin_formulario_partido.dart:299: await FirebaseFirestore.instance.collection('partidos').add(datos);
+E:\1_Desarrollo_Software\App\App para clubes\clubes_app_base\lib\pantallas\pantalla_admin_formulario_partido.dart:302: .collection('partidos')
+E:\1_Desarrollo_Software\App\App para clubes\clubes_app_base\lib\pantallas\pantalla_admin_formulario_publicidad.dart:42: final doc = await FirebaseFirestore.instance.collection('publicidad').doc(widget.publicidadId).get();
+E:\1_Desarrollo_Software\App\App para clubes\clubes_app_base\lib\pantallas\pantalla_admin_formulario_publicidad.dart:74: await FirebaseFirestore.instance.collection('publicidad').add(datos);
+E:\1_Desarrollo_Software\App\App para clubes\clubes_app_base\lib\pantallas\pantalla_admin_formulario_publicidad.dart:76: await FirebaseFirestore.instance.collection('publicidad').doc(widget.publicidadId).update(datos);
+E:\1_Desarrollo_Software\App\App para clubes\clubes_app_base\lib\pantallas\pantalla_admin_galeria.dart:36: final doc = await FirebaseFirestore.instance.collection('configuracion').doc('general').get();
+E:\1_Desarrollo_Software\App\App para clubes\clubes_app_base\lib\pantallas\pantalla_admin_galeria.dart:99: FirebaseFirestore.instance.collection('galeria').doc(id).delete();
+E:\1_Desarrollo_Software\App\App para clubes\clubes_app_base\lib\pantallas\pantalla_admin_galeria.dart:163: .collection('galeria')
+E:\1_Desarrollo_Software\App\App para clubes\clubes_app_base\lib\pantallas\pantalla_admin_jugadores.dart:37: final doc = await FirebaseFirestore.instance.collection('configuracion').doc('general').get();
+E:\1_Desarrollo_Software\App\App para clubes\clubes_app_base\lib\pantallas\pantalla_admin_jugadores.dart:83: await FirebaseFirestore.instance.collection('jugadores').doc(id).delete();
+E:\1_Desarrollo_Software\App\App para clubes\clubes_app_base\lib\pantallas\pantalla_admin_jugadores.dart:138: .collection('jugadores')
+E:\1_Desarrollo_Software\App\App para clubes\clubes_app_base\lib\pantallas\pantalla_admin_noticias.dart:21: FirebaseFirestore.instance.collection('noticias').doc(id).delete();
+E:\1_Desarrollo_Software\App\App para clubes\clubes_app_base\lib\pantallas\pantalla_admin_noticias.dart:53: .collection('noticias')
+E:\1_Desarrollo_Software\App\App para clubes\clubes_app_base\lib\pantallas\pantalla_admin_partidos.dart:27: FirebaseFirestore.instance.collection('partidos').doc(id).delete();
+E:\1_Desarrollo_Software\App\App para clubes\clubes_app_base\lib\pantallas\pantalla_admin_partidos.dart:64: .collection('partidos')
+E:\1_Desarrollo_Software\App\App para clubes\clubes_app_base\lib\pantallas\pantalla_admin_publicidad.dart:21: FirebaseFirestore.instance.collection('publicidad').doc(id).delete();
+E:\1_Desarrollo_Software\App\App para clubes\clubes_app_base\lib\pantallas\pantalla_admin_publicidad.dart:53: .collection('publicidad')
+E:\1_Desarrollo_Software\App\App para clubes\clubes_app_base\lib\pantallas\pantalla_avisos.dart:21: .collection('avisos')
+E:\1_Desarrollo_Software\App\App para clubes\clubes_app_base\lib\pantallas\pantalla_calendario_usuario.dart:76: .collection('reservas')
+E:\1_Desarrollo_Software\App\App para clubes\clubes_app_base\lib\pantallas\pantalla_calendario_usuario.dart:118: await FirebaseFirestore.instance.collection('reservas').add({
+E:\1_Desarrollo_Software\App\App para clubes\clubes_app_base\lib\pantallas\pantalla_calendario_usuario.dart:237: .collection('reservas')
+E:\1_Desarrollo_Software\App\App para clubes\clubes_app_base\lib\pantallas\pantalla_detalle_sorteo.dart:22: final doc = await FirebaseFirestore.instance.collection('configuracion').doc('general').get();
+E:\1_Desarrollo_Software\App\App para clubes\clubes_app_base\lib\pantallas\pantalla_detalle_sorteo.dart:85: stream: FirebaseFirestore.instance.collection('sorteos').doc(sorteoId).snapshots(),
+E:\1_Desarrollo_Software\App\App para clubes\clubes_app_base\lib\pantallas\pantalla_galeria.dart:36: final doc = await FirebaseFirestore.instance.collection('configuracion').doc('general').get();
+E:\1_Desarrollo_Software\App\App para clubes\clubes_app_base\lib\pantallas\pantalla_galeria.dart:146: .collection('galeria')
+E:\1_Desarrollo_Software\App\App para clubes\clubes_app_base\lib\pantallas\pantalla_historial_minuto.dart:22: .collection('historial_partidos')
+E:\1_Desarrollo_Software\App\App para clubes\clubes_app_base\lib\pantallas\pantalla_inicio.dart:69: final doc = await FirebaseFirestore.instance.collection('configuracion').doc('general').get();
+E:\1_Desarrollo_Software\App\App para clubes\clubes_app_base\lib\pantallas\pantalla_inicio.dart:122: final doc = await FirebaseFirestore.instance.collection('configuracion').doc('enlaces').get();
+E:\1_Desarrollo_Software\App\App para clubes\clubes_app_base\lib\pantallas\pantalla_inicio.dart:251: stream: FirebaseFirestore.instance.collection('configuracion').doc('stream').snapshots(),
+E:\1_Desarrollo_Software\App\App para clubes\clubes_app_base\lib\pantallas\pantalla_inicio.dart:262: stream: FirebaseFirestore.instance.collection('partidos_en_vivo').doc(widget.deporteId).snapshots(),
+E:\1_Desarrollo_Software\App\App para clubes\clubes_app_base\lib\pantallas\pantalla_jugadores.dart:48: .collection('jugadores')
+E:\1_Desarrollo_Software\App\App para clubes\clubes_app_base\lib\pantallas\pantalla_minuto_a_minuto.dart:80: stream: FirebaseFirestore.instance.collection('partidos_en_vivo').doc(widget.deporteId).snapshots(),
+E:\1_Desarrollo_Software\App\App para clubes\clubes_app_base\lib\pantallas\pantalla_reservas.dart:41: future: FirebaseFirestore.instance.collection('configuracion').doc('reservas').get(),
+E:\1_Desarrollo_Software\App\App para clubes\clubes_app_base\lib\pantallas\pantalla_reservas.dart:58: stream: FirebaseFirestore.instance.collection('espacios').snapshots(),
+E:\1_Desarrollo_Software\App\App para clubes\clubes_app_base\lib\pantallas\pantalla_resultados.dart:188: .collection('partidos')
+E:\1_Desarrollo_Software\App\App para clubes\clubes_app_base\lib\pantallas\pantalla_rivales.dart:52: .collection('rivales')
+E:\1_Desarrollo_Software\App\App para clubes\clubes_app_base\lib\pantallas\pantalla_seleccion.dart:71: .collection('configuracion')
+E:\1_Desarrollo_Software\App\App para clubes\clubes_app_base\lib\pantallas\pantalla_seleccion_actividad.dart:55: final docConfig = await FirebaseFirestore.instance.collection('configuracion').doc('general').get();
+E:\1_Desarrollo_Software\App\App para clubes\clubes_app_base\lib\pantallas\pantalla_sorteos.dart:21: .collection('sorteos')
+E:\1_Desarrollo_Software\App\App para clubes\clubes_app_base\lib\pantallas\pantalla_tienda.dart:18: final doc = await FirebaseFirestore.instance.collection('configuracion').doc('general').get();
+E:\1_Desarrollo_Software\App\App para clubes\clubes_app_base\lib\pantallas\pantalla_tienda.dart:59: .collection('tienda')
+E:\1_Desarrollo_Software\App\App para clubes\clubes_app_base\lib\servicios\servicio_actividades.dart:216: .collection('configuracion')
+E:\1_Desarrollo_Software\App\App para clubes\clubes_app_base\lib\servicios\servicio_actividades.dart:238: .collection('configuracion')
+E:\1_Desarrollo_Software\App\App para clubes\clubes_app_base\lib\servicios\servicio_actividades.dart:258: await FirebaseFirestore.instance.collection('configuracion').doc('actividades').set({
+E:\1_Desarrollo_Software\App\App para clubes\clubes_app_base\lib\servicios\servicio_actividades.dart:265: await FirebaseFirestore.instance.collection('configuracion').doc('contacto').set({
+E:\1_Desarrollo_Software\App\App para clubes\clubes_app_base\lib\servicios\servicio_aviso_entrada.dart:30: .collection('configuracion')
+E:\1_Desarrollo_Software\App\App para clubes\clubes_app_base\lib\servicios\servicio_firebase.dart:14: .collection('noticias')
+E:\1_Desarrollo_Software\App\App para clubes\clubes_app_base\lib\servicios\servicio_firebase.dart:28: final doc = await _db.collection('configuracion').doc('precios').get();
+E:\1_Desarrollo_Software\App\App para clubes\clubes_app_base\lib\servicios\servicio_firebase.dart:46: final doc = await _db.collection('configuracion').doc('pagos').get();
+E:\1_Desarrollo_Software\App\App para clubes\clubes_app_base\lib\servicios\servicio_firebase.dart:59: final doc = await _db.collection('configuracion').doc('reservas').get();
+E:\1_Desarrollo_Software\App\App para clubes\clubes_app_base\lib\servicios\servicio_firebase.dart:75: .collection('socios')
+E:\1_Desarrollo_Software\App\App para clubes\clubes_app_base\lib\servicios\servicio_firebase.dart:97: .collection('configuracion')
+E:\1_Desarrollo_Software\App\App para clubes\clubes_app_base\lib\servicios\servicio_version.dart:23: .collection('configuracion')
+E:\1_Desarrollo_Software\App\App para clubes\clubes_app_base\lib\servicios\servicio_version.dart:41: .collection('configuracion')
+E:\1_Desarrollo_Software\App\App para clubes\clubes_app_base\lib\servicios\servicio_version.dart:53: .collection('configuracion')
+E:\1_Desarrollo_Software\App\App para clubes\clubes_app_base\lib\tusede\servicios\firestore_tusede.dart:24: return _db.collection('clubes').doc(clubId);
+E:\1_Desarrollo_Software\App\App para clubes\clubes_app_base\lib\tusede\servicios\firestore_tusede.dart:54: return clubActual.collection(nombreColeccion);
+E:\1_Desarrollo_Software\App\App para clubes\clubes_app_base\lib\tusede\servicios\servicio_inventario_admins_tusede.dart:55: .collection('roles')
+E:\1_Desarrollo_Software\App\App para clubes\clubes_app_base\lib\tusede\servicios\servicio_inventario_admins_tusede.dart:85: .collection('permisos_admin')
+E:\1_Desarrollo_Software\App\App para clubes\clubes_app_base\lib\tusede\servicios\servicio_inventario_admins_tusede.dart:114: .collection('usuarios')
+E:\1_Desarrollo_Software\App\App para clubes\clubes_app_base\lib\tusede\servicios\servicio_inventario_admins_tusede.dart:166: .collection('migraciones_admin')
+E:\1_Desarrollo_Software\App\App para clubes\clubes_app_base\lib\tusede\servicios\servicio_inventario_admins_tusede.dart:168: .collection('usuarios')
+E:\1_Desarrollo_Software\App\App para clubes\clubes_app_base\lib\tusede\servicios\servicio_preparacion_migracion_admin.dart:87: .collection('roles')
+E:\1_Desarrollo_Software\App\App para clubes\clubes_app_base\lib\tusede\servicios\servicio_preparacion_migracion_admin.dart:142: .collection('migraciones_admin')
+E:\1_Desarrollo_Software\App\App para clubes\clubes_app_base\lib\tusede\servicios\servicio_preparacion_migracion_admin.dart:144: .collection('usuarios')
+E:\1_Desarrollo_Software\App\App para clubes\clubes_app_base\lib\tusede\servicios\servicio_sesion_tusede.dart:224: .collection('usuarios')
+E:\1_Desarrollo_Software\App\App para clubes\clubes_app_base\lib\tusede\servicios\servicio_sesion_tusede.dart:268: .collection('migraciones_admin')
+E:\1_Desarrollo_Software\App\App para clubes\clubes_app_base\lib\tusede\servicios\servicio_sesion_tusede.dart:270: .collection('usuarios')
+E:\1_Desarrollo_Software\App\App para clubes\clubes_app_base\lib\tusede\servicios\servicio_sesion_tusede.dart:352: .collection('usuarios')
+E:\1_Desarrollo_Software\App\App para clubes\clubes_app_base\lib\widgets\banner_publicidad.dart:103: .collection('publicidad')
+E:\1_Desarrollo_Software\App\App para clubes\clubes_app_base\lib\widgets\dialogo_sugerencias.dart:85: .collection('sugerencias')
+E:\1_Desarrollo_Software\App\App para clubes\clubes_app_base\lib\widgets\selector_tira_bottom_sheet.dart:14: .collection('configuracion')
+E:\1_Desarrollo_Software\App\App para clubes\clubes_app_base\functions\node_modules\@firebase\database\dist\node-esm\index.node.esm.js:862: function statsManagerGetCollection(repoInfo) {
+E:\1_Desarrollo_Software\App\App para clubes\clubes_app_base\functions\node_modules\@firebase\database\dist\node-esm\index.node.esm.js:865: collections[hashString] = new StatsCollection();
+E:\1_Desarrollo_Software\App\App para clubes\clubes_app_base\functions\node_modules\@firebase\database\dist\node-esm\index.node.esm.js:957: this.stats_ = statsManagerGetCollection(repoInfo);
+E:\1_Desarrollo_Software\App\App para clubes\clubes_app_base\functions\node_modules\@firebase\database\dist\node-esm\index.node.esm.js:1587: this.stats_ = statsManagerGetCollection(repoInfo);
+E:\1_Desarrollo_Software\App\App para clubes\clubes_app_base\functions\node_modules\@firebase\database\dist\node-esm\index.node.esm.js:10875: repo.stats_ = statsManagerGetCollection(repo.repoInfo_);
+E:\1_Desarrollo_Software\App\App para clubes\clubes_app_base\functions\node_modules\@firebase\database\dist\index.cjs.js:1084: function statsManagerGetCollection(repoInfo) {
+E:\1_Desarrollo_Software\App\App para clubes\clubes_app_base\functions\node_modules\@firebase\database\dist\index.cjs.js:1087: collections[hashString] = new StatsCollection();
+E:\1_Desarrollo_Software\App\App para clubes\clubes_app_base\functions\node_modules\@firebase\database\dist\index.cjs.js:1239: this.stats_ = statsManagerGetCollection(repoInfo);
+E:\1_Desarrollo_Software\App\App para clubes\clubes_app_base\functions\node_modules\@firebase\database\dist\index.cjs.js:1830: this.stats_ = statsManagerGetCollection(repoInfo);
+E:\1_Desarrollo_Software\App\App para clubes\clubes_app_base\functions\node_modules\@firebase\database\dist\index.cjs.js:10875: repo.stats_ = statsManagerGetCollection(repo.repoInfo_);
+E:\1_Desarrollo_Software\App\App para clubes\clubes_app_base\functions\node_modules\@firebase\database\dist\index.esm.js:1080: function statsManagerGetCollection(repoInfo) {
+E:\1_Desarrollo_Software\App\App para clubes\clubes_app_base\functions\node_modules\@firebase\database\dist\index.esm.js:1083: collections[hashString] = new StatsCollection();
+E:\1_Desarrollo_Software\App\App para clubes\clubes_app_base\functions\node_modules\@firebase\database\dist\index.esm.js:1235: this.stats_ = statsManagerGetCollection(repoInfo);
+E:\1_Desarrollo_Software\App\App para clubes\clubes_app_base\functions\node_modules\@firebase\database\dist\index.esm.js:1826: this.stats_ = statsManagerGetCollection(repoInfo);
+E:\1_Desarrollo_Software\App\App para clubes\clubes_app_base\functions\node_modules\@firebase\database\dist\index.esm.js:10871: repo.stats_ = statsManagerGetCollection(repo.repoInfo_);
+E:\1_Desarrollo_Software\App\App para clubes\clubes_app_base\functions\node_modules\@firebase\database\dist\index.node.cjs.js:870: function statsManagerGetCollection(repoInfo) {
+E:\1_Desarrollo_Software\App\App para clubes\clubes_app_base\functions\node_modules\@firebase\database\dist\index.node.cjs.js:873: collections[hashString] = new StatsCollection();
+E:\1_Desarrollo_Software\App\App para clubes\clubes_app_base\functions\node_modules\@firebase\database\dist\index.node.cjs.js:965: this.stats_ = statsManagerGetCollection(repoInfo);
+E:\1_Desarrollo_Software\App\App para clubes\clubes_app_base\functions\node_modules\@firebase\database\dist\index.node.cjs.js:1595: this.stats_ = statsManagerGetCollection(repoInfo);
+E:\1_Desarrollo_Software\App\App para clubes\clubes_app_base\functions\node_modules\@firebase\database\dist\index.node.cjs.js:10883: repo.stats_ = statsManagerGetCollection(repo.repoInfo_);
+E:\1_Desarrollo_Software\App\App para clubes\clubes_app_base\functions\node_modules\@firebase\database\dist\index.standalone.js:870: function statsManagerGetCollection(repoInfo) {
+E:\1_Desarrollo_Software\App\App para clubes\clubes_app_base\functions\node_modules\@firebase\database\dist\index.standalone.js:873: collections[hashString] = new StatsCollection();
+E:\1_Desarrollo_Software\App\App para clubes\clubes_app_base\functions\node_modules\@firebase\database\dist\index.standalone.js:965: this.stats_ = statsManagerGetCollection(repoInfo);
+E:\1_Desarrollo_Software\App\App para clubes\clubes_app_base\functions\node_modules\@firebase\database\dist\index.standalone.js:1592: this.stats_ = statsManagerGetCollection(repoInfo);
+E:\1_Desarrollo_Software\App\App para clubes\clubes_app_base\functions\node_modules\@firebase\database\dist\index.standalone.js:10880: repo.stats_ = statsManagerGetCollection(repo.repoInfo_);
+E:\1_Desarrollo_Software\App\App para clubes\clubes_app_base\functions\node_modules\@firebase\database-compat\dist\index.standalone.js:5791: function statsManagerGetCollection(repoInfo) {
+E:\1_Desarrollo_Software\App\App para clubes\clubes_app_base\functions\node_modules\@firebase\database-compat\dist\index.standalone.js:5794: collections[hashString] = new StatsCollection();
+E:\1_Desarrollo_Software\App\App para clubes\clubes_app_base\functions\node_modules\@firebase\database-compat\dist\index.standalone.js:5886: this.stats_ = statsManagerGetCollection(repoInfo);
+E:\1_Desarrollo_Software\App\App para clubes\clubes_app_base\functions\node_modules\@firebase\database-compat\dist\index.standalone.js:6513: this.stats_ = statsManagerGetCollection(repoInfo);
+E:\1_Desarrollo_Software\App\App para clubes\clubes_app_base\functions\node_modules\@firebase\database-compat\dist\index.standalone.js:15801: repo.stats_ = statsManagerGetCollection(repo.repoInfo_);
+E:\1_Desarrollo_Software\App\App para clubes\clubes_app_base\functions\node_modules\@google-cloud\firestore\build\src\reference\collection-reference.js:62: * let collectionRef = firestore.collection('col/doc/subcollection');
+E:\1_Desarrollo_Software\App\App para clubes\clubes_app_base\functions\node_modules\@google-cloud\firestore\build\src\reference\collection-reference.js:79: * let collectionRef = firestore.collection('col/doc/subcollection');
+E:\1_Desarrollo_Software\App\App para clubes\clubes_app_base\functions\node_modules\@google-cloud\firestore\build\src\reference\collection-reference.js:100: * let collectionRef = firestore.collection('col/doc/subcollection');
+E:\1_Desarrollo_Software\App\App para clubes\clubes_app_base\functions\node_modules\@google-cloud\firestore\build\src\reference\collection-reference.js:121: * let collectionRef = firestore.collection('col');
+E:\1_Desarrollo_Software\App\App para clubes\clubes_app_base\functions\node_modules\@google-cloud\firestore\build\src\reference\collection-reference.js:172: * let collectionRef = firestore.collection('col');
+E:\1_Desarrollo_Software\App\App para clubes\clubes_app_base\functions\node_modules\@google-cloud\firestore\build\src\reference\collection-reference.js:205: * let collectionRef = firestore.collection('col');
+E:\1_Desarrollo_Software\App\App para clubes\clubes_app_base\functions\node_modules\@google-cloud\firestore\build\src\reference\collection-reference.js:267: *   .collection('posts')
+E:\1_Desarrollo_Software\App\App para clubes\clubes_app_base\functions\node_modules\@google-cloud\firestore\build\src\reference\document-reference.js:83: * let collectionRef = firestore.collection('col');
+E:\1_Desarrollo_Software\App\App para clubes\clubes_app_base\functions\node_modules\@google-cloud\firestore\build\src\reference\document-reference.js:104: * let collectionRef = firestore.collection('col');
+E:\1_Desarrollo_Software\App\App para clubes\clubes_app_base\functions\node_modules\@google-cloud\firestore\build\src\reference\document-reference.js:123: * let collectionRef = firestore.collection('col');
+E:\1_Desarrollo_Software\App\App para clubes\clubes_app_base\functions\node_modules\@google-cloud\firestore\build\src\reference\document-reference.js:196: * let subcollection = documentRef.collection('subcollection');
+E:\1_Desarrollo_Software\App\App para clubes\clubes_app_base\functions\node_modules\@google-cloud\firestore\build\src\reference\document-reference.js:200: collection(collectionPath) {
+E:\1_Desarrollo_Software\App\App para clubes\clubes_app_base\functions\node_modules\@google-cloud\firestore\build\src\reference\document-reference.js:240: collections.push(this.collection(collectionId));
+E:\1_Desarrollo_Software\App\App para clubes\clubes_app_base\functions\node_modules\@google-cloud\firestore\build\src\reference\document-reference.js:259: * let documentRef = firestore.collection('col').doc();
+E:\1_Desarrollo_Software\App\App para clubes\clubes_app_base\functions\node_modules\@google-cloud\firestore\build\src\reference\document-reference.js:501: *   .collection('posts')
+E:\1_Desarrollo_Software\App\App para clubes\clubes_app_base\functions\node_modules\@google-cloud\firestore\build\src\reference\query-snapshot.js:66: * let query = firestore.collection('col').where('foo', '==', 'bar');
+E:\1_Desarrollo_Software\App\App para clubes\clubes_app_base\functions\node_modules\@google-cloud\firestore\build\src\reference\query-snapshot.js:89: * let query = firestore.collection('col').where('foo', '==', 'bar');
+E:\1_Desarrollo_Software\App\App para clubes\clubes_app_base\functions\node_modules\@google-cloud\firestore\build\src\reference\query-snapshot.js:116: * let query = firestore.collection('col').where('foo', '==', 'bar');
+E:\1_Desarrollo_Software\App\App para clubes\clubes_app_base\functions\node_modules\@google-cloud\firestore\build\src\reference\query-snapshot.js:137: * let query = firestore.collection('col').where('foo', '==', 'bar');
+E:\1_Desarrollo_Software\App\App para clubes\clubes_app_base\functions\node_modules\@google-cloud\firestore\build\src\reference\query-snapshot.js:155: * let query = firestore.collection('col').where('foo', '==', 'bar');
+E:\1_Desarrollo_Software\App\App para clubes\clubes_app_base\functions\node_modules\@google-cloud\firestore\build\src\reference\query-snapshot.js:175: * let query = firestore.collection('col').where('foo', '==', 'bar');
+E:\1_Desarrollo_Software\App\App para clubes\clubes_app_base\functions\node_modules\@google-cloud\firestore\build\src\reference\query-snapshot.js:205: * let query = firestore.collection('col').where('foo', '==', 'bar');
+E:\1_Desarrollo_Software\App\App para clubes\clubes_app_base\functions\node_modules\@google-cloud\firestore\build\src\reference\query.js:113: * let collectionRef = firestore.collection('col');
+E:\1_Desarrollo_Software\App\App para clubes\clubes_app_base\functions\node_modules\@google-cloud\firestore\build\src\reference\query.js:218: * let collectionRef = firestore.collection('col');
+E:\1_Desarrollo_Software\App\App para clubes\clubes_app_base\functions\node_modules\@google-cloud\firestore\build\src\reference\query.js:263: * let query = firestore.collection('col').where('foo', '>', 42);
+E:\1_Desarrollo_Software\App\App para clubes\clubes_app_base\functions\node_modules\@google-cloud\firestore\build\src\reference\query.js:297: * let query = firestore.collection('col').where('foo', '>', 42);
+E:\1_Desarrollo_Software\App\App para clubes\clubes_app_base\functions\node_modules\@google-cloud\firestore\build\src\reference\query.js:328: * let query = firestore.collection('col').where('foo', '>', 42);
+E:\1_Desarrollo_Software\App\App para clubes\clubes_app_base\functions\node_modules\@google-cloud\firestore\build\src\reference\query.js:354: * let query = firestore.collection('col').where('foo', '>', 42);
+E:\1_Desarrollo_Software\App\App para clubes\clubes_app_base\functions\node_modules\@google-cloud\firestore\build\src\reference\query.js:624: * let query = firestore.collection('col');
+E:\1_Desarrollo_Software\App\App para clubes\clubes_app_base\functions\node_modules\@google-cloud\firestore\build\src\reference\query.js:653: * let query = firestore.collection('col');
+E:\1_Desarrollo_Software\App\App para clubes\clubes_app_base\functions\node_modules\@google-cloud\firestore\build\src\reference\query.js:681: * let query = firestore.collection('col');
+E:\1_Desarrollo_Software\App\App para clubes\clubes_app_base\functions\node_modules\@google-cloud\firestore\build\src\reference\query.js:709: * let query = firestore.collection('col');
+E:\1_Desarrollo_Software\App\App para clubes\clubes_app_base\functions\node_modules\@google-cloud\firestore\build\src\reference\query.js:734: * let query = firestore.collection('col').where('foo', '==', 'bar');
+E:\1_Desarrollo_Software\App\App para clubes\clubes_app_base\functions\node_modules\@google-cloud\firestore\build\src\reference\query.js:795: * let query = firestore.collection('col').where('foo', '==', 'bar');
+E:\1_Desarrollo_Software\App\App para clubes\clubes_app_base\functions\node_modules\@google-cloud\firestore\build\src\reference\query.js:820: * let query = firestore.collection('col').where('foo', '==', 'bar');
+E:\1_Desarrollo_Software\App\App para clubes\clubes_app_base\functions\node_modules\@google-cloud\firestore\build\src\reference\query.js:1031: * let query = firestore.collection('col').where('foo', '==', 'bar');
+E:\1_Desarrollo_Software\App\App para clubes\clubes_app_base\functions\node_modules\@google-cloud\firestore\build\src\reference\query.js:1123: *   .collection('posts')
+E:\1_Desarrollo_Software\App\App para clubes\clubes_app_base\functions\node_modules\@google-cloud\firestore\build\src\reference\vector-query-snapshot.js:60: * let query = firestore.collection('col').where('foo', '==', 'bar');
+E:\1_Desarrollo_Software\App\App para clubes\clubes_app_base\functions\node_modules\@google-cloud\firestore\build\src\reference\vector-query-snapshot.js:82: * let query = firestore.collection('col')
+E:\1_Desarrollo_Software\App\App para clubes\clubes_app_base\functions\node_modules\@google-cloud\firestore\build\src\reference\vector-query-snapshot.js:108: * let query = firestore.collection('col')
+E:\1_Desarrollo_Software\App\App para clubes\clubes_app_base\functions\node_modules\@google-cloud\firestore\build\src\reference\vector-query-snapshot.js:128: * let query = firestore.collection('col')
+E:\1_Desarrollo_Software\App\App para clubes\clubes_app_base\functions\node_modules\@google-cloud\firestore\build\src\reference\vector-query-snapshot.js:144: * let query = firestore.collection('col')
+E:\1_Desarrollo_Software\App\App para clubes\clubes_app_base\functions\node_modules\@google-cloud\firestore\build\src\reference\vector-query-snapshot.js:165: * let query = firestore.collection('col')
+E:\1_Desarrollo_Software\App\App para clubes\clubes_app_base\functions\node_modules\@google-cloud\firestore\build\src\reference\vector-query-snapshot.js:196: * let query = firestore.collection('col')
+E:\1_Desarrollo_Software\App\App para clubes\clubes_app_base\functions\node_modules\@google-cloud\firestore\build\src\bulk-writer.js:411: * let documentRef = firestore.collection('col').doc();
+E:\1_Desarrollo_Software\App\App para clubes\clubes_app_base\functions\node_modules\@google-cloud\firestore\build\src\bulk-writer.js:489: * let documentRef = firestore.collection('col').doc();
+E:\1_Desarrollo_Software\App\App para clubes\clubes_app_base\functions\node_modules\@google-cloud\firestore\build\src\bundle.js:47: * const querySnapshot = await firestore.collection('coll').get();
+E:\1_Desarrollo_Software\App\App para clubes\clubes_app_base\functions\node_modules\@google-cloud\firestore\build\src\document-change.js:51: * let query = firestore.collection('col').where('foo', '==', 'bar');
+E:\1_Desarrollo_Software\App\App para clubes\clubes_app_base\functions\node_modules\@google-cloud\firestore\build\src\document-change.js:76: * let query = firestore.collection('col').where('foo', '==', 'bar');
+E:\1_Desarrollo_Software\App\App para clubes\clubes_app_base\functions\node_modules\@google-cloud\firestore\build\src\document-change.js:102: * let query = firestore.collection('col').where('foo', '==', 'bar');
+E:\1_Desarrollo_Software\App\App para clubes\clubes_app_base\functions\node_modules\@google-cloud\firestore\build\src\document-change.js:135: * let query = firestore.collection('col').where('foo', '==', 'bar');
+E:\1_Desarrollo_Software\App\App para clubes\clubes_app_base\functions\node_modules\@google-cloud\firestore\build\src\document.js:477: * let query = firestore.collection('col');
+E:\1_Desarrollo_Software\App\App para clubes\clubes_app_base\functions\node_modules\@google-cloud\firestore\build\src\document.js:498: * let query = firestore.collection('col');
+E:\1_Desarrollo_Software\App\App para clubes\clubes_app_base\functions\node_modules\@google-cloud\firestore\build\src\document.js:517: * let query = firestore.collection('col');
+E:\1_Desarrollo_Software\App\App para clubes\clubes_app_base\functions\node_modules\@google-cloud\firestore\build\src\filter.js:44: * let collectionRef = firestore.collection('col');
+E:\1_Desarrollo_Software\App\App para clubes\clubes_app_base\functions\node_modules\@google-cloud\firestore\build\src\filter.js:73: * let collectionRef = firestore.collection('col');
+E:\1_Desarrollo_Software\App\App para clubes\clubes_app_base\functions\node_modules\@google-cloud\firestore\build\src\filter.js:105: * let collectionRef = firestore.collection('col');
+E:\1_Desarrollo_Software\App\App para clubes\clubes_app_base\functions\node_modules\@google-cloud\firestore\build\src\index.js:171: *   .collection('posts')
+E:\1_Desarrollo_Software\App\App para clubes\clubes_app_base\functions\node_modules\@google-cloud\firestore\build\src\index.js:716: * let collectionRef = firestore.collection('collection');
+E:\1_Desarrollo_Software\App\App para clubes\clubes_app_base\functions\node_modules\@google-cloud\firestore\build\src\index.js:724: collection(collectionPath) {
+E:\1_Desarrollo_Software\App\App para clubes\clubes_app_base\functions\node_modules\@google-cloud\firestore\build\src\path.js:256: get isCollection() {
+E:\1_Desarrollo_Software\App\App para clubes\clubes_app_base\functions\node_modules\@google-cloud\firestore\build\src\path.js:502: * let query = firestore.collection('col');
+E:\1_Desarrollo_Software\App\App para clubes\clubes_app_base\functions\node_modules\@google-cloud\firestore\build\src\write-batch.js:143: * let documentRef = firestore.collection('col').doc();
+E:\1_Desarrollo_Software\App\App para clubes\clubes_app_base\functions\node_modules\js-yaml\dist\js-yaml.js:1684: function readFlowCollection(state, nodeIndent) {
+E:\1_Desarrollo_Software\App\App para clubes\clubes_app_base\functions\node_modules\js-yaml\dist\js-yaml.js:2376: readFlowCollection(state, flowIndent)) {
+E:\1_Desarrollo_Software\App\App para clubes\clubes_app_base\functions\node_modules\js-yaml\lib\js-yaml\loader.js:684: function readFlowCollection(state, nodeIndent) {
+E:\1_Desarrollo_Software\App\App para clubes\clubes_app_base\functions\node_modules\js-yaml\lib\js-yaml\loader.js:1376: readFlowCollection(state, flowIndent)) {
+E:\1_Desarrollo_Software\App\App para clubes\clubes_app_base\functions_tusede\node_modules\@firebase\database\dist\node-esm\index.node.esm.js:862: function statsManagerGetCollection(repoInfo) {
+E:\1_Desarrollo_Software\App\App para clubes\clubes_app_base\functions_tusede\node_modules\@firebase\database\dist\node-esm\index.node.esm.js:865: collections[hashString] = new StatsCollection();
+E:\1_Desarrollo_Software\App\App para clubes\clubes_app_base\functions_tusede\node_modules\@firebase\database\dist\node-esm\index.node.esm.js:957: this.stats_ = statsManagerGetCollection(repoInfo);
+E:\1_Desarrollo_Software\App\App para clubes\clubes_app_base\functions_tusede\node_modules\@firebase\database\dist\node-esm\index.node.esm.js:1587: this.stats_ = statsManagerGetCollection(repoInfo);
+E:\1_Desarrollo_Software\App\App para clubes\clubes_app_base\functions_tusede\node_modules\@firebase\database\dist\node-esm\index.node.esm.js:10866: repo.stats_ = statsManagerGetCollection(repo.repoInfo_);
+E:\1_Desarrollo_Software\App\App para clubes\clubes_app_base\functions_tusede\node_modules\@firebase\database\dist\index.cjs.js:1084: function statsManagerGetCollection(repoInfo) {
+E:\1_Desarrollo_Software\App\App para clubes\clubes_app_base\functions_tusede\node_modules\@firebase\database\dist\index.cjs.js:1087: collections[hashString] = new StatsCollection();
+E:\1_Desarrollo_Software\App\App para clubes\clubes_app_base\functions_tusede\node_modules\@firebase\database\dist\index.cjs.js:1239: this.stats_ = statsManagerGetCollection(repoInfo);
+E:\1_Desarrollo_Software\App\App para clubes\clubes_app_base\functions_tusede\node_modules\@firebase\database\dist\index.cjs.js:1830: this.stats_ = statsManagerGetCollection(repoInfo);
+E:\1_Desarrollo_Software\App\App para clubes\clubes_app_base\functions_tusede\node_modules\@firebase\database\dist\index.cjs.js:10866: repo.stats_ = statsManagerGetCollection(repo.repoInfo_);
+E:\1_Desarrollo_Software\App\App para clubes\clubes_app_base\functions_tusede\node_modules\@firebase\database\dist\index.esm.js:1080: function statsManagerGetCollection(repoInfo) {
+E:\1_Desarrollo_Software\App\App para clubes\clubes_app_base\functions_tusede\node_modules\@firebase\database\dist\index.esm.js:1083: collections[hashString] = new StatsCollection();
+E:\1_Desarrollo_Software\App\App para clubes\clubes_app_base\functions_tusede\node_modules\@firebase\database\dist\index.esm.js:1235: this.stats_ = statsManagerGetCollection(repoInfo);
+E:\1_Desarrollo_Software\App\App para clubes\clubes_app_base\functions_tusede\node_modules\@firebase\database\dist\index.esm.js:1826: this.stats_ = statsManagerGetCollection(repoInfo);
+E:\1_Desarrollo_Software\App\App para clubes\clubes_app_base\functions_tusede\node_modules\@firebase\database\dist\index.esm.js:10862: repo.stats_ = statsManagerGetCollection(repo.repoInfo_);
+E:\1_Desarrollo_Software\App\App para clubes\clubes_app_base\functions_tusede\node_modules\@firebase\database\dist\index.node.cjs.js:866: function statsManagerGetCollection(repoInfo) {
+E:\1_Desarrollo_Software\App\App para clubes\clubes_app_base\functions_tusede\node_modules\@firebase\database\dist\index.node.cjs.js:869: collections[hashString] = new StatsCollection();
+E:\1_Desarrollo_Software\App\App para clubes\clubes_app_base\functions_tusede\node_modules\@firebase\database\dist\index.node.cjs.js:961: this.stats_ = statsManagerGetCollection(repoInfo);
+E:\1_Desarrollo_Software\App\App para clubes\clubes_app_base\functions_tusede\node_modules\@firebase\database\dist\index.node.cjs.js:1591: this.stats_ = statsManagerGetCollection(repoInfo);
+E:\1_Desarrollo_Software\App\App para clubes\clubes_app_base\functions_tusede\node_modules\@firebase\database\dist\index.node.cjs.js:10870: repo.stats_ = statsManagerGetCollection(repo.repoInfo_);
+E:\1_Desarrollo_Software\App\App para clubes\clubes_app_base\functions_tusede\node_modules\@firebase\database\dist\index.standalone.js:866: function statsManagerGetCollection(repoInfo) {
+E:\1_Desarrollo_Software\App\App para clubes\clubes_app_base\functions_tusede\node_modules\@firebase\database\dist\index.standalone.js:869: collections[hashString] = new StatsCollection();
+E:\1_Desarrollo_Software\App\App para clubes\clubes_app_base\functions_tusede\node_modules\@firebase\database\dist\index.standalone.js:961: this.stats_ = statsManagerGetCollection(repoInfo);
+E:\1_Desarrollo_Software\App\App para clubes\clubes_app_base\functions_tusede\node_modules\@firebase\database\dist\index.standalone.js:1588: this.stats_ = statsManagerGetCollection(repoInfo);
+E:\1_Desarrollo_Software\App\App para clubes\clubes_app_base\functions_tusede\node_modules\@firebase\database\dist\index.standalone.js:10867: repo.stats_ = statsManagerGetCollection(repo.repoInfo_);
+E:\1_Desarrollo_Software\App\App para clubes\clubes_app_base\functions_tusede\node_modules\@firebase\database-compat\dist\index.standalone.js:5808: function statsManagerGetCollection(repoInfo) {
+E:\1_Desarrollo_Software\App\App para clubes\clubes_app_base\functions_tusede\node_modules\@firebase\database-compat\dist\index.standalone.js:5811: collections[hashString] = new StatsCollection();
+E:\1_Desarrollo_Software\App\App para clubes\clubes_app_base\functions_tusede\node_modules\@firebase\database-compat\dist\index.standalone.js:5903: this.stats_ = statsManagerGetCollection(repoInfo);
+E:\1_Desarrollo_Software\App\App para clubes\clubes_app_base\functions_tusede\node_modules\@firebase\database-compat\dist\index.standalone.js:6530: this.stats_ = statsManagerGetCollection(repoInfo);
+E:\1_Desarrollo_Software\App\App para clubes\clubes_app_base\functions_tusede\node_modules\@firebase\database-compat\dist\index.standalone.js:15809: repo.stats_ = statsManagerGetCollection(repo.repoInfo_);
+E:\1_Desarrollo_Software\App\App para clubes\clubes_app_base\functions_tusede\node_modules\@google-cloud\firestore\build\src\pipelines\expression.js:1791: * pipeline().collection("users")
+E:\1_Desarrollo_Software\App\App para clubes\clubes_app_base\functions_tusede\node_modules\@google-cloud\firestore\build\src\pipelines\expression.js:1805: * firestore.pipeline().collection("users")
+E:\1_Desarrollo_Software\App\App para clubes\clubes_app_base\functions_tusede\node_modules\@google-cloud\firestore\build\src\pipelines\expression.js:1822: * firestore.pipeline().collection("items")
+E:\1_Desarrollo_Software\App\App para clubes\clubes_app_base\functions_tusede\node_modules\@google-cloud\firestore\build\src\pipelines\expression.js:1868: * firestore.pipeline().collection("items")
+E:\1_Desarrollo_Software\App\App para clubes\clubes_app_base\functions_tusede\node_modules\@google-cloud\firestore\build\src\pipelines\expression.js:2029: * db.pipeline().collection('restaurants').search({
+E:\1_Desarrollo_Software\App\App para clubes\clubes_app_base\functions_tusede\node_modules\@google-cloud\firestore\build\src\pipelines\expression.js:3238: * db.pipeline().collection("products")
+E:\1_Desarrollo_Software\App\App para clubes\clubes_app_base\functions_tusede\node_modules\@google-cloud\firestore\build\src\pipelines\expression.js:3259: * firestore.pipeline().collection("books")
+E:\1_Desarrollo_Software\App\App para clubes\clubes_app_base\functions_tusede\node_modules\@google-cloud\firestore\build\src\pipelines\pipelines.js:36: collection(collectionOrOptions) {
+E:\1_Desarrollo_Software\App\App para clubes\clubes_app_base\functions_tusede\node_modules\@google-cloud\firestore\build\src\pipelines\pipelines.js:50: ? this.db.collection(collection)
+E:\1_Desarrollo_Software\App\App para clubes\clubes_app_base\functions_tusede\node_modules\@google-cloud\firestore\build\src\pipelines\pipelines.js:126: *     .collection('books')
+E:\1_Desarrollo_Software\App\App para clubes\clubes_app_base\functions_tusede\node_modules\@google-cloud\firestore\build\src\pipelines\pipelines.js:132: *     .collection('books')
+E:\1_Desarrollo_Software\App\App para clubes\clubes_app_base\functions_tusede\node_modules\@google-cloud\firestore\build\src\pipelines\pipelines.js:138: *     .collection('books')
+E:\1_Desarrollo_Software\App\App para clubes\clubes_app_base\functions_tusede\node_modules\@google-cloud\firestore\build\src\pipelines\pipelines.js:208: * db.pipeline().collection("books")
+E:\1_Desarrollo_Software\App\App para clubes\clubes_app_base\functions_tusede\node_modules\@google-cloud\firestore\build\src\pipelines\pipelines.js:211: *         db.pipeline().collection("reviews")
+E:\1_Desarrollo_Software\App\App para clubes\clubes_app_base\functions_tusede\node_modules\@google-cloud\firestore\build\src\pipelines\pipelines.js:233: * db.pipeline().collection("books")
+E:\1_Desarrollo_Software\App\App para clubes\clubes_app_base\functions_tusede\node_modules\@google-cloud\firestore\build\src\pipelines\pipelines.js:236: *         db.pipeline().collection("reviews")
+E:\1_Desarrollo_Software\App\App para clubes\clubes_app_base\functions_tusede\node_modules\@google-cloud\firestore\build\src\pipelines\pipelines.js:278: * db.pipeline().collection("restaurants")
+E:\1_Desarrollo_Software\App\App para clubes\clubes_app_base\functions_tusede\node_modules\@google-cloud\firestore\build\src\pipelines\pipelines.js:281: *       db.pipeline().collection("reviews")
+E:\1_Desarrollo_Software\App\App para clubes\clubes_app_base\functions_tusede\node_modules\@google-cloud\firestore\build\src\pipelines\pipelines.js:300: * db.pipeline().collection("restaurants")
+E:\1_Desarrollo_Software\App\App para clubes\clubes_app_base\functions_tusede\node_modules\@google-cloud\firestore\build\src\pipelines\pipelines.js:303: *       db.pipeline().collection("reviews")
+E:\1_Desarrollo_Software\App\App para clubes\clubes_app_base\functions_tusede\node_modules\@google-cloud\firestore\build\src\pipelines\pipelines.js:419: * firestore.pipeline().collection("books")
+E:\1_Desarrollo_Software\App\App para clubes\clubes_app_base\functions_tusede\node_modules\@google-cloud\firestore\build\src\pipelines\pipelines.js:526: * db.pipeline().collection('restaurants').search({
+E:\1_Desarrollo_Software\App\App para clubes\clubes_app_base\functions_tusede\node_modules\@google-cloud\firestore\build\src\pipelines\pipelines.js:577: * firestore.pipeline().collection("books")
+E:\1_Desarrollo_Software\App\App para clubes\clubes_app_base\functions_tusede\node_modules\@google-cloud\firestore\build\src\pipelines\pipelines.js:602: * firestore.pipeline().collection('books')
+E:\1_Desarrollo_Software\App\App para clubes\clubes_app_base\functions_tusede\node_modules\@google-cloud\firestore\build\src\pipelines\pipelines.js:656: * const futureResults = await firestore.pipeline().collection('books')
+E:\1_Desarrollo_Software\App\App para clubes\clubes_app_base\functions_tusede\node_modules\@google-cloud\firestore\build\src\pipelines\pipelines.js:698: * firestore.pipeline().collection('books')
+E:\1_Desarrollo_Software\App\App para clubes\clubes_app_base\functions_tusede\node_modules\@google-cloud\firestore\build\src\pipelines\pipelines.js:818: *   .collection('myCollection')
+E:\1_Desarrollo_Software\App\App para clubes\clubes_app_base\functions_tusede\node_modules\@google-cloud\firestore\build\src\pipelines\pipelines.js:955: * let p = firestore.pipeline().collection('col');
+E:\1_Desarrollo_Software\App\App para clubes\clubes_app_base\functions_tusede\node_modules\@google-cloud\firestore\build\src\pipelines\pipelines.js:981: * let p = firestore.pipeline().collection('col');
+E:\1_Desarrollo_Software\App\App para clubes\clubes_app_base\functions_tusede\node_modules\@google-cloud\firestore\build\src\pipelines\pipelines.js:1040: function subcollection(pathOrOptions) {
+E:\1_Desarrollo_Software\App\App para clubes\clubes_app_base\functions_tusede\node_modules\@google-cloud\firestore\build\src\reference\collection-reference.js:62: * let collectionRef = firestore.collection('col/doc/subcollection');
+E:\1_Desarrollo_Software\App\App para clubes\clubes_app_base\functions_tusede\node_modules\@google-cloud\firestore\build\src\reference\collection-reference.js:79: * let collectionRef = firestore.collection('col/doc/subcollection');
+E:\1_Desarrollo_Software\App\App para clubes\clubes_app_base\functions_tusede\node_modules\@google-cloud\firestore\build\src\reference\collection-reference.js:100: * let collectionRef = firestore.collection('col/doc/subcollection');
+E:\1_Desarrollo_Software\App\App para clubes\clubes_app_base\functions_tusede\node_modules\@google-cloud\firestore\build\src\reference\collection-reference.js:121: * let collectionRef = firestore.collection('col');
+E:\1_Desarrollo_Software\App\App para clubes\clubes_app_base\functions_tusede\node_modules\@google-cloud\firestore\build\src\reference\collection-reference.js:172: * let collectionRef = firestore.collection('col');
+E:\1_Desarrollo_Software\App\App para clubes\clubes_app_base\functions_tusede\node_modules\@google-cloud\firestore\build\src\reference\collection-reference.js:205: * let collectionRef = firestore.collection('col');
+E:\1_Desarrollo_Software\App\App para clubes\clubes_app_base\functions_tusede\node_modules\@google-cloud\firestore\build\src\reference\collection-reference.js:267: *   .collection('posts')
+E:\1_Desarrollo_Software\App\App para clubes\clubes_app_base\functions_tusede\node_modules\@google-cloud\firestore\build\src\reference\document-reference.js:86: * let collectionRef = firestore.collection('col');
+E:\1_Desarrollo_Software\App\App para clubes\clubes_app_base\functions_tusede\node_modules\@google-cloud\firestore\build\src\reference\document-reference.js:107: * let collectionRef = firestore.collection('col');
+E:\1_Desarrollo_Software\App\App para clubes\clubes_app_base\functions_tusede\node_modules\@google-cloud\firestore\build\src\reference\document-reference.js:126: * let collectionRef = firestore.collection('col');
+E:\1_Desarrollo_Software\App\App para clubes\clubes_app_base\functions_tusede\node_modules\@google-cloud\firestore\build\src\reference\document-reference.js:199: * let subcollection = documentRef.collection('subcollection');
+E:\1_Desarrollo_Software\App\App para clubes\clubes_app_base\functions_tusede\node_modules\@google-cloud\firestore\build\src\reference\document-reference.js:203: collection(collectionPath) {
+E:\1_Desarrollo_Software\App\App para clubes\clubes_app_base\functions_tusede\node_modules\@google-cloud\firestore\build\src\reference\document-reference.js:243: collections.push(this.collection(collectionId));
+E:\1_Desarrollo_Software\App\App para clubes\clubes_app_base\functions_tusede\node_modules\@google-cloud\firestore\build\src\reference\document-reference.js:262: * let documentRef = firestore.collection('col').doc();
+E:\1_Desarrollo_Software\App\App para clubes\clubes_app_base\functions_tusede\node_modules\@google-cloud\firestore\build\src\reference\document-reference.js:504: *   .collection('posts')
+E:\1_Desarrollo_Software\App\App para clubes\clubes_app_base\functions_tusede\node_modules\@google-cloud\firestore\build\src\reference\query-snapshot.js:69: * let query = firestore.collection('col').where('foo', '==', 'bar');
+E:\1_Desarrollo_Software\App\App para clubes\clubes_app_base\functions_tusede\node_modules\@google-cloud\firestore\build\src\reference\query-snapshot.js:92: * let query = firestore.collection('col').where('foo', '==', 'bar');
+E:\1_Desarrollo_Software\App\App para clubes\clubes_app_base\functions_tusede\node_modules\@google-cloud\firestore\build\src\reference\query-snapshot.js:119: * let query = firestore.collection('col').where('foo', '==', 'bar');
+E:\1_Desarrollo_Software\App\App para clubes\clubes_app_base\functions_tusede\node_modules\@google-cloud\firestore\build\src\reference\query-snapshot.js:140: * let query = firestore.collection('col').where('foo', '==', 'bar');
+E:\1_Desarrollo_Software\App\App para clubes\clubes_app_base\functions_tusede\node_modules\@google-cloud\firestore\build\src\reference\query-snapshot.js:158: * let query = firestore.collection('col').where('foo', '==', 'bar');
+E:\1_Desarrollo_Software\App\App para clubes\clubes_app_base\functions_tusede\node_modules\@google-cloud\firestore\build\src\reference\query-snapshot.js:178: * let query = firestore.collection('col').where('foo', '==', 'bar');
+E:\1_Desarrollo_Software\App\App para clubes\clubes_app_base\functions_tusede\node_modules\@google-cloud\firestore\build\src\reference\query-snapshot.js:208: * let query = firestore.collection('col').where('foo', '==', 'bar');
+E:\1_Desarrollo_Software\App\App para clubes\clubes_app_base\functions_tusede\node_modules\@google-cloud\firestore\build\src\reference\query.js:132: * let collectionRef = firestore.collection('col');
+E:\1_Desarrollo_Software\App\App para clubes\clubes_app_base\functions_tusede\node_modules\@google-cloud\firestore\build\src\reference\query.js:237: * let collectionRef = firestore.collection('col');
+E:\1_Desarrollo_Software\App\App para clubes\clubes_app_base\functions_tusede\node_modules\@google-cloud\firestore\build\src\reference\query.js:282: * let query = firestore.collection('col').where('foo', '>', 42);
+E:\1_Desarrollo_Software\App\App para clubes\clubes_app_base\functions_tusede\node_modules\@google-cloud\firestore\build\src\reference\query.js:316: * let query = firestore.collection('col').where('foo', '>', 42);
+E:\1_Desarrollo_Software\App\App para clubes\clubes_app_base\functions_tusede\node_modules\@google-cloud\firestore\build\src\reference\query.js:347: * let query = firestore.collection('col').where('foo', '>', 42);
+E:\1_Desarrollo_Software\App\App para clubes\clubes_app_base\functions_tusede\node_modules\@google-cloud\firestore\build\src\reference\query.js:373: * let query = firestore.collection('col').where('foo', '>', 42);
+E:\1_Desarrollo_Software\App\App para clubes\clubes_app_base\functions_tusede\node_modules\@google-cloud\firestore\build\src\reference\query.js:490: .collection(this._queryOptions.parentPath.append(this._queryOptions.collectionId)
+E:\1_Desarrollo_Software\App\App para clubes\clubes_app_base\functions_tusede\node_modules\@google-cloud\firestore\build\src\reference\query.js:745: * let query = firestore.collection('col');
+E:\1_Desarrollo_Software\App\App para clubes\clubes_app_base\functions_tusede\node_modules\@google-cloud\firestore\build\src\reference\query.js:774: * let query = firestore.collection('col');
+E:\1_Desarrollo_Software\App\App para clubes\clubes_app_base\functions_tusede\node_modules\@google-cloud\firestore\build\src\reference\query.js:802: * let query = firestore.collection('col');
+E:\1_Desarrollo_Software\App\App para clubes\clubes_app_base\functions_tusede\node_modules\@google-cloud\firestore\build\src\reference\query.js:830: * let query = firestore.collection('col');
+E:\1_Desarrollo_Software\App\App para clubes\clubes_app_base\functions_tusede\node_modules\@google-cloud\firestore\build\src\reference\query.js:855: * let query = firestore.collection('col').where('foo', '==', 'bar');
+E:\1_Desarrollo_Software\App\App para clubes\clubes_app_base\functions_tusede\node_modules\@google-cloud\firestore\build\src\reference\query.js:916: * let query = firestore.collection('col').where('foo', '==', 'bar');
+E:\1_Desarrollo_Software\App\App para clubes\clubes_app_base\functions_tusede\node_modules\@google-cloud\firestore\build\src\reference\query.js:941: * let query = firestore.collection('col').where('foo', '==', 'bar');
+E:\1_Desarrollo_Software\App\App para clubes\clubes_app_base\functions_tusede\node_modules\@google-cloud\firestore\build\src\reference\query.js:1162: * let query = firestore.collection('col').where('foo', '==', 'bar');
+E:\1_Desarrollo_Software\App\App para clubes\clubes_app_base\functions_tusede\node_modules\@google-cloud\firestore\build\src\reference\query.js:1254: *   .collection('posts')
+E:\1_Desarrollo_Software\App\App para clubes\clubes_app_base\functions_tusede\node_modules\@google-cloud\firestore\build\src\reference\vector-query-snapshot.js:63: * let query = firestore.collection('col').where('foo', '==', 'bar');
+E:\1_Desarrollo_Software\App\App para clubes\clubes_app_base\functions_tusede\node_modules\@google-cloud\firestore\build\src\reference\vector-query-snapshot.js:85: * let query = firestore.collection('col')
+E:\1_Desarrollo_Software\App\App para clubes\clubes_app_base\functions_tusede\node_modules\@google-cloud\firestore\build\src\reference\vector-query-snapshot.js:111: * let query = firestore.collection('col')
+E:\1_Desarrollo_Software\App\App para clubes\clubes_app_base\functions_tusede\node_modules\@google-cloud\firestore\build\src\reference\vector-query-snapshot.js:131: * let query = firestore.collection('col')
+E:\1_Desarrollo_Software\App\App para clubes\clubes_app_base\functions_tusede\node_modules\@google-cloud\firestore\build\src\reference\vector-query-snapshot.js:147: * let query = firestore.collection('col')
+E:\1_Desarrollo_Software\App\App para clubes\clubes_app_base\functions_tusede\node_modules\@google-cloud\firestore\build\src\reference\vector-query-snapshot.js:168: * let query = firestore.collection('col')
+E:\1_Desarrollo_Software\App\App para clubes\clubes_app_base\functions_tusede\node_modules\@google-cloud\firestore\build\src\reference\vector-query-snapshot.js:199: * let query = firestore.collection('col')
+E:\1_Desarrollo_Software\App\App para clubes\clubes_app_base\functions_tusede\node_modules\@google-cloud\firestore\build\src\bulk-writer.js:440: * let documentRef = firestore.collection('col').doc();
+E:\1_Desarrollo_Software\App\App para clubes\clubes_app_base\functions_tusede\node_modules\@google-cloud\firestore\build\src\bulk-writer.js:518: * let documentRef = firestore.collection('col').doc();
+E:\1_Desarrollo_Software\App\App para clubes\clubes_app_base\functions_tusede\node_modules\@google-cloud\firestore\build\src\bundle.js:48: * const querySnapshot = await firestore.collection('coll').get();
+E:\1_Desarrollo_Software\App\App para clubes\clubes_app_base\functions_tusede\node_modules\@google-cloud\firestore\build\src\document-change.js:55: * let query = firestore.collection('col').where('foo', '==', 'bar');
+E:\1_Desarrollo_Software\App\App para clubes\clubes_app_base\functions_tusede\node_modules\@google-cloud\firestore\build\src\document-change.js:80: * let query = firestore.collection('col').where('foo', '==', 'bar');
+E:\1_Desarrollo_Software\App\App para clubes\clubes_app_base\functions_tusede\node_modules\@google-cloud\firestore\build\src\document-change.js:106: * let query = firestore.collection('col').where('foo', '==', 'bar');
+E:\1_Desarrollo_Software\App\App para clubes\clubes_app_base\functions_tusede\node_modules\@google-cloud\firestore\build\src\document-change.js:139: * let query = firestore.collection('col').where('foo', '==', 'bar');
+E:\1_Desarrollo_Software\App\App para clubes\clubes_app_base\functions_tusede\node_modules\@google-cloud\firestore\build\src\document.js:491: * let query = firestore.collection('col');
+E:\1_Desarrollo_Software\App\App para clubes\clubes_app_base\functions_tusede\node_modules\@google-cloud\firestore\build\src\document.js:512: * let query = firestore.collection('col');
+E:\1_Desarrollo_Software\App\App para clubes\clubes_app_base\functions_tusede\node_modules\@google-cloud\firestore\build\src\document.js:531: * let query = firestore.collection('col');
+E:\1_Desarrollo_Software\App\App para clubes\clubes_app_base\functions_tusede\node_modules\@google-cloud\firestore\build\src\filter.js:44: * let collectionRef = firestore.collection('col');
+E:\1_Desarrollo_Software\App\App para clubes\clubes_app_base\functions_tusede\node_modules\@google-cloud\firestore\build\src\filter.js:73: * let collectionRef = firestore.collection('col');
+E:\1_Desarrollo_Software\App\App para clubes\clubes_app_base\functions_tusede\node_modules\@google-cloud\firestore\build\src\filter.js:105: * let collectionRef = firestore.collection('col');
+E:\1_Desarrollo_Software\App\App para clubes\clubes_app_base\functions_tusede\node_modules\@google-cloud\firestore\build\src\index.js:174: *   .collection('posts')
+E:\1_Desarrollo_Software\App\App para clubes\clubes_app_base\functions_tusede\node_modules\@google-cloud\firestore\build\src\index.js:762: * let collectionRef = firestore.collection('collection');
+E:\1_Desarrollo_Software\App\App para clubes\clubes_app_base\functions_tusede\node_modules\@google-cloud\firestore\build\src\index.js:770: collection(collectionPath) {
+E:\1_Desarrollo_Software\App\App para clubes\clubes_app_base\functions_tusede\node_modules\@google-cloud\firestore\build\src\index.js:813: * let myPipeline: Pipeline = firestore.pipeline().collection('books');
+E:\1_Desarrollo_Software\App\App para clubes\clubes_app_base\functions_tusede\node_modules\@google-cloud\firestore\build\src\path.js:293: get isCollection() {
+E:\1_Desarrollo_Software\App\App para clubes\clubes_app_base\functions_tusede\node_modules\@google-cloud\firestore\build\src\path.js:561: * let query = firestore.collection('col');
+E:\1_Desarrollo_Software\App\App para clubes\clubes_app_base\functions_tusede\node_modules\@google-cloud\firestore\build\src\transaction.js:190: *     firestore.pipeline().collection("books")
+E:\1_Desarrollo_Software\App\App para clubes\clubes_app_base\functions_tusede\node_modules\@google-cloud\firestore\build\src\write-batch.js:147: * let documentRef = firestore.collection('col').doc();
+E:\1_Desarrollo_Software\App\App para clubes\clubes_app_base\functions_tusede\index.js:237: .collection("migraciones_admin")
+E:\1_Desarrollo_Software\App\App para clubes\clubes_app_base\functions_tusede\index.js:239: .collection("usuarios")
+E:\1_Desarrollo_Software\App\App para clubes\clubes_app_base\functions_tusede\index.js:328: .collection("roles")
+E:\1_Desarrollo_Software\App\App para clubes\clubes_app_base\functions_tusede\index.js:447: .collection("usuarios")

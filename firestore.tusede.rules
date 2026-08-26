@@ -1,0 +1,152 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    function estaAutenticado() {
+      return request.auth != null;
+    }
+
+    function emailAuth() {
+      return request.auth.token.email.lower();
+    }
+
+    function emailMigracionId() {
+      return emailAuth().replace('@', '%40');
+    }
+
+    function existeUsuarioTuSede() {
+      return estaAutenticado()
+        && exists(
+          /databases/$(database)/documents/usuarios/$(request.auth.uid)
+        );
+    }
+
+    function usuarioTuSede() {
+      return get(
+        /databases/$(database)/documents/usuarios/$(request.auth.uid)
+      ).data;
+    }
+
+    function usuarioActivo() {
+      return existeUsuarioTuSede()
+        && usuarioTuSede().activo == true;
+    }
+
+    function esSuperAdmin() {
+      return usuarioActivo()
+        && usuarioTuSede().rol == 'superadmin';
+    }
+
+    function puedeAccederClub(clubId) {
+      return usuarioActivo()
+        && (
+          esSuperAdmin()
+          || clubId in usuarioTuSede().clubIds
+        );
+    }
+
+    function existeMigracionPropia(clubId) {
+      return estaAutenticado()
+        && request.auth.token.email != null
+        && exists(
+          /databases/$(database)/documents/migraciones_admin/$(clubId)/usuarios/$(emailMigracionId())
+        );
+    }
+
+    function migracionPropia(clubId) {
+      return get(
+        /databases/$(database)/documents/migraciones_admin/$(clubId)/usuarios/$(emailMigracionId())
+      ).data;
+    }
+
+    function migracionValida(clubId) {
+      return existeMigracionPropia(clubId)
+        && migracionPropia(clubId).email == emailAuth()
+        && migracionPropia(clubId).clubId == clubId
+        && migracionPropia(clubId).autorizado == true
+        && migracionPropia(clubId).estado == 'preparado';
+    }
+
+    match /roles/{rolId} {
+      allow read: if usuarioActivo();
+      allow create, update, delete: if false;
+    }
+
+    match /usuarios/{userId} {
+      allow get: if estaAutenticado()
+        && (
+          request.auth.uid == userId
+          || esSuperAdmin()
+        );
+
+      allow list: if esSuperAdmin();
+
+      allow create: if estaAutenticado()
+        && request.auth.uid == userId
+        && request.auth.token.email != null
+        && request.resource.data.keys().hasOnly([
+          'nombre',
+          'email',
+          'rol',
+          'clubPrincipal',
+          'clubIds',
+          'activo'
+        ])
+        && request.resource.data.email == emailAuth()
+        && request.resource.data.activo == true
+        && request.resource.data.clubPrincipal is string
+        && migracionValida(request.resource.data.clubPrincipal)
+        && request.resource.data.rol
+          == migracionPropia(request.resource.data.clubPrincipal).rolTuSede
+        && request.resource.data.nombre
+          == migracionPropia(request.resource.data.clubPrincipal).nombre
+        && request.resource.data.clubIds is list
+        && request.resource.data.clubIds.size() == 1
+        && request.resource.data.clubIds[0]
+          == request.resource.data.clubPrincipal
+        && exists(
+          /databases/$(database)/documents/roles/$(request.resource.data.rol)
+        )
+        && get(
+          /databases/$(database)/documents/roles/$(request.resource.data.rol)
+        ).data.activo == true
+        && get(
+          /databases/$(database)/documents/roles/$(request.resource.data.rol)
+        ).data.alcance == 'club';
+
+      allow update, delete: if false;
+    }
+
+    match /migraciones_admin/{clubId}/usuarios/{emailId} {
+      allow get: if esSuperAdmin()
+        || (
+          estaAutenticado()
+          && request.auth.token.email != null
+          && emailId == emailMigracionId()
+          && resource.data.email == emailAuth()
+          && resource.data.clubId == clubId
+        );
+
+      allow list: if esSuperAdmin();
+      allow create, update: if esSuperAdmin();
+      allow delete: if false;
+    }
+
+    match /clubes/{clubId} {
+      allow get: if resource.data.activo == true
+        || puedeAccederClub(clubId);
+
+      allow list: if esSuperAdmin();
+      allow create, update, delete: if false;
+
+      match /{document=**} {
+        allow read, write: if puedeAccederClub(clubId);
+      }
+    }
+
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}

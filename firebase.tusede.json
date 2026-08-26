@@ -4,5 +4,8 @@
       "source": "functions_tusede",
       "codebase": "tusede"
     }
-  ]
+  ],
+  "firestore": {
+    "rules": "firestore.tusede.rules"
+  }
 }
