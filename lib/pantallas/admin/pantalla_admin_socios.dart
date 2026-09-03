@@ -16,6 +16,7 @@ import 'package:path_provider/path_provider.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 import '../../configuracion/configuracion_app.dart';
+import '../../tusede/servicios/servicio_datos_club.dart';
 import 'pantalla_admin_formulario_familia.dart';
 import 'pantalla_admin_precios.dart';
 
@@ -46,10 +47,7 @@ class _PantallaAdminSociosState extends State<PantallaAdminSocios> {
 
   Future<void> _cargarPreciosEnMemoria() async {
     try {
-      final doc = await FirebaseFirestore.instance
-          .collection('configuracion')
-          .doc('precios')
-          .get();
+      final doc = await ServicioDatosClub.precios.get();
       if (doc.exists) {
         final data = doc.data() ?? {};
         final map = data['precios_cuotas'] ?? {};
@@ -117,9 +115,9 @@ class _PantallaAdminSociosState extends State<PantallaAdminSocios> {
     Map<String, dynamic>? cambios,
     String? detalle,
   }) {
-    final user = FirebaseAuth.instance.currentUser;
+    final user = ServicioDatosClub.usuarioAuthActual;
 
-    batch.set(db.collection('auditoria_socios').doc(), {
+    batch.set(ServicioDatosClub.auditoriaSocios.doc(), {
       'accion': accion,
       'socio_id': socioId,
       'dni': (datosSocio['dni'] ?? socioId).toString(),
@@ -161,8 +159,8 @@ class _PantallaAdminSociosState extends State<PantallaAdminSocios> {
 
   Future<void> _toggleAptoFisico(String docId, bool valorActual) async {
     try {
-      final db = FirebaseFirestore.instance;
-      final doc = await db.collection('socios').doc(docId).get();
+      final db = ServicioDatosClub.firestore;
+      final doc = await ServicioDatosClub.socios.doc(docId).get();
 
       if (!doc.exists) {
         throw "No se encontró el socio.";
@@ -176,9 +174,9 @@ class _PantallaAdminSociosState extends State<PantallaAdminSocios> {
         'apto_fisico': nuevoValor,
         'modificado_en': FieldValue.serverTimestamp(),
         'modificado_por_email':
-            FirebaseAuth.instance.currentUser?.email ?? 'Desconocido',
+            ServicioDatosClub.usuarioAuthActual?.email ?? 'Desconocido',
         'modificado_por_uid':
-            FirebaseAuth.instance.currentUser?.uid ?? '',
+            ServicioDatosClub.usuarioAuthActual?.uid ?? '',
       });
 
       _agregarAuditoriaAlBatch(
@@ -259,8 +257,8 @@ class _PantallaAdminSociosState extends State<PantallaAdminSocios> {
                   return;
                 }
 
-                final db = FirebaseFirestore.instance;
-                final doc = await db.collection('socios').doc(docId).get();
+                final db = ServicioDatosClub.firestore;
+                final doc = await ServicioDatosClub.socios.doc(docId).get();
 
                 if (!doc.exists) {
                   throw "No se encontró el socio.";
@@ -273,9 +271,9 @@ class _PantallaAdminSociosState extends State<PantallaAdminSocios> {
                   'notas_internas': nuevoValor,
                   'modificado_en': FieldValue.serverTimestamp(),
                   'modificado_por_email':
-                      FirebaseAuth.instance.currentUser?.email ?? 'Desconocido',
+                      ServicioDatosClub.usuarioAuthActual?.email ?? 'Desconocido',
                   'modificado_por_uid':
-                      FirebaseAuth.instance.currentUser?.uid ?? '',
+                      ServicioDatosClub.usuarioAuthActual?.uid ?? '',
                 });
 
                 _agregarAuditoriaAlBatch(
@@ -323,7 +321,7 @@ class _PantallaAdminSociosState extends State<PantallaAdminSocios> {
   Future<void> _exportarAExcel() async {
     setState(() => _procesando = true);
     try {
-      final query = await FirebaseFirestore.instance.collection('socios').get();
+      final query = await ServicioDatosClub.socios.get();
       if (query.docs.isEmpty) throw "No hay socios para exportar.";
 
       var excel = Excel.createExcel();
@@ -465,7 +463,7 @@ class _PantallaAdminSociosState extends State<PantallaAdminSocios> {
       int omitidosInvalidos = 0;
       final dnisProcesados = <String>{};
 
-      final db = FirebaseFirestore.instance;
+      final db = ServicioDatosClub.firestore;
       final batchSize = 350;
       WriteBatch batch = db.batch();
       int contadorBatch = 0;
@@ -509,7 +507,7 @@ class _PantallaAdminSociosState extends State<PantallaAdminSocios> {
           continue;
         }
 
-        final ref = db.collection('socios').doc(dni);
+        final ref = ServicioDatosClub.socios.doc(dni);
         final docSocio = await ref.get();
 
         // IMPORTANTE:
@@ -521,8 +519,7 @@ class _PantallaAdminSociosState extends State<PantallaAdminSocios> {
           continue;
         }
 
-        final queryMismoDni = await db
-            .collection('socios')
+        final queryMismoDni = await ServicioDatosClub.socios
             .where('dni', isEqualTo: dni)
             .limit(1)
             .get();
@@ -567,9 +564,9 @@ class _PantallaAdminSociosState extends State<PantallaAdminSocios> {
           'fecha_alta': FieldValue.serverTimestamp(),
           'creado_el': FieldValue.serverTimestamp(),
           'creado_por_email':
-              FirebaseAuth.instance.currentUser?.email ?? 'Desconocido',
+              ServicioDatosClub.usuarioAuthActual?.email ?? 'Desconocido',
           'creado_por_uid':
-              FirebaseAuth.instance.currentUser?.uid ?? '',
+              ServicioDatosClub.usuarioAuthActual?.uid ?? '',
           'rol': 'socio',
           'nro_socio': dni,
           'actividades': [
@@ -764,12 +761,16 @@ class _PantallaAdminSociosState extends State<PantallaAdminSocios> {
       },
     );
 
-    motivoCtrl.dispose();
+    // No hacemos dispose() del controller inmediatamente después de
+    // showDialog. En Flutter Web, el Future del diálogo puede completarse
+    // mientras la animación de cierre todavía está desmontando widgets.
+    // Disponer el controller en ese instante puede provocar assertions
+    // del framework durante la desactivación del Overlay.
     if (motivo == null || motivo.trim().isEmpty) return;
 
     try {
-      final db = FirebaseFirestore.instance;
-      final userAdmin = FirebaseAuth.instance.currentUser;
+      final db = ServicioDatosClub.firestore;
+      final userAdmin = ServicioDatosClub.usuarioAuthActual;
       final String adminEmail = userAdmin?.email ?? 'Desconocido';
       final String adminUid = userAdmin?.uid ?? '';
       final String operacionId =
@@ -778,8 +779,7 @@ class _PantallaAdminSociosState extends State<PantallaAdminSocios> {
       final Map<String, DocumentSnapshot<Map<String, dynamic>>> documentos = {};
 
       if (esTitular) {
-        final queryFamilia = await db
-            .collection('socios')
+        final queryFamilia = await ServicioDatosClub.socios
             .where('familia_id', isEqualTo: familiaId)
             .get();
 
@@ -787,12 +787,12 @@ class _PantallaAdminSociosState extends State<PantallaAdminSocios> {
           documentos[doc.id] = doc;
         }
 
-        final titularDoc = await db.collection('socios').doc(docId).get();
+        final titularDoc = await ServicioDatosClub.socios.doc(docId).get();
         if (titularDoc.exists) {
           documentos[docId] = titularDoc;
         }
       } else {
-        final socioDoc = await db.collection('socios').doc(docId).get();
+        final socioDoc = await ServicioDatosClub.socios.doc(docId).get();
         if (socioDoc.exists) {
           documentos[docId] = socioDoc;
         }
@@ -892,8 +892,8 @@ class _PantallaAdminSociosState extends State<PantallaAdminSocios> {
     if (!confirmar) return;
 
     try {
-      final db = FirebaseFirestore.instance;
-      final userAdmin = FirebaseAuth.instance.currentUser;
+      final db = ServicioDatosClub.firestore;
+      final userAdmin = ServicioDatosClub.usuarioAuthActual;
       final String adminEmail = userAdmin?.email ?? 'Desconocido';
       final String adminUid = userAdmin?.uid ?? '';
       final String operacionId =
@@ -902,8 +902,7 @@ class _PantallaAdminSociosState extends State<PantallaAdminSocios> {
       final Map<String, DocumentSnapshot<Map<String, dynamic>>> documentos = {};
 
       if (esTitular && operacionId.isNotEmpty) {
-        final query = await db
-            .collection('socios')
+        final query = await ServicioDatosClub.socios
             .where('baja_operacion_id', isEqualTo: operacionId)
             .get();
 
@@ -916,7 +915,7 @@ class _PantallaAdminSociosState extends State<PantallaAdminSocios> {
       }
 
       if (documentos.isEmpty) {
-        final socioDoc = await db.collection('socios').doc(docId).get();
+        final socioDoc = await ServicioDatosClub.socios.doc(docId).get();
         if (socioDoc.exists) {
           documentos[docId] = socioDoc;
         }
@@ -985,7 +984,7 @@ class _PantallaAdminSociosState extends State<PantallaAdminSocios> {
             foregroundColor: Colors.white,
           ),
           body: StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
-            stream: FirebaseFirestore.instance.collection('socios').snapshots(),
+            stream: ServicioDatosClub.socios.snapshots(),
             builder: (context, snapshot) {
               if (snapshot.hasError) {
                 return Center(
@@ -1117,8 +1116,7 @@ class _PantallaAdminSociosState extends State<PantallaAdminSocios> {
             foregroundColor: Colors.white,
           ),
           body: StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
-            stream: FirebaseFirestore.instance
-                .collection('auditoria_socios')
+            stream: ServicioDatosClub.auditoriaSocios
                 .snapshots(),
             builder: (context, snapshot) {
               if (snapshot.hasError) {
@@ -1804,8 +1802,8 @@ class _PantallaAdminSociosState extends State<PantallaAdminSocios> {
     int cantidadMeses,
   ) async {
     try {
-      final db = FirebaseFirestore.instance;
-      final userAdmin = FirebaseAuth.instance.currentUser;
+      final db = ServicioDatosClub.firestore;
+      final userAdmin = ServicioDatosClub.usuarioAuthActual;
 
       DateTime mesFinalCubierto = DateTime(
         mesBasePagado.year,
@@ -1818,7 +1816,7 @@ class _PantallaAdminSociosState extends State<PantallaAdminSocios> {
 
       WriteBatch batch = db.batch();
 
-      batch.update(db.collection('socios').doc(docId), {
+      batch.update(ServicioDatosClub.socios.doc(docId), {
         'ultimo_mes_pago': nuevoUltimoMesStr,
         'al_dia': true,
         'porcentaje_descuento': 0,
@@ -1847,7 +1845,7 @@ class _PantallaAdminSociosState extends State<PantallaAdminSocios> {
           "• $actividad$etiquetaMeses$etiquetaDescuento: \$${subtotalTotal.toStringAsFixed(0)}",
         );
 
-        batch.set(db.collection('movimientos').doc(), {
+        batch.set(ServicioDatosClub.movimientos.doc(), {
           'tipo': 'ingreso',
           'monto': subtotalTotal,
           'fecha': FieldValue.serverTimestamp(),
@@ -2091,8 +2089,7 @@ class _PantallaAdminSociosState extends State<PantallaAdminSocios> {
           ),
           Expanded(
             child: StreamBuilder<QuerySnapshot>(
-              stream: FirebaseFirestore.instance
-                  .collection('socios')
+              stream: ServicioDatosClub.socios
                   .orderBy('apellido')
                   .snapshots(),
               builder: (context, snapshot) {

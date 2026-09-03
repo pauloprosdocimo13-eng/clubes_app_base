@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import '../../configuracion/configuracion_app.dart';
+import '../../tusede/servicios/servicio_datos_club.dart';
 import '../../widgets/input_imagen.dart';
 
 class PantallaAdminFormularioFamilia extends StatefulWidget {
@@ -85,10 +86,7 @@ class _PantallaAdminFormularioFamiliaState
 
   Future<void> _cargarPreciosYConceptos() async {
     try {
-      final doc = await FirebaseFirestore.instance
-          .collection('configuracion')
-          .doc('precios')
-          .get();
+      final doc = await ServicioDatosClub.precios.get();
       if (doc.exists) {
         final data = doc.data() ?? {};
         Map<String, dynamic> mapaPrecios = data['precios_cuotas'] ?? data;
@@ -114,14 +112,12 @@ class _PantallaAdminFormularioFamiliaState
   Future<void> _cargarDatosFamilia() async {
     try {
       String idBuscado = widget.familiaIdEditar!;
-      DocumentSnapshot docTitular = await FirebaseFirestore.instance
-          .collection('socios')
+      DocumentSnapshot docTitular = await ServicioDatosClub.socios
           .doc(idBuscado)
           .get();
 
       if (!docTitular.exists) {
-        var query = await FirebaseFirestore.instance
-            .collection('socios')
+        var query = await ServicioDatosClub.socios
             .where('familia_id', isEqualTo: idBuscado)
             .where('es_titular', isEqualTo: true)
             .limit(1)
@@ -159,8 +155,7 @@ class _PantallaAdminFormularioFamiliaState
           }
         });
 
-        var queryHijos = await FirebaseFirestore.instance
-            .collection('socios')
+        var queryHijos = await ServicioDatosClub.socios
             .where('familia_id', isEqualTo: docTitular.id)
             .get();
 
@@ -568,7 +563,11 @@ class _PantallaAdminFormularioFamiliaState
       },
     );
 
-    motivoCtrl.dispose();
+    // No hacemos dispose() del controller inmediatamente después de
+    // showDialog. En Flutter Web, el Future del diálogo puede completarse
+    // mientras la animación de cierre todavía está desmontando widgets.
+    // Disponer el controller en ese instante puede provocar assertions
+    // del framework durante la desactivación del Overlay.
 
     if (motivo == null || motivo.trim().isEmpty) return;
 
@@ -660,9 +659,9 @@ class _PantallaAdminFormularioFamiliaState
     Map<String, dynamic>? cambios,
     String? detalle,
   }) {
-    final user = FirebaseAuth.instance.currentUser;
+    final user = ServicioDatosClub.usuarioAuthActual;
 
-    batch.set(db.collection('auditoria_socios').doc(), {
+    batch.set(ServicioDatosClub.auditoriaSocios.doc(), {
       'accion': accion,
       'socio_id': socioId,
       'dni': (datosSocio['dni'] ?? socioId).toString(),
@@ -698,7 +697,7 @@ class _PantallaAdminFormularioFamiliaState
   }
 
   Future<String?> _validarDnisAntesDeGuardar() async {
-    final db = FirebaseFirestore.instance;
+    final db = ServicioDatosClub.firestore;
     final dniTitular = _dniTitularCtrl.text.trim();
 
     final propuestas = <Map<String, String>>[
@@ -752,14 +751,13 @@ class _PantallaAdminFormularioFamiliaState
     for (final item in propuestas) {
       final dni = item['dni']!;
 
-      final docPorId = await db.collection('socios').doc(dni).get();
+      final docPorId = await ServicioDatosClub.socios.doc(dni).get();
       if (docPorId.exists && !idsPropios.contains(docPorId.id)) {
         final data = docPorId.data() ?? <String, dynamic>{};
         return _mensajeDniExistente(dni, data);
       }
 
-      final queryPorCampo = await db
-          .collection('socios')
+      final queryPorCampo = await ServicioDatosClub.socios
           .where('dni', isEqualTo: dni)
           .limit(5)
           .get();
@@ -813,8 +811,8 @@ class _PantallaAdminFormularioFamiliaState
         return;
       }
 
-      final db = FirebaseFirestore.instance;
-      final userAdmin = FirebaseAuth.instance.currentUser;
+      final db = ServicioDatosClub.firestore;
+      final userAdmin = ServicioDatosClub.usuarioAuthActual;
       final String adminEmail = userAdmin?.email ?? 'Desconocido';
       final String adminUid = userAdmin?.uid ?? '';
 
@@ -906,7 +904,7 @@ class _PantallaAdminFormularioFamiliaState
       }
 
       batch.set(
-        db.collection('socios').doc(titularDocId),
+        ServicioDatosClub.socios.doc(titularDocId),
         dataTitular,
         SetOptions(merge: true),
       );
@@ -1000,7 +998,7 @@ class _PantallaAdminFormularioFamiliaState
         }
 
         batch.set(
-          db.collection('socios').doc(docIdHijo),
+          ServicioDatosClub.socios.doc(docIdHijo),
           dataHijo,
           SetOptions(merge: true),
         );
@@ -1015,7 +1013,7 @@ class _PantallaAdminFormularioFamiliaState
         final String operacionId =
             '${DateTime.now().millisecondsSinceEpoch}_$docId';
 
-        batch.update(db.collection('socios').doc(docId), {
+        batch.update(ServicioDatosClub.socios.doc(docId), {
           'eliminado': true,
           'estado_baja': 'eliminado',
           'eliminado_en': FieldValue.serverTimestamp(),
