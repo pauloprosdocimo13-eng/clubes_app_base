@@ -1,10 +1,16 @@
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+
 import '../../configuracion/configuracion_app.dart';
+import '../../tusede/servicios/servicio_datos_club.dart';
 
 class PantallaAdminPrecios extends StatefulWidget {
   final ConfiguracionApp config;
-  const PantallaAdminPrecios({super.key, required this.config});
+
+  const PantallaAdminPrecios({
+    super.key,
+    required this.config,
+  });
 
   @override
   State<PantallaAdminPrecios> createState() => _PantallaAdminPreciosState();
@@ -20,21 +26,27 @@ class _PantallaAdminPreciosState extends State<PantallaAdminPrecios> {
     _cargarPrecios();
   }
 
-  // Carga inicial desde Firebase
+  // Carga inicial desde la base correspondiente al club actual.
+  //
+  // Horizonte / generico:
+  //   clubes/generico/configuracion/precios
+  //
+  // Güemes y demás clubes Legacy:
+  //   configuracion/precios
   Future<void> _cargarPrecios() async {
     try {
-      final doc = await FirebaseFirestore.instance
-          .collection('configuracion')
-          .doc('precios')
-          .get();
+      final doc = await ServicioDatosClub.precios.get();
+
+      if (!mounted) return;
+
       if (doc.exists) {
         setState(() {
-          // Buscamos el campo 'precios_cuotas'
           _precios = doc.data()?['precios_cuotas'] ?? {};
           _cargando = false;
         });
       } else {
-        // Si no existe, sugerimos valores iniciales para que no esté vacío
+        // Conservamos los mismos valores sugeridos que tenía la pantalla.
+        // No se escriben hasta que el administrador guarde algún cambio.
         setState(() {
           _precios = {
             'Socio Pleno': 5000,
@@ -46,7 +58,16 @@ class _PantallaAdminPreciosState extends State<PantallaAdminPrecios> {
         });
       }
     } catch (e) {
-      if (mounted) setState(() => _cargando = false);
+      if (!mounted) return;
+
+      setState(() => _cargando = false);
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text("Error cargando precios: $e"),
+          backgroundColor: Colors.red,
+        ),
+      );
     }
   }
 
@@ -57,31 +78,54 @@ class _PantallaAdminPreciosState extends State<PantallaAdminPrecios> {
       _precios[actividad] = precio;
     });
 
-    // 2. Guardar en Firebase
+    // 2. Guardar en la base correspondiente al club.
     try {
-      await FirebaseFirestore.instance
-          .collection('configuracion')
-          .doc('precios')
-          .set({
-            'precios_cuotas': _precios, // Guardamos todo el mapa actualizado
-            'ultima_actualizacion': FieldValue.serverTimestamp(),
-          }, SetOptions(merge: true));
+      final user = ServicioDatosClub.usuarioAuthActual;
+
+      await ServicioDatosClub.precios.set({
+        'precios_cuotas': _precios,
+        'ultima_actualizacion': FieldValue.serverTimestamp(),
+        'actualizado_por_email': user?.email ?? 'Desconocido',
+        'actualizado_por_uid': user?.uid ?? '',
+      }, SetOptions(merge: true));
+
+      if (!mounted) return;
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            "Precio guardado correctamente en "
+            "${ServicioDatosClub.origenDescripcion}.",
+          ),
+          backgroundColor: Colors.green,
+          duration: const Duration(seconds: 2),
+        ),
+      );
     } catch (e) {
-      if (mounted)
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(SnackBar(content: Text("Error guardando: $e")));
+      if (!mounted) return;
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text("Error guardando: $e"),
+          backgroundColor: Colors.red,
+        ),
+      );
+
+      // Si la escritura falla, volvemos a leer la versión real de Firestore
+      // para no dejar en pantalla un valor que no quedó guardado.
+      await _cargarPrecios();
     }
   }
 
-  // --- ACÁ ESTÁ LA MAGIA DE LA DESTRUCCIÓN DEFINITIVA ---
   Future<void> _borrarActividad(String actividad) async {
     bool confirmar =
-        await showDialog(
+        await showDialog<bool>(
           context: context,
           builder: (c) => AlertDialog(
             title: const Text("¿Borrar Actividad?"),
-            content: Text("Se eliminará '$actividad' de la lista."),
+            content: Text(
+              "Se eliminará '$actividad' de la lista de precios.",
+            ),
             actions: [
               TextButton(
                 onPressed: () => Navigator.pop(c, false),
@@ -101,28 +145,48 @@ class _PantallaAdminPreciosState extends State<PantallaAdminPrecios> {
 
     if (!confirmar) return;
 
-    // 1. Lo borramos visualmente de la pantalla al instante
+    // 1. Lo borramos visualmente de la pantalla al instante.
     setState(() {
       _precios.remove(actividad);
     });
 
-    // 2. Le damos la orden EXACTA a Firebase de fulminar esta llave
+    // 2. Eliminamos únicamente esa actividad del mapa remoto.
     try {
-      await FirebaseFirestore.instance
-          .collection('configuracion')
-          .doc('precios')
-          .set({
-            'precios_cuotas': {
-              actividad: FieldValue.delete(), // ¡EL MISIL!
-            },
-            'ultima_actualizacion': FieldValue.serverTimestamp(),
-          }, SetOptions(merge: true));
+      final user = ServicioDatosClub.usuarioAuthActual;
+
+      await ServicioDatosClub.precios.set({
+        'precios_cuotas': {
+          actividad: FieldValue.delete(),
+        },
+        'ultima_actualizacion': FieldValue.serverTimestamp(),
+        'actualizado_por_email': user?.email ?? 'Desconocido',
+        'actualizado_por_uid': user?.uid ?? '',
+      }, SetOptions(merge: true));
+
+      if (!mounted) return;
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            "'$actividad' fue eliminada de "
+            "${ServicioDatosClub.origenDescripcion}.",
+          ),
+          backgroundColor: Colors.orange,
+          duration: const Duration(seconds: 2),
+        ),
+      );
     } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text("Error al borrar en la nube: $e")),
-        );
-      }
+      if (!mounted) return;
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text("Error al borrar en la nube: $e"),
+          backgroundColor: Colors.red,
+        ),
+      );
+
+      // Si la baja falla, recargamos para mostrar nuevamente el dato real.
+      await _cargarPrecios();
     }
   }
 
@@ -132,6 +196,7 @@ class _PantallaAdminPreciosState extends State<PantallaAdminPrecios> {
     final precioCtrl = TextEditingController(
       text: precioInicial > 0 ? precioInicial.toStringAsFixed(0) : '',
     );
+
     bool esNuevo = actividadInicial.isEmpty;
 
     showDialog(
@@ -158,7 +223,6 @@ class _PantallaAdminPreciosState extends State<PantallaAdminPrecios> {
                   fontSize: 18,
                 ),
               ),
-
             const SizedBox(height: 15),
             TextField(
               controller: precioCtrl,
@@ -219,18 +283,24 @@ class _PantallaAdminPreciosState extends State<PantallaAdminPrecios> {
           ? const Center(child: CircularProgressIndicator())
           : Column(
               children: [
-                // Banner informativo
                 Container(
                   width: double.infinity,
                   padding: const EdgeInsets.all(15),
                   color: Colors.blueGrey[50],
                   child: Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Icon(Icons.info_outline, color: Colors.blueGrey[800]),
+                      Icon(
+                        Icons.info_outline,
+                        color: Colors.blueGrey[800],
+                      ),
                       const SizedBox(width: 10),
                       Expanded(
                         child: Text(
-                          "Estas actividades aparecerán automáticamente en el alta de socios y se usarán para calcular el total a pagar.",
+                          "Datos: ${ServicioDatosClub.origenDescripcion}\n"
+                          "Estas actividades aparecerán automáticamente "
+                          "en el alta de socios y se usarán para calcular "
+                          "el total a pagar.",
                           style: TextStyle(
                             color: Colors.blueGrey[800],
                             fontSize: 12,
@@ -240,8 +310,6 @@ class _PantallaAdminPreciosState extends State<PantallaAdminPrecios> {
                     ],
                   ),
                 ),
-
-                // Lista
                 Expanded(
                   child: ListView.separated(
                     padding: const EdgeInsets.all(15),
@@ -249,13 +317,19 @@ class _PantallaAdminPreciosState extends State<PantallaAdminPrecios> {
                     separatorBuilder: (c, i) => const Divider(),
                     itemBuilder: (context, index) {
                       final entry = listaOrdenada[index];
+                      final valor = entry.value is num
+                          ? (entry.value as num).toDouble()
+                          : double.tryParse(entry.value.toString()) ?? 0;
+
                       return ListTile(
                         contentPadding: const EdgeInsets.symmetric(
                           horizontal: 10,
                         ),
                         title: Text(
                           entry.key,
-                          style: const TextStyle(fontWeight: FontWeight.bold),
+                          style: const TextStyle(
+                            fontWeight: FontWeight.bold,
+                          ),
                         ),
                         trailing: Row(
                           mainAxisSize: MainAxisSize.min,
@@ -273,7 +347,7 @@ class _PantallaAdminPreciosState extends State<PantallaAdminPrecios> {
                                 ),
                               ),
                               child: Text(
-                                "\$${(entry.value as num).toStringAsFixed(0)}",
+                                "\$${valor.toStringAsFixed(0)}",
                                 style: TextStyle(
                                   color: Colors.green[800],
                                   fontWeight: FontWeight.bold,
@@ -282,15 +356,24 @@ class _PantallaAdminPreciosState extends State<PantallaAdminPrecios> {
                             ),
                             const SizedBox(width: 10),
                             IconButton(
-                              icon: const Icon(Icons.edit, color: Colors.blue),
+                              icon: const Icon(
+                                Icons.edit,
+                                color: Colors.blue,
+                              ),
+                              tooltip: "Editar precio",
                               onPressed: () => _mostrarDialogoEditar(
                                 entry.key,
-                                (entry.value as num).toDouble(),
+                                valor,
                               ),
                             ),
                             IconButton(
-                              icon: const Icon(Icons.delete, color: Colors.red),
-                              onPressed: () => _borrarActividad(entry.key),
+                              icon: const Icon(
+                                Icons.delete,
+                                color: Colors.red,
+                              ),
+                              tooltip: "Borrar actividad",
+                              onPressed: () =>
+                                  _borrarActividad(entry.key),
                             ),
                           ],
                         ),
@@ -298,7 +381,7 @@ class _PantallaAdminPreciosState extends State<PantallaAdminPrecios> {
                     },
                   ),
                 ),
-                const SizedBox(height: 80), // Espacio para el FAB
+                const SizedBox(height: 80),
               ],
             ),
     );

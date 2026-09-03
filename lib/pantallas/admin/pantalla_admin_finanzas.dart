@@ -12,6 +12,7 @@ import 'dart:typed_data';
 import 'package:pdf/pdf.dart';
 import 'package:pdf/widgets.dart' as pw;
 import '../../configuracion/configuracion_app.dart';
+import '../../tusede/servicios/servicio_datos_club.dart';
 import 'package:file_saver/file_saver.dart';
 
 
@@ -30,9 +31,7 @@ const String _opcionAgregarCategoria = '__agregar_categoria__';
 
 class _RepositorioCategoriasFinanzas {
   static DocumentReference<Map<String, dynamic>> get _docRef =>
-      FirebaseFirestore.instance
-          .collection('configuracion')
-          .doc('categorias_finanzas');
+      ServicioDatosClub.categoriasFinanzasConfiguracion;
 
   static Future<List<String>> cargar() async {
     final categorias = List<String>.from(_categoriasFinanzasBase);
@@ -61,7 +60,7 @@ class _RepositorioCategoriasFinanzas {
       throw ArgumentError('La categoría no puede estar vacía.');
     }
 
-    return FirebaseFirestore.instance.runTransaction<List<String>>((tx) async {
+    return ServicioDatosClub.firestore.runTransaction<List<String>>((tx) async {
       final snapshot = await tx.get(_docRef);
       final categorias = List<String>.from(_categoriasFinanzasBase);
 
@@ -88,6 +87,10 @@ class _RepositorioCategoriasFinanzas {
         {
           'categorias': categorias,
           'actualizado_en': FieldValue.serverTimestamp(),
+          'actualizado_por_email':
+              ServicioDatosClub.usuarioAuthActual?.email ?? 'Desconocido',
+          'actualizado_por_uid':
+              ServicioDatosClub.usuarioAuthActual?.uid ?? '',
         },
         SetOptions(merge: true),
       );
@@ -423,20 +426,24 @@ class _TabMovimientos extends StatelessWidget {
 
     if (confirmar) {
       try {
-        await FirebaseFirestore.instance
-            .collection('movimientos_eliminados')
-            .doc(id)
-            .set({
-              ...data,
-              'motivo_eliminacion': motivoCtrl.text.trim(),
-              'usuario_elimino': usuarioCtrl.text.trim(),
-              'fecha_eliminacion': FieldValue.serverTimestamp(),
-            });
+        final db = ServicioDatosClub.firestore;
+        final user = ServicioDatosClub.usuarioAuthActual;
+        final batch = db.batch();
 
-        await FirebaseFirestore.instance
-            .collection('movimientos')
-            .doc(id)
-            .delete();
+        batch.set(
+          ServicioDatosClub.movimientosEliminados.doc(id),
+          {
+            ...data,
+            'motivo_eliminacion': motivoCtrl.text.trim(),
+            'usuario_elimino': usuarioCtrl.text.trim(),
+            'usuario_auth_email': user?.email ?? 'Desconocido',
+            'usuario_auth_uid': user?.uid ?? '',
+            'fecha_eliminacion': FieldValue.serverTimestamp(),
+          },
+        );
+
+        batch.delete(ServicioDatosClub.movimientos.doc(id));
+        await batch.commit();
 
         if (context.mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
@@ -584,8 +591,7 @@ class _TabMovimientos extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return StreamBuilder<QuerySnapshot>(
-      stream: FirebaseFirestore.instance
-          .collection('movimientos')
+      stream: ServicioDatosClub.movimientos
           .orderBy('fecha', descending: true)
           .snapshots(),
       builder: (context, snapshot) {
@@ -878,10 +884,7 @@ class _TabRecaudacionActividadState extends State<_TabRecaudacionActividad> {
 
   Future<void> _cargarPrecios() async {
     try {
-      final doc = await FirebaseFirestore.instance
-          .collection('configuracion')
-          .doc('precios')
-          .get();
+      final doc = await ServicioDatosClub.precios.get();
       if (doc.exists) {
         final data = doc.data() ?? {};
         Map<String, dynamic> mapaPrecios = data['precios_cuotas'] ?? data;
@@ -1053,8 +1056,7 @@ class _TabRecaudacionActividadState extends State<_TabRecaudacionActividad> {
         else
           Expanded(
             child: StreamBuilder<QuerySnapshot>(
-              stream: FirebaseFirestore.instance
-                  .collection('movimientos')
+              stream: ServicioDatosClub.movimientos
                   .orderBy('fecha', descending: true)
                   .snapshots(),
               builder: (context, snapshot) {
@@ -1479,7 +1481,6 @@ class _TabNuevoMovimientoState extends State<_TabNuevoMovimiento> {
       ),
     );
 
-    controller.dispose();
     if (nombre == null || nombre.trim().isEmpty || !mounted) return;
 
     final nombreLimpio = nombre.trim().replaceAll(RegExp(r'\s+'), ' ');
@@ -1529,10 +1530,7 @@ class _TabNuevoMovimientoState extends State<_TabNuevoMovimiento> {
 
   Future<void> _cargarActividades() async {
     try {
-      final doc = await FirebaseFirestore.instance
-          .collection('configuracion')
-          .doc('precios')
-          .get();
+      final doc = await ServicioDatosClub.precios.get();
       if (doc.exists) {
         final data = doc.data() ?? {};
         Map<String, dynamic> mapaPrecios = data['precios_cuotas'] ?? data;
@@ -1612,8 +1610,7 @@ class _TabNuevoMovimientoState extends State<_TabNuevoMovimiento> {
                     const SizedBox(height: 10),
                     Expanded(
                       child: StreamBuilder<QuerySnapshot>(
-                        stream: FirebaseFirestore.instance
-                            .collection('socios')
+                        stream: ServicioDatosClub.socios
                             .orderBy('apellido')
                             .snapshots(),
                         builder: (ctx, snap) {
@@ -1689,6 +1686,78 @@ class _TabNuevoMovimientoState extends State<_TabNuevoMovimiento> {
   }
 
   Future<void> _pedirClaveParaGasto() async {
+    // TuSede Central: no usamos una contraseña compartida guardada en Firestore.
+    // La autorización depende del usuario central autenticado y de su rol.
+    if (ServicioDatosClub.usaTuSedeCentral) {
+      try {
+        final autorizado =
+            await ServicioDatosClub.usuarioCentralPuedeGestionarFinanzas();
+
+        if (!mounted) return;
+
+        if (!autorizado) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text(
+                'Tu usuario de TuSede no tiene permisos para registrar egresos.',
+              ),
+              backgroundColor: Colors.red,
+            ),
+          );
+          return;
+        }
+
+        final confirmar =
+            await showDialog<bool>(
+              context: context,
+              barrierDismissible: false,
+              builder: (ctx) => AlertDialog(
+                title: const Row(
+                  children: [
+                    Icon(Icons.verified_user, color: Colors.red),
+                    SizedBox(width: 10),
+                    Text('Confirmar Egreso'),
+                  ],
+                ),
+                content: Text(
+                  'Tu identidad de TuSede está autorizada para registrar '
+                  'este egreso en ${ServicioDatosClub.origenDescripcion}.\n\n'
+                  '¿Querés continuar?',
+                ),
+                actions: [
+                  TextButton(
+                    onPressed: () => Navigator.pop(ctx, false),
+                    child: const Text('CANCELAR'),
+                  ),
+                  ElevatedButton(
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: Colors.red,
+                      foregroundColor: Colors.white,
+                    ),
+                    onPressed: () => Navigator.pop(ctx, true),
+                    child: const Text('CONFIRMAR EGRESO'),
+                  ),
+                ],
+              ),
+            ) ??
+            false;
+
+        if (confirmar) {
+          await _guardar();
+        }
+      } catch (e) {
+        if (!mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('No se pudo validar el permiso financiero: $e'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+      return;
+    }
+
+    // Clubes Legacy: conservamos exactamente el mecanismo histórico de clave.
     final TextEditingController _claveCtrl = TextEditingController();
     bool verificandoBD = false;
 
@@ -1746,9 +1815,8 @@ class _TabNuevoMovimientoState extends State<_TabNuevoMovimiento> {
                         : () async {
                             setStateDialog(() => verificandoBD = true);
                             try {
-                              final docRef = FirebaseFirestore.instance
-                                  .collection('configuracion')
-                                  .doc('seguridad');
+                              final docRef =
+                                  ServicioDatosClub.seguridadConfiguracion;
                               final doc = await docRef.get();
 
                               String claveReal = "admin123";
@@ -1801,7 +1869,7 @@ class _TabNuevoMovimientoState extends State<_TabNuevoMovimiento> {
         false;
 
     if (autorizado) {
-      _guardar();
+      await _guardar();
     }
   }
 
@@ -1832,7 +1900,9 @@ class _TabNuevoMovimientoState extends State<_TabNuevoMovimiento> {
     String? socioPdf = _socioVinculadoNombre;
 
     try {
-      await FirebaseFirestore.instance.collection('movimientos').add({
+      final userAdmin = ServicioDatosClub.usuarioAuthActual;
+
+      await ServicioDatosClub.movimientos.add({
         'tipo': _tipo,
         'monto': double.parse(_montoCtrl.text),
         'concepto': _conceptoCtrl.text,
@@ -1842,6 +1912,8 @@ class _TabNuevoMovimientoState extends State<_TabNuevoMovimiento> {
         'socio_id': _socioVinculadoId,
         'socio_nombre': _socioVinculadoNombre,
         'origen': 'manual',
+        'admin_email': userAdmin?.email ?? 'Desconocido',
+        'admin_uid': userAdmin?.uid ?? '',
         'actividad_manual': (_tipo == 'ingreso') ? _actividadManual : null,
         'meses_manual': (_tipo == 'ingreso' && _actividadManual != null)
             ? _cuotasManual

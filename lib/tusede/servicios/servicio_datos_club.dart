@@ -84,6 +84,16 @@ class ServicioDatosClub {
     return FirebaseFirestore.instance.collection('movimientos');
   }
 
+
+  static CollectionReference<Map<String, dynamic>> get movimientosEliminados {
+    if (usaTuSedeCentral) {
+      validarAccesoOperativo();
+      return FirestoreTuSede.coleccion('movimientos_eliminados');
+    }
+
+    return FirebaseFirestore.instance.collection('movimientos_eliminados');
+  }
+
   /// Configuración operativa del club.
   ///
   /// Horizonte / generico:
@@ -112,5 +122,72 @@ class ServicioDatosClub {
 
   static DocumentReference<Map<String, dynamic>> get pagosConfiguracion {
     return configuracionDoc('pagos');
+  }
+
+  static DocumentReference<Map<String, dynamic>> get categoriasFinanzasConfiguracion {
+    return configuracionDoc('categorias_finanzas');
+  }
+
+  static DocumentReference<Map<String, dynamic>> get seguridadConfiguracion {
+    return configuracionDoc('seguridad');
+  }
+
+  /// En TuSede Central los egresos no usan una contraseña compartida guardada
+  /// en Firestore. Se valida el perfil central del usuario autenticado.
+  ///
+  /// Por ahora pueden registrar egresos:
+  /// - superadmin
+  /// - admin
+  /// - tesoreria
+  ///
+  /// En clubes Legacy no cambia nada: la pantalla conserva el mecanismo
+  /// histórico de clave administrativa.
+  static Future<bool> usuarioCentralPuedeGestionarFinanzas() async {
+    if (!usaTuSedeCentral) {
+      return false;
+    }
+
+    validarAccesoOperativo();
+
+    final user = ServicioFirebaseTuSede.auth.currentUser;
+    if (user == null) {
+      return false;
+    }
+
+    final snapshot = await ServicioFirebaseTuSede.firestore
+        .collection('usuarios')
+        .doc(user.uid)
+        .get();
+
+    if (!snapshot.exists || snapshot.data() == null) {
+      return false;
+    }
+
+    final data = snapshot.data()!;
+    if (data['activo'] != true) {
+      return false;
+    }
+
+    final rol = (data['rol'] ?? '').toString();
+    const rolesAutorizados = <String>{
+      'superadmin',
+      'admin',
+      'tesoreria',
+    };
+
+    if (!rolesAutorizados.contains(rol)) {
+      return false;
+    }
+
+    if (rol == 'superadmin') {
+      return true;
+    }
+
+    final clubIdsRaw = data['clubIds'];
+    final clubIds = clubIdsRaw is List
+        ? clubIdsRaw.map((e) => e.toString()).toList()
+        : <String>[];
+
+    return clubIds.contains(ContextoClub.clubId);
   }
 }
