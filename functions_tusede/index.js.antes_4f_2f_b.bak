@@ -604,7 +604,3 @@ exports.vincularSesionLegacy = onRequest(
     });
   }
 );
-// ============================================================
-// ETAPA 4F-2F-B - Carnet publico controlado
-// ============================================================
-Object.assign(module.exports, require("./carnet_publico"));

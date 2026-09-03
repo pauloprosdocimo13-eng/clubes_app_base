@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
-import 'package:cloud_firestore/cloud_firestore.dart';
 import '../../configuracion/configuracion_app.dart';
+import '../../tusede/servicios/contexto_club.dart';
+import '../../tusede/servicios/servicio_datos_club.dart';
+import '../../tusede/servicios/servicio_portal_socio.dart';
 import 'pantalla_dashboard_socio.dart';
 
 class PantallaAccesoSocio extends StatefulWidget {
@@ -30,16 +32,12 @@ class _PantallaAccesoSocioState extends State<PantallaAccesoSocio> {
     });
 
     try {
-      final query = await FirebaseFirestore.instance
-          .collection('socios')
-          .where('dni', isEqualTo: dni)
-          .limit(1)
-          .get();
+      final socio =
+          await ServicioPortalSocio().buscarSocioPorDni(dni);
 
-      if (query.docs.isNotEmpty) {
-        final doc = query.docs.first;
-        final datos = doc.data();
-        final id = doc.id; // Este es el ID del doc (DNI generalmente)
+      if (socio != null) {
+        final datos = socio.datos;
+        final id = socio.id;
 
         if (mounted) {
           Navigator.pushReplacement(
@@ -49,6 +47,7 @@ class _PantallaAccesoSocioState extends State<PantallaAccesoSocio> {
                 config: widget.config,
                 socioId: id,
                 datosSocio: datos,
+                datosPortal: socio.datosPortal,
               ),
             ),
           );
@@ -59,9 +58,16 @@ class _PantallaAccesoSocioState extends State<PantallaAccesoSocio> {
           _cargando = false;
         });
       }
-    } catch (e) {
+    } on PortalSocioException catch (e) {
+      if (!mounted) return;
       setState(() {
-        _error = "Error de conexión: $e";
+        _error = e.mensaje;
+        _cargando = false;
+      });
+    } catch (e) {
+      if (!mounted) return;
+      setState(() {
+        _error = "No pudimos abrir el carnet. Intentá nuevamente.";
         _cargando = false;
       });
     }
@@ -71,24 +77,37 @@ class _PantallaAccesoSocioState extends State<PantallaAccesoSocio> {
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: Colors.white,
-      appBar: AppBar(title: const Text("Portal de Socios"), backgroundColor: widget.config.colorPrimario),
+      appBar: AppBar(
+        title: Text("Portal de Socios · ${ContextoClub.nombreCorto}"),
+        backgroundColor: ContextoClub.colorPrimario,
+        foregroundColor: Colors.white,
+      ),
       body: Center(
         child: SingleChildScrollView(
           padding: const EdgeInsets.all(30),
           child: Column(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              Icon(Icons.badge, size: 80, color: widget.config.colorPrimario.withOpacity(0.5)),
+              Icon(Icons.badge, size: 80, color: ContextoClub.colorPrimario.withOpacity(0.5)),
               const SizedBox(height: 20),
               Text(
                 "¡Bienvenido Socio!",
-                style: TextStyle(fontSize: 24, color: widget.config.colorPrimario, fontWeight: FontWeight.bold),
+                style: TextStyle(fontSize: 24, color: ContextoClub.colorPrimario, fontWeight: FontWeight.bold),
               ),
               const SizedBox(height: 10),
               const Text(
                 "Ingresá tu DNI para ver tu carnet y estado de cuenta familiar.",
                 textAlign: TextAlign.center,
                 style: TextStyle(color: Colors.grey),
+              ),
+              const SizedBox(height: 8),
+              Text(
+                "Club: ${ContextoClub.nombreClub}",
+                textAlign: TextAlign.center,
+                style: const TextStyle(
+                  color: Colors.grey,
+                  fontSize: 12,
+                ),
               ),
               const SizedBox(height: 30),
               TextField(
@@ -107,7 +126,7 @@ class _PantallaAccesoSocioState extends State<PantallaAccesoSocio> {
                 height: 50,
                 child: ElevatedButton(
                   style: ElevatedButton.styleFrom(
-                    backgroundColor: widget.config.colorPrimario,
+                    backgroundColor: ContextoClub.colorPrimario,
                     foregroundColor: Colors.white,
                   ),
                   onPressed: _cargando ? null : _buscarSocio,

@@ -4,18 +4,25 @@ import 'package:qr_flutter/qr_flutter.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter/foundation.dart' show kIsWeb;
 import '../../configuracion/configuracion_app.dart';
-import '../../servicios/servicio_firebase.dart';
+import '../../tusede/servicios/contexto_club.dart';
+import '../../tusede/servicios/servicio_portal_socio.dart';
+import '../../widgets/logo_club_tusede.dart';
 
 class PantallaDashboardSocio extends StatefulWidget {
   final ConfiguracionApp config;
   final String socioId;
   final Map<String, dynamic> datosSocio;
 
+  /// Payload sanitizado devuelto por buscarCarnetPublico.
+  /// Es null para los clubes que continúan en Firebase Legacy.
+  final Map<String, dynamic>? datosPortal;
+
   const PantallaDashboardSocio({
     super.key,
     required this.config,
     required this.socioId,
     required this.datosSocio,
+    this.datosPortal,
   });
 
   @override
@@ -63,7 +70,9 @@ class _PantallaDashboardSocioState extends State<PantallaDashboardSocio>
   // --- FUNCIÓN REFACTORIZADA LIMPIA ---
   Future<void> _cargarDatosCompletos() async {
     try {
-      final servicio = ServicioFirebase();
+      final servicio = ServicioPortalSocio(
+        datosPrecargados: widget.datosPortal,
+      );
 
       // 1. Cargar Precios desde la capa de servicios
       _precios = await servicio.obtenerPreciosCuotas();
@@ -361,7 +370,7 @@ class _PantallaDashboardSocioState extends State<PantallaDashboardSocio>
       backgroundColor: Colors.grey[100],
       appBar: AppBar(
         title: const Text("Panel de Socio"),
-        backgroundColor: widget.config.colorPrimario,
+        backgroundColor: ContextoClub.colorPrimario,
         foregroundColor: Colors.white,
         elevation: 0,
         bottom: TabBar(
@@ -434,8 +443,8 @@ class _PantallaDashboardSocioState extends State<PantallaDashboardSocio>
                 begin: Alignment.topLeft,
                 end: Alignment.bottomRight,
                 colors: [
-                  widget.config.colorPrimario,
-                  widget.config.colorPrimario.withOpacity(0.8),
+                  ContextoClub.colorPrimario,
+                  ContextoClub.colorPrimario.withOpacity(0.8),
                   Colors.black87,
                 ],
               ),
@@ -454,8 +463,8 @@ class _PantallaDashboardSocioState extends State<PantallaDashboardSocio>
                   bottom: -30,
                   child: Opacity(
                     opacity: 0.15,
-                    child: Image.asset(
-                      widget.config.rutaLogo,
+                    child: LogoClubTuSede(
+                      config: widget.config,
                       height: 200,
                       width: 200,
                     ),
@@ -468,13 +477,13 @@ class _PantallaDashboardSocioState extends State<PantallaDashboardSocio>
                     children: [
                       Row(
                         children: [
-                          Image.asset(widget.config.rutaLogo, height: 40),
+                          LogoClubTuSede(config: widget.config, height: 40, width: 40),
                           const SizedBox(width: 10),
                           Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
                               Text(
-                                widget.config.nombreApp.toUpperCase(),
+                                ContextoClub.nombreClub.toUpperCase(),
                                 style: const TextStyle(
                                   color: Colors.white,
                                   fontWeight: FontWeight.bold,
@@ -671,7 +680,7 @@ class _PantallaDashboardSocioState extends State<PantallaDashboardSocio>
               ),
               boxShadow: [
                 BoxShadow(
-                  color: widget.config.colorPrimario.withOpacity(0.5),
+                  color: ContextoClub.colorPrimario.withOpacity(0.5),
                   blurRadius: 20,
                   spreadRadius: -10,
                 ),
@@ -936,7 +945,7 @@ class _PantallaDashboardSocioState extends State<PantallaDashboardSocio>
                 child: ListTile(
                   leading: Icon(
                     Icons.person,
-                    color: widget.config.colorPrimario,
+                    color: ContextoClub.colorPrimario,
                   ),
                   title: Text(nombre),
                   subtitle: Text(familiar['dni'] ?? ''),
