@@ -1,7 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:mobile_scanner/mobile_scanner.dart';
-import 'package:cloud_firestore/cloud_firestore.dart';
 import '../../configuracion/configuracion_app.dart';
+import '../../tusede/servicios/contexto_club.dart';
+import '../../tusede/servicios/servicio_datos_club.dart';
 
 class PantallaAdminScanner extends StatefulWidget {
   final ConfiguracionApp config;
@@ -27,7 +28,7 @@ class _PantallaAdminScannerState extends State<PantallaAdminScanner> {
 
     try {
       // 1. Buscamos el documento por su ID (que viene en el QR)
-      final doc = await FirebaseFirestore.instance.collection('socios').doc(socioId).get();
+      final doc = await ServicioDatosClub.socios.doc(socioId).get();
 
       if (!doc.exists) {
         _mostrarAlerta(
@@ -39,18 +40,43 @@ class _PantallaAdminScannerState extends State<PantallaAdminScanner> {
       }
 
       final data = doc.data()!;
-      final String nombre = "${data['nombre']} ${data['apellido']}";
-      final String estado = data['estado'] ?? 'Deudor';
 
-      // 2. Validamos si está al día
-      // Aceptamos "Al día", "al dia", "AL DIA", etc.
-      final bool accesoPermitido = estado.toLowerCase().contains('al d') || estado.toLowerCase() == 'al día';
+      if (data['eliminado'] == true) {
+        _mostrarAlerta(
+          esValido: false,
+          titulo: "QR NO VÁLIDO",
+          mensaje: "El socio fue dado de baja del padrón.",
+        );
+        return;
+      }
+
+      final String nombre =
+          "${data['nombre'] ?? ''} ${data['apellido'] ?? ''}".trim();
+
+      final String estadoLegacy = (data['estado'] ?? '').toString();
+      final bool? alDiaCentral =
+          data['al_dia'] is bool ? data['al_dia'] as bool : null;
+
+      // En Horizonte usamos el campo al_dia que ya actualiza el módulo
+      // central de cobros. En Legacy conservamos la lógica histórica.
+      final bool accesoPermitido = ServicioDatosClub.usaTuSedeCentral
+          ? (alDiaCentral ??
+              estadoLegacy.toLowerCase().contains('al d'))
+          : (estadoLegacy.toLowerCase().contains('al d') ||
+              estadoLegacy.toLowerCase() == 'al día');
+
+      final String estadoMostrar = ServicioDatosClub.usaTuSedeCentral
+          ? (accesoPermitido ? 'Al día' : 'Deudor')
+          : (estadoLegacy.isEmpty ? 'Deudor' : estadoLegacy);
 
       // 3. Mostramos el resultado
       _mostrarAlerta(
         esValido: accesoPermitido,
         titulo: accesoPermitido ? "ACCESO PERMITIDO" : "ACCESO DENEGADO",
-        mensaje: "Socio: $nombre\nEstado: $estado",
+        mensaje:
+            "Socio: $nombre\n"
+            "Estado: $estadoMostrar\n"
+            "Datos: ${ServicioDatosClub.origenDescripcion}",
       );
 
     } catch (e) {
@@ -100,8 +126,8 @@ class _PantallaAdminScannerState extends State<PantallaAdminScanner> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text("Escanear Ingreso"),
-        backgroundColor: widget.config.colorPrimario,
+        title: Text("Escanear Ingreso · ${ContextoClub.nombreCorto}"),
+        backgroundColor: ContextoClub.colorPrimario,
         foregroundColor: Colors.white,
         actions: [
           IconButton(

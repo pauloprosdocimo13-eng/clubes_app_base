@@ -84,7 +84,6 @@ class ServicioDatosClub {
     return FirebaseFirestore.instance.collection('movimientos');
   }
 
-
   static CollectionReference<Map<String, dynamic>> get movimientosEliminados {
     if (usaTuSedeCentral) {
       validarAccesoOperativo();
@@ -92,6 +91,22 @@ class ServicioDatosClub {
     }
 
     return FirebaseFirestore.instance.collection('movimientos_eliminados');
+  }
+
+  /// Asistencias operativas del club.
+  ///
+  /// Horizonte / generico:
+  ///   clubes/generico/asistencias
+  ///
+  /// Clubes Legacy:
+  ///   asistencias
+  static CollectionReference<Map<String, dynamic>> get asistencias {
+    if (usaTuSedeCentral) {
+      validarAccesoOperativo();
+      return FirestoreTuSede.asistencias;
+    }
+
+    return FirebaseFirestore.instance.collection('asistencias');
   }
 
   /// Configuración operativa del club.
@@ -124,7 +139,8 @@ class ServicioDatosClub {
     return configuracionDoc('pagos');
   }
 
-  static DocumentReference<Map<String, dynamic>> get categoriasFinanzasConfiguracion {
+  static DocumentReference<Map<String, dynamic>>
+      get categoriasFinanzasConfiguracion {
     return configuracionDoc('categorias_finanzas');
   }
 

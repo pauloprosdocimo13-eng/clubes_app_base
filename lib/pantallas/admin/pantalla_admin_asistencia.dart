@@ -8,6 +8,8 @@ import 'package:path_provider/path_provider.dart';
 import 'package:share_plus/share_plus.dart';
 import 'package:file_picker/file_picker.dart';
 import '../../configuracion/configuracion_app.dart';
+import '../../tusede/servicios/contexto_club.dart';
+import '../../tusede/servicios/servicio_datos_club.dart';
 
 class PantallaAdminAsistencia extends StatefulWidget {
   final ConfiguracionApp config;
@@ -44,37 +46,64 @@ class _PantallaAdminAsistenciaState extends State<PantallaAdminAsistencia> {
   }
 
   // --- FUNCIÓN INTELIGENTE PARA LEER ACTIVIDADES COMPUESTAS ---
+  //
+  // Mantiene la misma regla que ya usamos en Socios/Carnet:
+  // si un socio no tiene una actividad válida cargada, se considera
+  // asociado a "Cuota Social".
   bool _socioHaceActividad(Map<String, dynamic> data, String actividadBuscada) {
-    if (actividadBuscada.isEmpty) return false;
-    List<String> listaActs = [];
+    if (actividadBuscada.trim().isEmpty) return false;
 
-    if (data['actividades'] != null && data['actividades'] is List) {
-      for (var a in data['actividades']) {
-        // Cortamos por comas o símbolos de suma por las dudas
-        listaActs.addAll(
-          a.toString().split(RegExp(r'[,+]')).map((e) => e.trim()),
+    final Set<String> actividades = <String>{};
+
+    // 1. Campo nuevo: lista de actividades.
+    final rawActividades = data['actividades'];
+    if (rawActividades is List) {
+      for (final a in rawActividades) {
+        actividades.addAll(
+          a
+              .toString()
+              .split(RegExp(r'[,+]'))
+              .map((e) => e.trim())
+              .where((e) => e.isNotEmpty),
         );
       }
-    } else if (data['actividad'] != null) {
-      listaActs = data['actividad']
-          .toString()
-          .split(RegExp(r'[,+]'))
-          .map((e) => e.trim())
-          .toList();
     }
 
-    return listaActs.any(
-      (act) => act.toLowerCase() == actividadBuscada.toLowerCase(),
+    // 2. Compatibilidad con el campo Legacy/resumen.
+    //
+    // También lo leemos si la lista existe pero está vacía, porque algunos
+    // socios viejos pueden tener "actividades: []" y "actividad" con valor.
+    final actividadResumen = (data['actividad'] ?? '').toString().trim();
+    if (actividadResumen.isNotEmpty) {
+      actividades.addAll(
+        actividadResumen
+            .split(RegExp(r'[,+]'))
+            .map((e) => e.trim())
+            .where((e) => e.isNotEmpty),
+      );
+    }
+
+    // 3. "Ninguna" no es una actividad real.
+    actividades.removeWhere(
+      (e) => e.toLowerCase() == 'ninguna',
+    );
+
+    // 4. Mismo fallback que Socios/Carnet.
+    if (actividades.isEmpty) {
+      actividades.add('Cuota Social');
+    }
+
+    final buscada = actividadBuscada.trim().toLowerCase();
+
+    return actividades.any(
+      (act) => act.trim().toLowerCase() == buscada,
     );
   }
 
   // --- CARGAR DESDE PRECIOS ---
   Future<void> _cargarActividadesDesdePrecios() async {
     try {
-      final doc = await FirebaseFirestore.instance
-          .collection('configuracion')
-          .doc('precios')
-          .get();
+      final doc = await ServicioDatosClub.precios.get();
 
       if (doc.exists) {
         final data = doc.data() ?? {};
@@ -82,7 +111,11 @@ class _PantallaAdminAsistenciaState extends State<PantallaAdminAsistencia> {
 
         List<String> listaTemp = [];
         mapaPrecios.forEach((key, value) {
-          if (!key.startsWith('_') && key != 'fecha_actualizacion') {
+          if (!key.startsWith('_') &&
+              key != 'fecha_actualizacion' &&
+              key != 'ultima_actualizacion' &&
+              key != 'actualizado_por_email' &&
+              key != 'actualizado_por_uid') {
             listaTemp.add(key);
           }
         });
@@ -97,6 +130,14 @@ class _PantallaAdminAsistenciaState extends State<PantallaAdminAsistencia> {
               _actividadSeleccionada = _actividadesDisponibles.first;
               _buscarAsistenciaGuardada();
             }
+          });
+        }
+      } else {
+        if (mounted) {
+          setState(() {
+            _actividadesDisponibles = [];
+            _actividadSeleccionada = null;
+            _cargando = false;
           });
         }
       }
@@ -115,10 +156,7 @@ class _PantallaAdminAsistenciaState extends State<PantallaAdminAsistencia> {
     final idDoc = "${_actividadSeleccionada}_$fechaStr";
 
     try {
-      final doc = await FirebaseFirestore.instance
-          .collection('asistencias')
-          .doc(idDoc)
-          .get();
+      final doc = await ServicioDatosClub.asistencias.doc(idDoc).get();
 
       if (mounted) {
         if (doc.exists) {
@@ -157,21 +195,31 @@ class _PantallaAdminAsistenciaState extends State<PantallaAdminAsistencia> {
     });
 
     try {
-      await FirebaseFirestore.instance
-          .collection('asistencias')
-          .doc(idDoc)
-          .set({
+      await ServicioDatosClub.asistencias.doc(idDoc).set({
             'fecha': Timestamp.fromDate(_fecha),
             'actividad': _actividadSeleccionada,
             'grupo_etiqueta': _grupoCtrl.text.trim(),
             'presentes': presentes,
             'total_presentes': presentes.length,
             'mes_anio': DateFormat('yyyy-MM').format(_fecha),
+            if (ServicioDatosClub.usaTuSedeCentral) ...{
+              'club_id': ContextoClub.clubId,
+              'actualizado_por_email':
+                  ServicioDatosClub.usuarioAuthActual?.email ?? 'Desconocido',
+              'actualizado_por_uid':
+                  ServicioDatosClub.usuarioAuthActual?.uid ?? '',
+              'actualizado_el': FieldValue.serverTimestamp(),
+            },
           });
 
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text("Asistencia guardada correctamente")),
+          SnackBar(
+            content: Text(
+              "Asistencia guardada en "
+              "${ServicioDatosClub.origenDescripcion}.",
+            ),
+          ),
         );
         setState(() => _yaGuardadoHoy = true);
       }
@@ -198,8 +246,7 @@ class _PantallaAdminAsistenciaState extends State<PantallaAdminAsistencia> {
     );
 
     try {
-      var query = await FirebaseFirestore.instance
-          .collection('asistencias')
+      var query = await ServicioDatosClub.asistencias
           .where('actividad', isEqualTo: _actividadSeleccionada)
           .where('mes_anio', isEqualTo: mesStr)
           .get();
@@ -215,13 +262,12 @@ class _PantallaAdminAsistenciaState extends State<PantallaAdminAsistencia> {
       }
 
       // ACA APLICAMOS LA LÓGICA INTELIGENTE EN LUGAR DE LA BÚSQUEDA ESTRICTA
-      var sociosQuery = await FirebaseFirestore.instance
-          .collection('socios')
-          .get();
+      var sociosQuery = await ServicioDatosClub.socios.get();
 
       Map<String, String> mapaNombres = {};
       for (var s in sociosQuery.docs) {
         var d = s.data();
+        if (d['eliminado'] == true) continue;
         if (_socioHaceActividad(d, _actividadSeleccionada!)) {
           mapaNombres[s.id] = "${d['apellido']} ${d['nombre']}";
         }
@@ -259,7 +305,7 @@ class _PantallaAdminAsistenciaState extends State<PantallaAdminAsistencia> {
                           title: Text(nombre),
                           subtitle: LinearProgressIndicator(
                             value: porcentaje,
-                            color: widget.config.colorPrimario,
+                            color: ContextoClub.colorPrimario,
                           ),
                           trailing: Text("$asistencias / $totalClases"),
                         );
@@ -293,8 +339,7 @@ class _PantallaAdminAsistenciaState extends State<PantallaAdminAsistencia> {
 
       String mesStr = DateFormat('yyyy-MM').format(_fecha);
 
-      var asistenciasQuery = await FirebaseFirestore.instance
-          .collection('asistencias')
+      var asistenciasQuery = await ServicioDatosClub.asistencias
           .where('actividad', isEqualTo: _actividadSeleccionada)
           .where('mes_anio', isEqualTo: mesStr)
           .get();
@@ -349,12 +394,11 @@ class _PantallaAdminAsistenciaState extends State<PantallaAdminAsistencia> {
       sheetObject.appendRow(encabezados);
 
       // ACA TAMBIÉN APLICAMOS LA LÓGICA INTELIGENTE PARA EL EXCEL
-      var sociosQuery = await FirebaseFirestore.instance
-          .collection('socios')
-          .get();
+      var sociosQuery = await ServicioDatosClub.socios.get();
 
       for (var s in sociosQuery.docs) {
         var data = s.data();
+        if (data['eliminado'] == true) continue;
         if (!_socioHaceActividad(data, _actividadSeleccionada!)) continue;
 
         int asistencias = conteo[s.id] ?? 0;
@@ -432,8 +476,8 @@ class _PantallaAdminAsistenciaState extends State<PantallaAdminAsistencia> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text("Control de Asistencia"),
-        backgroundColor: widget.config.colorPrimario,
+        title: Text("Control de Asistencia · ${ContextoClub.nombreCorto}"),
+        backgroundColor: ContextoClub.colorPrimario,
         actions: [
           IconButton(
             icon: const Icon(Icons.analytics),
@@ -576,9 +620,8 @@ class _PantallaAdminAsistenciaState extends State<PantallaAdminAsistencia> {
                     child: Text("👆 Selecciona una actividad para comenzar"),
                   )
                 : StreamBuilder<QuerySnapshot>(
-                    stream: FirebaseFirestore.instance
-                        .collection('socios')
-                        .snapshots(), // Le quitamos el filtro rígido a Firebase
+                    stream: ServicioDatosClub.socios
+                        .snapshots(), // El origen depende del club actual
                     builder: (context, snapshot) {
                       if (!snapshot.hasData) {
                         return const Center(child: CircularProgressIndicator());
@@ -589,6 +632,9 @@ class _PantallaAdminAsistenciaState extends State<PantallaAdminAsistencia> {
                       // Filtrado inteligente en memoria
                       var docsFiltrados = docs.where((doc) {
                         var data = doc.data() as Map<String, dynamic>;
+
+                        // Las bajas del padrón son lógicas.
+                        if (data['eliminado'] == true) return false;
 
                         // Si no hace la actividad, lo descartamos
                         if (!_socioHaceActividad(data, _actividadSeleccionada!))
@@ -619,6 +665,10 @@ class _PantallaAdminAsistenciaState extends State<PantallaAdminAsistencia> {
                       });
 
                       if (docsFiltrados.isEmpty) {
+                        final mensaje = docs.isEmpty
+                            ? "No hay socios cargados en ${ContextoClub.nombreCorto}"
+                            : "No hay socios inscriptos en $_actividadSeleccionada";
+
                         return Center(
                           child: Column(
                             mainAxisAlignment: MainAxisAlignment.center,
@@ -630,7 +680,18 @@ class _PantallaAdminAsistenciaState extends State<PantallaAdminAsistencia> {
                               ),
                               const SizedBox(height: 10),
                               Text(
-                                "No hay socios inscriptos en $_actividadSeleccionada",
+                                mensaje,
+                                textAlign: TextAlign.center,
+                              ),
+                              const SizedBox(height: 6),
+                              Text(
+                                "Padrón leído: ${docs.length} socio(s) · "
+                                "${ServicioDatosClub.origenDescripcion}",
+                                textAlign: TextAlign.center,
+                                style: const TextStyle(
+                                  fontSize: 12,
+                                  color: Colors.grey,
+                                ),
                               ),
                             ],
                           ),
@@ -766,7 +827,7 @@ class _PantallaAdminAsistenciaState extends State<PantallaAdminAsistencia> {
                     icon: const Icon(Icons.save),
                     label: const Text("GUARDAR ASISTENCIA"),
                     style: ElevatedButton.styleFrom(
-                      backgroundColor: widget.config.colorPrimario,
+                      backgroundColor: ContextoClub.colorPrimario,
                       foregroundColor: Colors.white,
                       padding: const EdgeInsets.symmetric(
                         horizontal: 20,
