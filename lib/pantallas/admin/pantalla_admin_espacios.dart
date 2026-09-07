@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import '../../configuracion/configuracion_app.dart';
+import '../../tusede/servicios/contexto_club.dart';
+import '../../tusede/servicios/servicio_datos_club.dart';
 import '../../widgets/input_imagen.dart';
 
 class PantallaAdminEspacios extends StatefulWidget {
@@ -24,7 +26,7 @@ class _PantallaAdminEspaciosState extends State<PantallaAdminEspacios> {
       builder: (context) {
         // Usamos FutureBuilder para leer el número actual si ya existe
         return FutureBuilder<DocumentSnapshot>(
-          future: FirebaseFirestore.instance.collection('configuracion').doc('reservas').get(),
+          future: ServicioDatosClub.reservasConfiguracion.get(),
           builder: (context, snapshot) {
             if (!snapshot.hasData) return const Center(child: CircularProgressIndicator());
 
@@ -58,7 +60,7 @@ class _PantallaAdminEspaciosState extends State<PantallaAdminEspacios> {
                   style: ElevatedButton.styleFrom(backgroundColor: Colors.green, foregroundColor: Colors.white),
                   onPressed: () async {
                     // Guardamos en Firebase
-                    await FirebaseFirestore.instance.collection('configuracion').doc('reservas').set({
+                    await ServicioDatosClub.reservasConfiguracion.set({
                       'telefono_wsp': _telCtrl.text.trim(),
                     }, SetOptions(merge: true));
 
@@ -95,7 +97,7 @@ class _PantallaAdminEspaciosState extends State<PantallaAdminEspacios> {
           TextButton(onPressed: () => Navigator.pop(ctx), child: const Text("Cancelar")),
           TextButton(
             onPressed: () {
-              FirebaseFirestore.instance.collection('espacios').doc(id).delete();
+              ServicioDatosClub.espacios.doc(id).delete();
               Navigator.pop(ctx);
             },
             child: const Text("Borrar", style: TextStyle(color: Colors.red)),
@@ -109,7 +111,7 @@ class _PantallaAdminEspaciosState extends State<PantallaAdminEspacios> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text("Gestionar Espacios"),
+        title: Text("Gestionar Espacios · ${ContextoClub.nombreCorto}"),
         backgroundColor: Colors.black87,
         foregroundColor: Colors.white,
         actions: [
@@ -122,12 +124,12 @@ class _PantallaAdminEspaciosState extends State<PantallaAdminEspacios> {
         ],
       ),
       floatingActionButton: FloatingActionButton(
-        backgroundColor: widget.config.colorPrimario,
+        backgroundColor: ContextoClub.colorPrimario,
         child: const Icon(Icons.add),
         onPressed: () => _mostrarFormulario(),
       ),
       body: StreamBuilder<QuerySnapshot>(
-        stream: FirebaseFirestore.instance.collection('espacios').snapshots(),
+        stream: ServicioDatosClub.espacios.snapshots(),
         builder: (context, snapshot) {
           if (!snapshot.hasData) return const Center(child: CircularProgressIndicator());
           if (snapshot.data!.docs.isEmpty) return const Center(child: Text("No hay espacios cargados (Canchas, Salones, etc.)"));
@@ -209,9 +211,9 @@ class _FormularioEspacioState extends State<_FormularioEspacio> {
     };
 
     if (widget.id == null) {
-      await FirebaseFirestore.instance.collection('espacios').add(datos);
+      await ServicioDatosClub.espacios.add(datos);
     } else {
-      await FirebaseFirestore.instance.collection('espacios').doc(widget.id).update(datos);
+      await ServicioDatosClub.espacios.doc(widget.id).update(datos);
     }
     if (mounted) Navigator.pop(context);
   }

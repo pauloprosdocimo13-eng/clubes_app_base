@@ -1,7 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:firebase_auth/firebase_auth.dart';
 import '../../configuracion/configuracion_app.dart';
+import '../../tusede/servicios/contexto_club.dart';
+import '../../tusede/servicios/servicio_datos_club.dart';
 
 class PantallaAdminCalendario extends StatefulWidget {
   final ConfiguracionApp config;
@@ -103,7 +104,7 @@ class _PantallaAdminCalendarioState extends State<PantallaAdminCalendario> {
             onPressed: () async {
               if (tituloCtrl.text.isEmpty) return;
 
-              await FirebaseFirestore.instance.collection('vencimientos').add({
+              await ServicioDatosClub.vencimientos.add({
                 'titulo': tituloCtrl.text,
                 'monto': montoCtrl.text,
                 'fecha': _fechaId,
@@ -277,8 +278,7 @@ class _PantallaAdminCalendarioState extends State<PantallaAdminCalendario> {
 
                                     if (!confirmar) return;
                                     try {
-                                      await FirebaseFirestore.instance
-                                          .collection('movimientos')
+                                      await ServicioDatosClub.movimientos
                                           .add({
                                             'tipo': 'ingreso',
                                             'monto': saldo,
@@ -290,14 +290,10 @@ class _PantallaAdminCalendarioState extends State<PantallaAdminCalendario> {
                                                 FieldValue.serverTimestamp(),
                                             'origen': 'calendario_admin',
                                             'admin_email':
-                                                FirebaseAuth
-                                                    .instance
-                                                    .currentUser
-                                                    ?.email ??
+                                                ServicioDatosClub.usuarioAuthActual?.email ??
                                                 'Admin',
                                           });
-                                      await FirebaseFirestore.instance
-                                          .collection('reservas')
+                                      await ServicioDatosClub.reservas
                                           .doc(reservaId)
                                           .update({
                                             'senia': precioCtrl.text,
@@ -399,8 +395,7 @@ class _PantallaAdminCalendarioState extends State<PantallaAdminCalendario> {
                 if (reservaId != null)
                   TextButton(
                     onPressed: () async {
-                      await FirebaseFirestore.instance
-                          .collection('reservas')
+                      await ServicioDatosClub.reservas
                           .doc(reservaId)
                           .delete();
                       Navigator.pop(ctx);
@@ -427,8 +422,7 @@ class _PantallaAdminCalendarioState extends State<PantallaAdminCalendario> {
 
                     // --- VALIDACIÓN DE SEGURIDAD ANTI-PISADAS ---
                     if (reservaId == null) {
-                      final verificacion = await FirebaseFirestore.instance
-                          .collection('reservas')
+                      final verificacion = await ServicioDatosClub.reservas
                           .where('espacio_id', isEqualTo: _espacioSeleccionadoId)
                           .where('fecha', isEqualTo: _fechaId)
                           .where('hora', isEqualTo: hora)
@@ -466,8 +460,7 @@ class _PantallaAdminCalendarioState extends State<PantallaAdminCalendario> {
                       double ingresoRealAhora =
                           seniaFinal - seniaGuardadaPreviamente;
                       if (ingresoRealAhora > 0) {
-                        await FirebaseFirestore.instance
-                            .collection('movimientos')
+                        await ServicioDatosClub.movimientos
                             .add({
                               'tipo': 'ingreso',
                               'monto': ingresoRealAhora,
@@ -478,7 +471,7 @@ class _PantallaAdminCalendarioState extends State<PantallaAdminCalendario> {
                               'fecha': FieldValue.serverTimestamp(),
                               'origen': 'calendario_admin',
                               'admin_email':
-                                  FirebaseAuth.instance.currentUser?.email ??
+                                  ServicioDatosClub.usuarioAuthActual?.email ??
                                   'Admin',
                             });
                       }
@@ -487,12 +480,11 @@ class _PantallaAdminCalendarioState extends State<PantallaAdminCalendario> {
                         if (repetirAnual) {
                           DateTime fechaIteradora = _fechaSeleccionada;
                           int anioActual = fechaIteradora.year;
-                          WriteBatch batch = FirebaseFirestore.instance.batch();
+                          WriteBatch batch = ServicioDatosClub.firestore.batch();
                           int contadorReservas = 0;
 
                           while (fechaIteradora.year == anioActual) {
-                            String idGenerado = FirebaseFirestore.instance
-                                .collection('reservas')
+                            String idGenerado = ServicioDatosClub.reservas
                                 .doc()
                                 .id;
                             DocumentReference docRef = FirebaseFirestore
@@ -530,16 +522,14 @@ class _PantallaAdminCalendarioState extends State<PantallaAdminCalendario> {
                             dataBase,
                           );
                           dataGuardar['fecha'] = _fechaId;
-                          await FirebaseFirestore.instance
-                              .collection('reservas')
+                          await ServicioDatosClub.reservas
                               .add(dataGuardar);
                         }
                       } else {
                         final dataEditar = Map<String, dynamic>.from(dataBase);
                         dataEditar['fecha'] = _fechaId;
                         dataEditar['es_fijo'] = esFijoExistente;
-                        await FirebaseFirestore.instance
-                            .collection('reservas')
+                        await ServicioDatosClub.reservas
                             .doc(reservaId)
                             .update(dataEditar);
                       }
@@ -590,8 +580,7 @@ class _PantallaAdminCalendarioState extends State<PantallaAdminCalendario> {
       color: Colors.white,
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 10),
       child: StreamBuilder<QuerySnapshot>(
-        stream: FirebaseFirestore.instance
-            .collection('vencimientos')
+        stream: ServicioDatosClub.vencimientos
             .where('pagado', isEqualTo: false)
             .snapshots(),
         builder: (context, snapshotVencimientos) {
@@ -603,8 +592,7 @@ class _PantallaAdminCalendarioState extends State<PantallaAdminCalendario> {
           }
 
           return StreamBuilder<QuerySnapshot>(
-            stream: FirebaseFirestore.instance
-                .collection('reservas')
+            stream: ServicioDatosClub.reservas
                 .where('espacio_id', isEqualTo: _espacioSeleccionadoId)
                 .snapshots(),
             builder: (context, snapshotReservas) {
@@ -657,7 +645,7 @@ class _PantallaAdminCalendarioState extends State<PantallaAdminCalendario> {
 
                   Container(
                     decoration: BoxDecoration(
-                      color: widget.config.colorPrimario,
+                      color: ContextoClub.colorPrimario,
                     ),
                     padding: const EdgeInsets.symmetric(vertical: 8),
                     child: Row(
@@ -836,7 +824,7 @@ class _PantallaAdminCalendarioState extends State<PantallaAdminCalendario> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text("Agenda / Reservas"),
+        title: Text("Agenda / Reservas · ${ContextoClub.nombreCorto}"),
         backgroundColor: Colors.grey[900],
         foregroundColor: Colors.white,
       ),
@@ -853,8 +841,7 @@ class _PantallaAdminCalendarioState extends State<PantallaAdminCalendario> {
           children: [
             // --- AVISO DE "HOY VENCE" ---
             StreamBuilder<QuerySnapshot>(
-              stream: FirebaseFirestore.instance
-                  .collection('vencimientos')
+              stream: ServicioDatosClub.vencimientos
                   .where('fecha', isEqualTo: _hoyId)
                   .where('pagado', isEqualTo: false)
                   .snapshots(),
@@ -903,8 +890,7 @@ class _PantallaAdminCalendarioState extends State<PantallaAdminCalendario> {
               padding: const EdgeInsets.all(10),
               color: Colors.grey[200],
               child: StreamBuilder<QuerySnapshot>(
-                stream: FirebaseFirestore.instance
-                    .collection('espacios')
+                stream: ServicioDatosClub.espacios
                     .snapshots(),
                 builder: (context, snapshot) {
                   if (!snapshot.hasData) return const LinearProgressIndicator();
@@ -953,7 +939,7 @@ class _PantallaAdminCalendarioState extends State<PantallaAdminCalendario> {
                 collapsedBackgroundColor: Colors.white,
                 leading: Icon(
                   Icons.calendar_month,
-                  color: widget.config.colorPrimario,
+                  color: ContextoClub.colorPrimario,
                   size: 28,
                 ),
                 title: const Text(
@@ -972,8 +958,7 @@ class _PantallaAdminCalendarioState extends State<PantallaAdminCalendario> {
 
             // --- CUEVA DE VENCIMIENTOS DEL DÍA SELECCIONADO ---
             StreamBuilder<QuerySnapshot>(
-              stream: FirebaseFirestore.instance
-                  .collection('vencimientos')
+              stream: ServicioDatosClub.vencimientos
                   .where('fecha', isEqualTo: _fechaId)
                   .where('pagado', isEqualTo: false)
                   .snapshots(),
@@ -1056,8 +1041,7 @@ class _PantallaAdminCalendarioState extends State<PantallaAdminCalendario> {
                                       ) ??
                                       0;
 
-                                  await FirebaseFirestore.instance
-                                      .collection('movimientos')
+                                  await ServicioDatosClub.movimientos
                                       .add({
                                         'tipo': 'egreso',
                                         'monto': montoEgreso,
@@ -1068,15 +1052,11 @@ class _PantallaAdminCalendarioState extends State<PantallaAdminCalendario> {
                                         'fecha': FieldValue.serverTimestamp(),
                                         'origen': 'calendario_admin',
                                         'admin_email':
-                                            FirebaseAuth
-                                                .instance
-                                                .currentUser
-                                                ?.email ??
+                                            ServicioDatosClub.usuarioAuthActual?.email ??
                                             'Admin',
                                       });
 
-                                  await FirebaseFirestore.instance
-                                      .collection('vencimientos')
+                                  await ServicioDatosClub.vencimientos
                                       .doc(doc.id)
                                       .update({'pagado': true});
 
@@ -1135,8 +1115,7 @@ class _PantallaAdminCalendarioState extends State<PantallaAdminCalendario> {
                     ),
                   )
                 : StreamBuilder<QuerySnapshot>(
-                    stream: FirebaseFirestore.instance
-                        .collection('reservas')
+                    stream: ServicioDatosClub.reservas
                         .where('espacio_id', isEqualTo: _espacioSeleccionadoId)
                         .where('fecha', isEqualTo: _fechaId)
                         .snapshots(),

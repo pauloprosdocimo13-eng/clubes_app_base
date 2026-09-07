@@ -62,7 +62,6 @@ class ServicioDatosClub {
       validarAccesoOperativo();
       return FirestoreTuSede.socios;
     }
-
     return FirebaseFirestore.instance.collection('socios');
   }
 
@@ -71,7 +70,6 @@ class ServicioDatosClub {
       validarAccesoOperativo();
       return FirestoreTuSede.coleccion('auditoria_socios');
     }
-
     return FirebaseFirestore.instance.collection('auditoria_socios');
   }
 
@@ -80,7 +78,6 @@ class ServicioDatosClub {
       validarAccesoOperativo();
       return FirestoreTuSede.movimientos;
     }
-
     return FirebaseFirestore.instance.collection('movimientos');
   }
 
@@ -89,39 +86,46 @@ class ServicioDatosClub {
       validarAccesoOperativo();
       return FirestoreTuSede.coleccion('movimientos_eliminados');
     }
-
     return FirebaseFirestore.instance.collection('movimientos_eliminados');
   }
 
-  /// Asistencias operativas del club.
-  ///
-  /// Horizonte / generico:
-  ///   clubes/generico/asistencias
-  ///
-  /// Clubes Legacy:
-  ///   asistencias
   static CollectionReference<Map<String, dynamic>> get asistencias {
     if (usaTuSedeCentral) {
       validarAccesoOperativo();
       return FirestoreTuSede.asistencias;
     }
-
     return FirebaseFirestore.instance.collection('asistencias');
   }
 
-  /// Configuración operativa del club.
-  ///
-  /// Horizonte / generico:
-  ///   clubes/generico/configuracion/{documento}
-  ///
-  /// Clubes Legacy:
-  ///   configuracion/{documento}
+  static CollectionReference<Map<String, dynamic>> get espacios {
+    if (usaTuSedeCentral) {
+      validarAccesoOperativo();
+      return FirestoreTuSede.espacios;
+    }
+    return FirebaseFirestore.instance.collection('espacios');
+  }
+
+  static CollectionReference<Map<String, dynamic>> get reservas {
+    if (usaTuSedeCentral) {
+      validarAccesoOperativo();
+      return FirestoreTuSede.reservas;
+    }
+    return FirebaseFirestore.instance.collection('reservas');
+  }
+
+  static CollectionReference<Map<String, dynamic>> get vencimientos {
+    if (usaTuSedeCentral) {
+      validarAccesoOperativo();
+      return FirestoreTuSede.coleccion('vencimientos');
+    }
+    return FirebaseFirestore.instance.collection('vencimientos');
+  }
+
   static CollectionReference<Map<String, dynamic>> get configuracion {
     if (usaTuSedeCentral) {
       validarAccesoOperativo();
       return FirestoreTuSede.configuracion;
     }
-
     return FirebaseFirestore.instance.collection('configuracion');
   }
 
@@ -148,16 +152,10 @@ class ServicioDatosClub {
     return configuracionDoc('seguridad');
   }
 
-  /// En TuSede Central los egresos no usan una contraseña compartida guardada
-  /// en Firestore. Se valida el perfil central del usuario autenticado.
-  ///
-  /// Por ahora pueden registrar egresos:
-  /// - superadmin
-  /// - admin
-  /// - tesoreria
-  ///
-  /// En clubes Legacy no cambia nada: la pantalla conserva el mecanismo
-  /// histórico de clave administrativa.
+  static DocumentReference<Map<String, dynamic>> get reservasConfiguracion {
+    return configuracionDoc('reservas');
+  }
+
   static Future<bool> usuarioCentralPuedeGestionarFinanzas() async {
     if (!usaTuSedeCentral) {
       return false;
