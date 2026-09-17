@@ -16,9 +16,7 @@ import 'servicio_firebase_tusede.dart';
 class ServicioDatosClub {
   ServicioDatosClub._();
 
-  static const Set<String> _clubesConDatosCentrales = <String>{
-    'generico',
-  };
+  static const Set<String> _clubesConDatosCentrales = <String>{'generico'};
 
   static bool get usaTuSedeCentral {
     return _clubesConDatosCentrales.contains(ContextoClub.clubId);
@@ -32,7 +30,6 @@ class ServicioDatosClub {
     if (usaTuSedeCentral) {
       return ServicioFirebaseTuSede.firestore;
     }
-
     return FirebaseFirestore.instance;
   }
 
@@ -40,14 +37,11 @@ class ServicioDatosClub {
     if (usaTuSedeCentral) {
       return ServicioFirebaseTuSede.auth.currentUser;
     }
-
     return FirebaseAuth.instance.currentUser;
   }
 
   static void validarAccesoOperativo() {
-    if (!usaTuSedeCentral) {
-      return;
-    }
+    if (!usaTuSedeCentral) return;
 
     if (ServicioFirebaseTuSede.auth.currentUser == null) {
       throw StateError(
@@ -98,12 +92,6 @@ class ServicioDatosClub {
   }
 
   /// Noticias administradas por el club.
-  ///
-  /// Horizonte / generico:
-  ///   clubes/generico/noticias
-  ///
-  /// Clubes Legacy:
-  ///   noticias
   static CollectionReference<Map<String, dynamic>> get noticias {
     if (usaTuSedeCentral) {
       validarAccesoOperativo();
@@ -113,12 +101,6 @@ class ServicioDatosClub {
   }
 
   /// Avisos administrados por el club.
-  ///
-  /// Horizonte / generico:
-  ///   clubes/generico/avisos
-  ///
-  /// Clubes Legacy:
-  ///   avisos
   static CollectionReference<Map<String, dynamic>> get avisos {
     if (usaTuSedeCentral) {
       validarAccesoOperativo();
@@ -128,12 +110,6 @@ class ServicioDatosClub {
   }
 
   /// Galería administrada por el club.
-  ///
-  /// Horizonte / generico:
-  ///   clubes/generico/galeria
-  ///
-  /// Clubes Legacy:
-  ///   galeria
   static CollectionReference<Map<String, dynamic>> get galeria {
     if (usaTuSedeCentral) {
       validarAccesoOperativo();
@@ -142,13 +118,31 @@ class ServicioDatosClub {
     return FirebaseFirestore.instance.collection('galeria');
   }
 
+  /// Jugadores / integrantes de los planteles.
+  ///
+  /// Horizonte / generico: clubes/generico/jugadores
+  /// Legacy: jugadores
+  static CollectionReference<Map<String, dynamic>> get jugadores {
+    if (usaTuSedeCentral) {
+      validarAccesoOperativo();
+      return FirestoreTuSede.jugadores;
+    }
+    return FirebaseFirestore.instance.collection('jugadores');
+  }
+
+  /// Partidos administrados por el club.
+  ///
+  /// Horizonte / generico: clubes/generico/partidos
+  /// Legacy: partidos
+  static CollectionReference<Map<String, dynamic>> get partidos {
+    if (usaTuSedeCentral) {
+      validarAccesoOperativo();
+      return FirestoreTuSede.partidos;
+    }
+    return FirebaseFirestore.instance.collection('partidos');
+  }
+
   /// Productos de la Tienda Oficial administrados por el club.
-  ///
-  /// Horizonte / generico:
-  ///   clubes/generico/productos
-  ///
-  /// Clubes Legacy:
-  ///   tienda
   static CollectionReference<Map<String, dynamic>> get productos {
     if (usaTuSedeCentral) {
       validarAccesoOperativo();
@@ -204,7 +198,7 @@ class ServicioDatosClub {
   }
 
   static DocumentReference<Map<String, dynamic>>
-      get categoriasFinanzasConfiguracion {
+  get categoriasFinanzasConfiguracion {
     return configuracionDoc('categorias_finanzas');
   }
 
@@ -217,45 +211,28 @@ class ServicioDatosClub {
   }
 
   static Future<bool> usuarioCentralPuedeGestionarFinanzas() async {
-    if (!usaTuSedeCentral) {
-      return false;
-    }
+    if (!usaTuSedeCentral) return false;
 
     validarAccesoOperativo();
 
     final user = ServicioFirebaseTuSede.auth.currentUser;
-    if (user == null) {
-      return false;
-    }
+    if (user == null) return false;
 
     final snapshot = await ServicioFirebaseTuSede.firestore
         .collection('usuarios')
         .doc(user.uid)
         .get();
 
-    if (!snapshot.exists || snapshot.data() == null) {
-      return false;
-    }
+    if (!snapshot.exists || snapshot.data() == null) return false;
 
     final data = snapshot.data()!;
-    if (data['activo'] != true) {
-      return false;
-    }
+    if (data['activo'] != true) return false;
 
     final rol = (data['rol'] ?? '').toString();
-    const rolesAutorizados = <String>{
-      'superadmin',
-      'admin',
-      'tesoreria',
-    };
+    const rolesAutorizados = <String>{'superadmin', 'admin', 'tesoreria'};
 
-    if (!rolesAutorizados.contains(rol)) {
-      return false;
-    }
-
-    if (rol == 'superadmin') {
-      return true;
-    }
+    if (!rolesAutorizados.contains(rol)) return false;
+    if (rol == 'superadmin') return true;
 
     final clubIdsRaw = data['clubIds'];
     final clubIds = clubIdsRaw is List
