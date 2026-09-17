@@ -613,3 +613,13 @@ Object.assign(module.exports, require("./carnet_publico"));
 // ETAPA 4F-2H - Reservas publicas controladas
 // ============================================================
 Object.assign(module.exports, require("./reservas_publicas"));
+
+// ============================================================
+// ETAPA 4F-2I - Noticias + Avisos multiclub
+// ============================================================
+Object.assign(module.exports, require("./contenido_publico"));
+
+// ============================================================
+// CORRECCION 4F-2I - Imagenes TuSede Central
+// ============================================================
+Object.assign(module.exports, require("./imagenes_tusede"));

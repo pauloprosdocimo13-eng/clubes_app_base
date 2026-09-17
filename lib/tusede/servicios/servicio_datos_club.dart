@@ -97,6 +97,36 @@ class ServicioDatosClub {
     return FirebaseFirestore.instance.collection('asistencias');
   }
 
+  /// Noticias administradas por el club.
+  ///
+  /// Horizonte / generico:
+  ///   clubes/generico/noticias
+  ///
+  /// Clubes Legacy:
+  ///   noticias
+  static CollectionReference<Map<String, dynamic>> get noticias {
+    if (usaTuSedeCentral) {
+      validarAccesoOperativo();
+      return FirestoreTuSede.noticias;
+    }
+    return FirebaseFirestore.instance.collection('noticias');
+  }
+
+  /// Avisos administrados por el club.
+  ///
+  /// Horizonte / generico:
+  ///   clubes/generico/avisos
+  ///
+  /// Clubes Legacy:
+  ///   avisos
+  static CollectionReference<Map<String, dynamic>> get avisos {
+    if (usaTuSedeCentral) {
+      validarAccesoOperativo();
+      return FirestoreTuSede.avisos;
+    }
+    return FirebaseFirestore.instance.collection('avisos');
+  }
+
   static CollectionReference<Map<String, dynamic>> get espacios {
     if (usaTuSedeCentral) {
       validarAccesoOperativo();
