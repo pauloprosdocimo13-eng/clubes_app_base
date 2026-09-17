@@ -1,0 +1,86 @@
+ETAPA 4F-2K - TIENDA / PRODUCTOS MULTICLUB
+
+Objetivo
+========
+Horizonte / generico:
+- Admin: clubes/generico/productos
+- Imagenes: clubes/generico/productos/...
+- Publico: Cloud Function contenidoPublico, sin abrir Firestore al publico.
+
+Guemes y otros clubes Legacy:
+- Mantienen coleccion raiz: tienda
+- Mantienen su mecanismo de imagen Legacy.
+- No se cambia produccion de Guemes.
+
+Archivos modificados
+====================
+lib/pantallas/pantalla_tienda.dart
+lib/pantallas/admin/pantalla_admin_tienda.dart
+lib/pantallas/admin/pantalla_admin_formulario_producto.dart
+lib/tusede/servicios/servicio_datos_club.dart
+lib/tusede/servicios/servicio_contenido_publico.dart
+functions_tusede/contenido_publico.js
+
+Archivos de prueba nuevos
+=========================
+lib/main_prueba_tienda_admin_4f.dart
+lib/main_prueba_tienda_publica_4f.dart
+
+No se modifica
+==============
+functions_tusede/index.js
+lib/widgets/input_imagen.dart
+lib/tusede/servicios/firestore_tusede.dart
+Reglas Firestore
+
+Nota:
+FirestoreTuSede ya tenia el getter `productos`, por eso no hace falta tocarlo.
+
+Aplicacion
+==========
+1. Extraer este ZIP en una carpeta `_4f2k` dentro de la raiz del repo.
+
+2. Desde PowerShell en la raiz:
+   Set-ExecutionPolicy -Scope Process -ExecutionPolicy Bypass
+   .\_4f2k\aplicar_4f_2k.ps1
+
+3. Validar:
+   git status
+   git diff --check
+   node --check .\functions_tusede\contenido_publico.js
+   node --check .\functions_tusede\index.js
+
+NO hacer deploy ni commit hasta validar primero la parte administrativa.
+
+Prueba administrativa
+======================
+flutter run -d chrome -t lib/main_prueba_tienda_admin_4f.dart
+
+Ingresar:
+- Email: admin@horizonte.test
+- Contrasena: escribirla manualmente (no se incluye en codigo)
+
+Probar:
+- Crear producto
+- Subir imagen
+- Editar producto
+- Activar / desactivar
+- Eliminar SOLO un producto de prueba
+- Verificar ruta clubes/generico/productos
+- Verificar Storage clubes/generico/productos
+
+Luego, si admin funciona, desplegar SOLO:
+firebase deploy --only functions:tusede:contenidoPublico --project tu-sede-app --config firebase.tusede.json
+
+Prueba publica
+==============
+flutter run -d chrome -t lib/main_prueba_tienda_publica_4f.dart
+
+Si aparece:
+"Tienda no esta disponible para este club"
+revisar en:
+clubes/generico -> modulos -> productos
+
+y establecer productos = true para la prueba.
+
+La Cloud Function usa el modulo central `productos`.
