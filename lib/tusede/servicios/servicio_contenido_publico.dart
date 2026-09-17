@@ -6,7 +6,7 @@ import 'package:http/http.dart' as http;
 
 import 'contexto_club.dart';
 
-/// Lectura pública controlada de Noticias y Avisos de TuSede Central.
+/// Lectura pública controlada de Noticias, Avisos y Galería de TuSede Central.
 ///
 /// Para los clubes centrales NO abre Firestore al público.
 /// Los datos se obtienen mediante la Cloud Function `contenidoPublico`.
@@ -35,6 +35,18 @@ class ServicioContenidoPublico {
     });
 
     return _listaDesdeRespuesta(respuesta, 'avisos');
+  }
+
+  static Future<List<Map<String, dynamic>>> cargarGaleria(
+    String deporteId,
+  ) async {
+    final respuesta = await _post({
+      'accion': 'galeria',
+      'clubId': ContextoClub.clubId,
+      'deporteId': deporteId,
+    });
+
+    return _listaDesdeRespuesta(respuesta, 'galeria');
   }
 
   static Future<Map<String, dynamic>> _post(

@@ -81,6 +81,10 @@ class FirestoreTuSede {
     return coleccion('avisos');
   }
 
+  static CollectionReference<Map<String, dynamic>> get galeria {
+    return coleccion('galeria');
+  }
+
   static CollectionReference<Map<String, dynamic>> get partidos {
     return coleccion('partidos');
   }

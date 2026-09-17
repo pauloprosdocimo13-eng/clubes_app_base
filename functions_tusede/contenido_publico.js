@@ -90,6 +90,19 @@ function sanitizarAviso(doc) {
   };
 }
 
+function sanitizarGaleria(doc) {
+  const data = doc.data() || {};
+
+  return {
+    _doc_id: doc.id,
+    titulo: texto(data.titulo),
+    imagen_url: texto(data.imagen_url),
+    categoria: texto(data.categoria) || "General",
+    deporte_id: texto(data.deporte_id),
+    fecha_ms: fechaMillis(data.fecha),
+  };
+}
+
 // ============================================================
 // LECTURA PÚBLICA CONTROLADA
 // ============================================================
@@ -214,6 +227,54 @@ exports.contenidoPublico = functions
             clubId,
             deporteId,
             avisos,
+          });
+          return;
+        }
+
+        if (accion === "galeria") {
+          const deporteId = texto(body?.deporteId);
+
+          if (
+            !deporteId ||
+            deporteId.length > 80
+          ) {
+            responder(res, 400, {
+              ok: false,
+              mensaje: "El deporte solicitado no es válido.",
+            });
+            return;
+          }
+
+          const clubRef = await obtenerClubHabilitado(
+              clubId,
+              "galeria",
+          );
+
+          if (!clubRef) {
+            responder(res, 404, {
+              ok: false,
+              mensaje: "Galería no está disponible para este club.",
+            });
+            return;
+          }
+
+          const snap = await clubRef
+              .collection("galeria")
+              .where("deporte_id", "==", deporteId)
+              .limit(500)
+              .get();
+
+          const galeria = snap.docs
+              .map(sanitizarGaleria)
+              .filter((foto) => foto.imagen_url)
+              .sort((a, b) => b.fecha_ms - a.fecha_ms)
+              .slice(0, 300);
+
+          responder(res, 200, {
+            ok: true,
+            clubId,
+            deporteId,
+            galeria,
           });
           return;
         }

@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+
 import '../configuracion/configuracion_app.dart';
+import '../tusede/servicios/servicio_datos_club.dart';
 import 'pantalla_admin_formulario_galeria.dart';
 
 class PantallaAdminGaleria extends StatefulWidget {
@@ -28,27 +30,35 @@ class _PantallaAdminGaleriaState extends State<PantallaAdminGaleria> {
     _cargarCategoriasDelDeporte();
   }
 
-  // --- LÓGICA DINÁMICA (Igual que en el formulario) ---
+  // ==========================================================
+  // ETAPA 4F-2J
+  // Horizonte / generico -> TuSede Central.
+  // Güemes y demás flavors -> Firebase Legacy.
+  // ==========================================================
+
   Future<void> _cargarCategoriasDelDeporte() async {
     List<String> categoriasEncontradas = [];
 
     try {
-      final doc = await FirebaseFirestore.instance.collection('configuracion').doc('general').get();
+      final doc =
+          await ServicioDatosClub.configuracionDoc('general').get();
+
       if (doc.exists) {
-        final data = doc.data()!;
+        final data = doc.data() ?? <String, dynamic>{};
         final menuDeportes = List.from(data['menu_deportes'] ?? []);
 
         final deporteData = menuDeportes.firstWhere(
-                (e) => e['id'] == widget.deporteId,
-            orElse: () => null
+          (e) => e['id'] == widget.deporteId,
+          orElse: () => null,
         );
 
         if (deporteData != null && deporteData['categorias'] != null) {
-          categoriasEncontradas = List<String>.from(deporteData['categorias']);
+          categoriasEncontradas =
+              List<String>.from(deporteData['categorias']);
         }
       }
     } catch (e) {
-      print("Error config: $e");
+      debugPrint('Error config galería: $e');
     }
 
     if (categoriasEncontradas.isEmpty) {
@@ -57,12 +67,11 @@ class _PantallaAdminGaleriaState extends State<PantallaAdminGaleria> {
       _categorias = categoriasEncontradas;
     }
 
-    // Siempre agregamos General para fotos del club
+    // Siempre agregamos General para fotos del club.
     if (!_categorias.contains('General')) {
       _categorias.add('General');
     }
 
-    // Validamos que la selección actual exista, sino reset a General
     if (!_categorias.contains(_categoriaSeleccionada)) {
       _categoriaSeleccionada = 'General';
     }
@@ -74,49 +83,118 @@ class _PantallaAdminGaleriaState extends State<PantallaAdminGaleria> {
 
   void _generarCategoriasLegacy() {
     _categorias = [];
+
     if (!widget.deporteId.contains('baby')) {
       _categorias = ['Primera', 'Reserva', 'General'];
     } else {
       final int anioActual = DateTime.now().year;
+
       for (int i = anioActual - 13; i <= anioActual - 7; i++) {
         _categorias.add(i.toString());
       }
+
       _categorias.add('General');
     }
   }
-  // ----------------------------------------------------
 
-  void _borrarFoto(String id) {
-    showDialog(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        title: const Text("¿Borrar foto?"),
-        content: const Text("Se eliminará del álbum."),
-        actions: [
-          TextButton(onPressed: () => Navigator.pop(ctx), child: const Text("Cancelar")),
-          TextButton(
-            onPressed: () {
-              FirebaseFirestore.instance.collection('galeria').doc(id).delete();
-              Navigator.pop(ctx);
-            },
-            child: const Text("Borrar", style: TextStyle(color: Colors.red)),
-          ),
-        ],
-      ),
+  Query<Map<String, dynamic>> _consultaGaleria() {
+    final base = ServicioDatosClub.galeria.where(
+      'deporte_id',
+      isEqualTo: widget.deporteId,
     );
+
+    // Conservamos exactamente la consulta histórica en Legacy.
+    if (!ServicioDatosClub.usaTuSedeCentral) {
+      return base
+          .where(
+            'categoria',
+            isEqualTo: _categoriaSeleccionada,
+          )
+          .orderBy(
+            'fecha',
+            descending: true,
+          );
+    }
+
+    // En TuSede Central filtramos categoría y ordenamos en memoria.
+    // Así no necesitamos crear un índice compuesto nuevo.
+    return base;
+  }
+
+  int _fechaMillis(dynamic valor) {
+    if (valor is Timestamp) {
+      return valor.millisecondsSinceEpoch;
+    }
+
+    if (valor is DateTime) {
+      return valor.millisecondsSinceEpoch;
+    }
+
+    return 0;
+  }
+
+  Future<void> _borrarFoto(String id) async {
+    final confirmar = await showDialog<bool>(
+          context: context,
+          builder: (ctx) => AlertDialog(
+            title: const Text('¿Borrar foto?'),
+            content: const Text('Se eliminará del álbum.'),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(ctx, false),
+                child: const Text('Cancelar'),
+              ),
+              TextButton(
+                onPressed: () => Navigator.pop(ctx, true),
+                child: const Text(
+                  'Borrar',
+                  style: TextStyle(color: Colors.red),
+                ),
+              ),
+            ],
+          ),
+        ) ??
+        false;
+
+    if (!confirmar) return;
+
+    try {
+      await ServicioDatosClub.galeria.doc(id).delete();
+
+      if (!mounted) return;
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Foto eliminada'),
+          duration: Duration(seconds: 1),
+        ),
+      );
+    } catch (e) {
+      if (!mounted) return;
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Error al borrar: $e'),
+          backgroundColor: Colors.red,
+        ),
+      );
+    }
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text("Gestionar Galería"),
+        title: const Text('Gestionar Galería'),
         backgroundColor: Colors.grey[900],
         foregroundColor: Colors.white,
       ),
       floatingActionButton: FloatingActionButton(
         backgroundColor: widget.config.colorPrimario,
-        child: const Icon(Icons.add_a_photo, color: Colors.white),
+        child: const Icon(
+          Icons.add_a_photo,
+          color: Colors.white,
+        ),
         onPressed: () {
           Navigator.push(
             context,
@@ -127,57 +205,113 @@ class _PantallaAdminGaleriaState extends State<PantallaAdminGaleria> {
               ),
             ),
           ).then((_) {
-            // Al volver, recargamos por si se agregó una categoría nueva (aunque es raro en galería)
             _cargarCategoriasDelDeporte();
           });
         },
       ),
       body: Column(
         children: [
-          // FILTRO DE ÁLBUM
           Container(
-            padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 20),
+            padding: const EdgeInsets.symmetric(
+              vertical: 10,
+              horizontal: 20,
+            ),
             color: Colors.grey[200],
             child: Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                const Text("Ver álbum:", style: TextStyle(fontWeight: FontWeight.bold)),
-
-                _cargandoCategorias
-                    ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2))
-                    : DropdownButton<String>(
-                  value: _categoriaSeleccionada,
-                  items: _categorias.map((c) => DropdownMenuItem(value: c, child: Text(c))).toList(),
-                  onChanged: (v) {
-                    if (v != null) setState(() => _categoriaSeleccionada = v);
-                  },
+                const Text(
+                  'Ver álbum:',
+                  style: TextStyle(
+                    fontWeight: FontWeight.bold,
+                  ),
                 ),
+                _cargandoCategorias
+                    ? const SizedBox(
+                        width: 20,
+                        height: 20,
+                        child: CircularProgressIndicator(
+                          strokeWidth: 2,
+                        ),
+                      )
+                    : DropdownButton<String>(
+                        value: _categoriaSeleccionada,
+                        items: _categorias
+                            .map(
+                              (c) => DropdownMenuItem(
+                                value: c,
+                                child: Text(c),
+                              ),
+                            )
+                            .toList(),
+                        onChanged: (v) {
+                          if (v != null) {
+                            setState(
+                              () => _categoriaSeleccionada = v,
+                            );
+                          }
+                        },
+                      ),
               ],
             ),
           ),
-
-          // GRILLA DE FOTOS
           Expanded(
-            child: StreamBuilder<QuerySnapshot>(
-              stream: FirebaseFirestore.instance
-                  .collection('galeria')
-                  .where('deporte_id', isEqualTo: widget.deporteId)
-                  .where('categoria', isEqualTo: _categoriaSeleccionada)
-                  .orderBy('fecha', descending: true)
-                  .snapshots(),
+            child: StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
+              stream: _consultaGaleria().snapshots(),
               builder: (context, snapshot) {
-                if (!snapshot.hasData) return const Center(child: CircularProgressIndicator());
+                if (snapshot.hasError) {
+                  return Center(
+                    child: Padding(
+                      padding: const EdgeInsets.all(24),
+                      child: Text(
+                        'Error cargando galería:\n${snapshot.error}',
+                        textAlign: TextAlign.center,
+                      ),
+                    ),
+                  );
+                }
 
-                final docs = snapshot.data!.docs;
+                if (!snapshot.hasData) {
+                  return const Center(
+                    child: CircularProgressIndicator(),
+                  );
+                }
+
+                var docs = snapshot.data!.docs.toList();
+
+                if (ServicioDatosClub.usaTuSedeCentral) {
+                  docs = docs
+                      .where(
+                        (doc) =>
+                            (doc.data()['categoria'] ?? 'General')
+                                .toString() ==
+                            _categoriaSeleccionada,
+                      )
+                      .toList();
+
+                  docs.sort(
+                    (a, b) => _fechaMillis(
+                      b.data()['fecha'],
+                    ).compareTo(
+                      _fechaMillis(a.data()['fecha']),
+                    ),
+                  );
+                }
 
                 if (docs.isEmpty) {
                   return Center(
                     child: Column(
                       mainAxisAlignment: MainAxisAlignment.center,
                       children: [
-                        const Icon(Icons.photo_album_outlined, size: 50, color: Colors.grey),
+                        const Icon(
+                          Icons.photo_album_outlined,
+                          size: 50,
+                          color: Colors.grey,
+                        ),
                         const SizedBox(height: 10),
-                        Text("Álbum '$_categoriaSeleccionada' vacío"),
+                        Text(
+                          "Álbum '$_categoriaSeleccionada' vacío",
+                        ),
                       ],
                     ),
                   );
@@ -185,7 +319,8 @@ class _PantallaAdminGaleriaState extends State<PantallaAdminGaleria> {
 
                 return GridView.builder(
                   padding: const EdgeInsets.all(10),
-                  gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                  gridDelegate:
+                      const SliverGridDelegateWithFixedCrossAxisCount(
                     crossAxisCount: 3,
                     crossAxisSpacing: 10,
                     mainAxisSpacing: 10,
@@ -193,22 +328,26 @@ class _PantallaAdminGaleriaState extends State<PantallaAdminGaleria> {
                   ),
                   itemCount: docs.length,
                   itemBuilder: (context, index) {
-                    final data = docs[index].data() as Map<String, dynamic>;
+                    final data = docs[index].data();
                     final id = docs[index].id;
-                    final url = data['imagen_url'] ?? '';
+                    final url =
+                        (data['imagen_url'] ?? '').toString();
 
                     return Stack(
                       children: [
-                        // LA FOTO
                         Positioned.fill(
                           child: ClipRRect(
                             borderRadius: BorderRadius.circular(8),
                             child: url.isNotEmpty
-                                ? Image.network(url, fit: BoxFit.cover)
-                                : Container(color: Colors.grey[300]),
+                                ? Image.network(
+                                    url,
+                                    fit: BoxFit.cover,
+                                  )
+                                : Container(
+                                    color: Colors.grey[300],
+                                  ),
                           ),
                         ),
-                        // BOTÓN BORRAR
                         Positioned(
                           top: 5,
                           right: 5,
@@ -219,13 +358,21 @@ class _PantallaAdminGaleriaState extends State<PantallaAdminGaleria> {
                               decoration: const BoxDecoration(
                                 color: Colors.white,
                                 shape: BoxShape.circle,
-                                boxShadow: [BoxShadow(color: Colors.black26, blurRadius: 2)],
+                                boxShadow: [
+                                  BoxShadow(
+                                    color: Colors.black26,
+                                    blurRadius: 2,
+                                  ),
+                                ],
                               ),
-                              child: const Icon(Icons.delete, color: Colors.red, size: 18),
+                              child: const Icon(
+                                Icons.delete,
+                                color: Colors.red,
+                                size: 18,
+                              ),
                             ),
                           ),
                         ),
-                        // TÍTULO (Abajo)
                         Positioned(
                           bottom: 0,
                           left: 0,
@@ -233,12 +380,17 @@ class _PantallaAdminGaleriaState extends State<PantallaAdminGaleria> {
                           child: Container(
                             decoration: const BoxDecoration(
                               color: Colors.black54,
-                              borderRadius: BorderRadius.vertical(bottom: Radius.circular(8)),
+                              borderRadius: BorderRadius.vertical(
+                                bottom: Radius.circular(8),
+                              ),
                             ),
                             padding: const EdgeInsets.all(4),
                             child: Text(
-                              data['titulo'] ?? '',
-                              style: const TextStyle(color: Colors.white, fontSize: 10),
+                              (data['titulo'] ?? '').toString(),
+                              style: const TextStyle(
+                                color: Colors.white,
+                                fontSize: 10,
+                              ),
                               textAlign: TextAlign.center,
                               maxLines: 1,
                               overflow: TextOverflow.ellipsis,

@@ -127,6 +127,21 @@ class ServicioDatosClub {
     return FirebaseFirestore.instance.collection('avisos');
   }
 
+  /// Galería administrada por el club.
+  ///
+  /// Horizonte / generico:
+  ///   clubes/generico/galeria
+  ///
+  /// Clubes Legacy:
+  ///   galeria
+  static CollectionReference<Map<String, dynamic>> get galeria {
+    if (usaTuSedeCentral) {
+      validarAccesoOperativo();
+      return FirestoreTuSede.galeria;
+    }
+    return FirebaseFirestore.instance.collection('galeria');
+  }
+
   static CollectionReference<Map<String, dynamic>> get espacios {
     if (usaTuSedeCentral) {
       validarAccesoOperativo();
