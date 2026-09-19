@@ -142,6 +142,15 @@ class ServicioDatosClub {
     return FirebaseFirestore.instance.collection('partidos');
   }
 
+  /// Historial consultado al importar resultados desde el vivo.
+  static CollectionReference<Map<String, dynamic>> get historialPartidos {
+    if (usaTuSedeCentral) {
+      validarAccesoOperativo();
+      return FirestoreTuSede.coleccion('historial_partidos');
+    }
+    return FirebaseFirestore.instance.collection('historial_partidos');
+  }
+
   /// Productos de la Tienda Oficial administrados por el club.
   static CollectionReference<Map<String, dynamic>> get productos {
     if (usaTuSedeCentral) {
