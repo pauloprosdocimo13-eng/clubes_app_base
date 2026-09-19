@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import '../../configuracion/configuracion_app.dart';
+import '../../servicios/actividades_baja_socio.dart';
 import '../../tusede/servicios/servicio_datos_club.dart';
 import '../../widgets/input_imagen.dart';
 
@@ -167,6 +168,7 @@ class _PantallaAdminFormularioFamiliaState
           for (var doc in queryHijos.docs) {
             if (doc.id == docTitular.id) continue;
             var h = doc.data();
+            if (h['eliminado'] == true) continue;
 
             _integrantesOriginales[doc.id] = Map<String, dynamic>.from(h);
 
@@ -357,13 +359,16 @@ class _PantallaAdminFormularioFamiliaState
                     TextField(
                       controller: dniCtrl,
                       keyboardType: TextInputType.number,
-                      enabled: !(esEdicion && datos.containsKey('id_existente')),
+                      enabled:
+                          !(esEdicion && datos.containsKey('id_existente')),
                       decoration: InputDecoration(
-                        labelText: esEdicion && datos.containsKey('id_existente')
+                        labelText:
+                            esEdicion && datos.containsKey('id_existente')
                             ? "DNI (ID único - no editable)"
                             : "DNI (Será ID)",
                         prefixIcon: const Icon(Icons.badge),
-                        helperText: esEdicion && datos.containsKey('id_existente')
+                        helperText:
+                            esEdicion && datos.containsKey('id_existente')
                             ? "Para proteger el historial, el DNI de un socio existente no se modifica desde este formulario."
                             : null,
                       ),
@@ -526,7 +531,8 @@ class _PantallaAdminFormularioFamiliaState
                       maxLines: 3,
                       decoration: InputDecoration(
                         labelText: "Motivo de la baja *",
-                        hintText: "Ej: dejó la actividad, registro duplicado...",
+                        hintText:
+                            "Ej: dejó la actividad, registro duplicado...",
                         border: const OutlineInputBorder(),
                         errorText: errorMotivo,
                       ),
@@ -640,10 +646,7 @@ class _PantallaAdminFormularioFamiliaState
       final despues = _normalizarValorAuditoria(nuevo[campo]);
 
       if (antes.toString() != despues.toString()) {
-        cambios[campo] = {
-          'anterior': antes,
-          'nuevo': despues,
-        };
+        cambios[campo] = {'anterior': antes, 'nuevo': despues};
       }
     }
 
@@ -678,12 +681,8 @@ class _PantallaAdminFormularioFamiliaState
     });
   }
 
-  String _mensajeDniExistente(
-    String dni,
-    Map<String, dynamic> data,
-  ) {
-    final nombre =
-        "${data['apellido'] ?? ''}, ${data['nombre'] ?? ''}".trim();
+  String _mensajeDniExistente(String dni, Map<String, dynamic> data) {
+    final nombre = "${data['apellido'] ?? ''}, ${data['nombre'] ?? ''}".trim();
     final eliminado = data['eliminado'] == true;
 
     if (eliminado) {
@@ -913,8 +912,9 @@ class _PantallaAdminFormularioFamiliaState
         final String dniHijo = hijo['dni'].toString().trim();
         if (dniHijo.isEmpty) continue;
 
-        final String idExistente =
-            (hijo['id_existente'] ?? '').toString().trim();
+        final String idExistente = (hijo['id_existente'] ?? '')
+            .toString()
+            .trim();
         final bool esExistente = idExistente.isNotEmpty;
         final String docIdHijo = esExistente ? idExistente : dniHijo;
 
@@ -926,8 +926,9 @@ class _PantallaAdminFormularioFamiliaState
             ? 'Ninguna'
             : actsHijo.join(", ");
 
-        final String catHijo =
-            (hijo['categoria_deporte'] ?? '').toString().trim();
+        final String catHijo = (hijo['categoria_deporte'] ?? '')
+            .toString()
+            .trim();
 
         final Map<String, dynamic> dataHijo = {
           'nombre': (hijo['nombre'] ?? '').toString().trim(),
@@ -939,14 +940,12 @@ class _PantallaAdminFormularioFamiliaState
           'categoria_deporte': catHijo,
           'familia_id': familiaId,
           'es_titular': false,
-          'busqueda':
-              "${hijo['apellido']} ${hijo['nombre']} $dniHijo $catHijo"
-                  .toLowerCase(),
+          'busqueda': "${hijo['apellido']} ${hijo['nombre']} $dniHijo $catHijo"
+              .toLowerCase(),
           'eliminado': false,
         };
 
-        final String fotoUrlHijo =
-            (hijo['foto_url'] ?? '').toString().trim();
+        final String fotoUrlHijo = (hijo['foto_url'] ?? '').toString().trim();
         if (fotoUrlHijo.isNotEmpty) {
           dataHijo['foto_url'] = fotoUrlHijo;
         }
@@ -1007,13 +1006,15 @@ class _PantallaAdminFormularioFamiliaState
       for (final entry in _bajasIntegrantesPendientes.entries) {
         final String docId = entry.key;
         final String motivo = entry.value;
-        final original =
-            _integrantesOriginales[docId] ?? <String, dynamic>{};
+        final actual = await ServicioDatosClub.socios.doc(docId).get();
+        if (!actual.exists || actual.data()?['eliminado'] == true) continue;
+        final original = actual.data() ?? <String, dynamic>{};
 
         final String operacionId =
             '${DateTime.now().millisecondsSinceEpoch}_$docId';
 
         batch.update(ServicioDatosClub.socios.doc(docId), {
+          ...cambiosActividadesBaja(original),
           'eliminado': true,
           'estado_baja': 'eliminado',
           'eliminado_en': FieldValue.serverTimestamp(),
@@ -1030,6 +1031,10 @@ class _PantallaAdminFormularioFamiliaState
           socioId: docId,
           datosSocio: original,
           cambios: {
+            'actividades': {
+              'anterior': actividadesSocio(original),
+              'nuevo': <String>[],
+            },
             'eliminado': {
               'anterior': original['eliminado'] == true,
               'nuevo': true,

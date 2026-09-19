@@ -74,6 +74,18 @@ function listaTexto(valor) {
       .filter((item) => item.length > 0);
 }
 
+// Solo datos mensuales necesarios para el saldo, sin motivos ni administradores.
+function historialActividadesBaja(valor) {
+  if (!Array.isArray(valor)) return [];
+  const mesValido = (mes) => typeof mes === "string" &&
+    /^\d{4}-(0[1-9]|1[0-2])$/.test(mes);
+  return valor.filter((item) => item && mesValido(item.mes_baja)).map((item) => ({
+    mes_baja: item.mes_baja,
+    mes_restauracion: mesValido(item.mes_restauracion) ? item.mes_restauracion : null,
+    actividades: listaTexto(item.actividades),
+  }));
+}
+
 function sanitizarSocio(data, docId, dniConsultado, esPrincipal = false) {
   const dniOriginal = texto(data.dni);
 
@@ -94,11 +106,16 @@ function sanitizarSocio(data, docId, dniConsultado, esPrincipal = false) {
     nro_socio: texto(data.nro_socio),
     foto_url: texto(data.foto_url),
     apto_fisico: data.apto_fisico === true,
-    actividades: listaTexto(data.actividades),
+    actividades: Array.isArray(data.actividades) ? listaTexto(data.actividades) :
+      texto(data.actividad).split(/[,+]/).map((item) => item.trim()).filter(Boolean),
     actividad: texto(data.actividad),
     categoria_deporte: texto(data.categoria_deporte),
     porcentaje_descuento: numeroSeguro(data.porcentaje_descuento, 0),
     ultimo_mes_pago: texto(data.ultimo_mes_pago),
+    primer_mes_cobro: texto(data.primer_mes_cobro),
+    historial_actividades_baja: historialActividadesBaja(
+        data.historial_actividades_baja,
+    ),
     al_dia: data.al_dia === true,
     familia_id: texto(data.familia_id || docId),
   };

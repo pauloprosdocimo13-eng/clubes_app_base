@@ -16,6 +16,7 @@ import 'package:path_provider/path_provider.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 import '../../configuracion/configuracion_app.dart';
+import '../../servicios/actividades_baja_socio.dart';
 import '../../tusede/servicios/servicio_datos_club.dart';
 import 'pantalla_admin_formulario_familia.dart';
 import 'pantalla_admin_precios.dart';
@@ -175,8 +176,7 @@ class _PantallaAdminSociosState extends State<PantallaAdminSocios> {
         'modificado_en': FieldValue.serverTimestamp(),
         'modificado_por_email':
             ServicioDatosClub.usuarioAuthActual?.email ?? 'Desconocido',
-        'modificado_por_uid':
-            ServicioDatosClub.usuarioAuthActual?.uid ?? '',
+        'modificado_por_uid': ServicioDatosClub.usuarioAuthActual?.uid ?? '',
       });
 
       _agregarAuditoriaAlBatch(
@@ -186,10 +186,7 @@ class _PantallaAdminSociosState extends State<PantallaAdminSocios> {
         socioId: docId,
         datosSocio: data,
         cambios: {
-          'apto_fisico': {
-            'anterior': valorActual,
-            'nuevo': nuevoValor,
-          },
+          'apto_fisico': {'anterior': valorActual, 'nuevo': nuevoValor},
         },
         detalle: 'Cambio de estado de apto físico',
       );
@@ -271,7 +268,8 @@ class _PantallaAdminSociosState extends State<PantallaAdminSocios> {
                   'notas_internas': nuevoValor,
                   'modificado_en': FieldValue.serverTimestamp(),
                   'modificado_por_email':
-                      ServicioDatosClub.usuarioAuthActual?.email ?? 'Desconocido',
+                      ServicioDatosClub.usuarioAuthActual?.email ??
+                      'Desconocido',
                   'modificado_por_uid':
                       ServicioDatosClub.usuarioAuthActual?.uid ?? '',
                 });
@@ -565,13 +563,10 @@ class _PantallaAdminSociosState extends State<PantallaAdminSocios> {
           'creado_el': FieldValue.serverTimestamp(),
           'creado_por_email':
               ServicioDatosClub.usuarioAuthActual?.email ?? 'Desconocido',
-          'creado_por_uid':
-              ServicioDatosClub.usuarioAuthActual?.uid ?? '',
+          'creado_por_uid': ServicioDatosClub.usuarioAuthActual?.uid ?? '',
           'rol': 'socio',
           'nro_socio': dni,
-          'actividades': [
-            actividad.isEmpty ? 'Cuota Social' : actividad,
-          ],
+          'actividades': [actividad.isEmpty ? 'Cuota Social' : actividad],
           'al_dia': false,
           'eliminado': false,
         };
@@ -705,7 +700,9 @@ class _PantallaAdminSociosState extends State<PantallaAdminSocios> {
                             ? "ATENCIÓN: es TITULAR. La baja se aplicará a toda su familia, pero ningún registro se borrará definitivamente."
                             : "El socio dejará de aparecer en el padrón activo, pero quedará guardado en la papelera y podrá restaurarse.",
                         style: TextStyle(
-                          color: esTitular ? Colors.red[900] : Colors.orange[900],
+                          color: esTitular
+                              ? Colors.red[900]
+                              : Colors.orange[900],
                           fontSize: 12,
                           fontWeight: FontWeight.w600,
                         ),
@@ -718,7 +715,8 @@ class _PantallaAdminSociosState extends State<PantallaAdminSocios> {
                       autofocus: true,
                       decoration: InputDecoration(
                         labelText: "Motivo de la baja *",
-                        hintText: "Ej: duplicado, dejó la institución, dato incorrecto...",
+                        hintText:
+                            "Ej: duplicado, dejó la institución, dato incorrecto...",
                         border: const OutlineInputBorder(),
                         errorText: errorMotivo,
                       ),
@@ -802,12 +800,15 @@ class _PantallaAdminSociosState extends State<PantallaAdminSocios> {
         throw "No se encontró el socio a dar de baja.";
       }
 
+      documentos.removeWhere((_, doc) => doc.data()?['eliminado'] == true);
+      if (documentos.isEmpty) return;
       final batch = db.batch();
 
       for (final doc in documentos.values) {
         final datosSocio = doc.data() ?? <String, dynamic>{};
 
         batch.update(doc.reference, {
+          ...cambiosActividadesBaja(datosSocio),
           'eliminado': true,
           'estado_baja': 'eliminado',
           'eliminado_en': FieldValue.serverTimestamp(),
@@ -824,6 +825,10 @@ class _PantallaAdminSociosState extends State<PantallaAdminSocios> {
           socioId: doc.id,
           datosSocio: datosSocio,
           cambios: {
+            'actividades': {
+              'anterior': actividadesSocio(datosSocio),
+              'nuevo': <String>[],
+            },
             'eliminado': {
               'anterior': datosSocio['eliminado'] == true,
               'nuevo': true,
@@ -857,47 +862,16 @@ class _PantallaAdminSociosState extends State<PantallaAdminSocios> {
     }
   }
 
-  Future<void> _restaurarSocio(
-    String docId,
-    Map<String, dynamic> data,
-  ) async {
+  Future<void> _restaurarSocio(String docId, Map<String, dynamic> data) async {
     final bool esTitular = data['es_titular'] == true;
-    final String nombre =
-        "${data['apellido'] ?? ''}, ${data['nombre'] ?? ''}".trim();
-
-    final confirmar =
-        await showDialog<bool>(
-          context: context,
-          builder: (ctx) => AlertDialog(
-            title: const Text("Restaurar socio"),
-            content: Text(
-              esTitular
-                  ? "¿Querés restaurar a $nombre y a los integrantes dados de baja en la misma operación?"
-                  : "¿Querés restaurar a $nombre al padrón activo?",
-            ),
-            actions: [
-              TextButton(
-                onPressed: () => Navigator.pop(ctx, false),
-                child: const Text("CANCELAR"),
-              ),
-              ElevatedButton(
-                onPressed: () => Navigator.pop(ctx, true),
-                child: const Text("RESTAURAR"),
-              ),
-            ],
-          ),
-        ) ??
-        false;
-
-    if (!confirmar) return;
-
     try {
       final db = ServicioDatosClub.firestore;
       final userAdmin = ServicioDatosClub.usuarioAuthActual;
       final String adminEmail = userAdmin?.email ?? 'Desconocido';
       final String adminUid = userAdmin?.uid ?? '';
-      final String operacionId =
-          (data['baja_operacion_id'] ?? '').toString().trim();
+      final String operacionId = (data['baja_operacion_id'] ?? '')
+          .toString()
+          .trim();
 
       final Map<String, DocumentSnapshot<Map<String, dynamic>>> documentos = {};
 
@@ -921,12 +895,64 @@ class _PantallaAdminSociosState extends State<PantallaAdminSocios> {
         }
       }
 
+      documentos.removeWhere((_, doc) => doc.data()?['eliminado'] != true);
+      if (documentos.isEmpty) return;
+      if (!mounted) return;
+      final reinscribir = await showDialog<bool>(
+        context: context,
+        builder: (ctx) => AlertDialog(
+          title: const Text('Restaurar socios'),
+          content: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text(
+                  'Se restaurarán estos socios. Actividades anteriores:',
+                ),
+                const SizedBox(height: 12),
+                for (final doc in documentos.values)
+                  Text(
+                    "${doc.data()?['apellido'] ?? ''}, ${doc.data()?['nombre'] ?? ''}: ${actividadesAntesBaja(doc.data() ?? {}).where((a) => a.toLowerCase() != 'cuota social').join(', ').isEmpty ? 'Solo Cuota Social' : actividadesAntesBaja(doc.data() ?? {}).join(', ')}",
+                  ),
+                const SizedBox(height: 12),
+                const Text(
+                  '¿Querés reinscribirlos en sus actividades anteriores? Si elegís no, quedarán solo con Cuota Social. En ambos casos se conserva la deuda anterior a la baja; los meses completos de baja suman solo Cuota Social.',
+                ),
+              ],
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(ctx),
+              child: const Text('CANCELAR'),
+            ),
+            TextButton(
+              onPressed: () => Navigator.pop(ctx, false),
+              child: const Text('NO, SOLO CUOTA SOCIAL'),
+            ),
+            ElevatedButton(
+              onPressed: () => Navigator.pop(ctx, true),
+              child: const Text('SÍ, REINSCRIBIR'),
+            ),
+          ],
+        ),
+      );
+      if (reinscribir == null) return;
+
       final batch = db.batch();
 
       for (final doc in documentos.values) {
         final datosSocio = doc.data() ?? <String, dynamic>{};
 
+        final cambiosActividades = cambiosActividadesRestauracion(
+          datosSocio,
+          reinscribir: reinscribir,
+        );
+        final actividades = cambiosActividades['actividades'];
+
         batch.update(doc.reference, {
+          ...cambiosActividades,
           'eliminado': false,
           'estado_baja': 'restaurado',
           'restaurado_en': FieldValue.serverTimestamp(),
@@ -941,12 +967,15 @@ class _PantallaAdminSociosState extends State<PantallaAdminSocios> {
           socioId: doc.id,
           datosSocio: datosSocio,
           cambios: {
-            'eliminado': {
-              'anterior': true,
-              'nuevo': false,
+            'actividades': {
+              'anterior': actividadesSocio(datosSocio),
+              'nuevo': actividades,
             },
+            'eliminado': {'anterior': true, 'nuevo': false},
           },
-          detalle: 'Socio restaurado desde la papelera',
+          detalle: reinscribir
+              ? 'Socio restaurado con sus actividades anteriores'
+              : 'Socio restaurado solo con Cuota Social',
         );
       }
 
@@ -1116,8 +1145,7 @@ class _PantallaAdminSociosState extends State<PantallaAdminSocios> {
             foregroundColor: Colors.white,
           ),
           body: StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
-            stream: ServicioDatosClub.auditoriaSocios
-                .snapshots(),
+            stream: ServicioDatosClub.auditoriaSocios.snapshots(),
             builder: (context, snapshot) {
               if (snapshot.hasError) {
                 return Center(
@@ -1174,8 +1202,7 @@ class _PantallaAdminSociosState extends State<PantallaAdminSocios> {
                 separatorBuilder: (_, __) => const SizedBox(height: 4),
                 itemBuilder: (context, index) {
                   final data = docs[index].data();
-                  final accion =
-                      (data['accion'] ?? 'modificacion').toString();
+                  final accion = (data['accion'] ?? 'modificacion').toString();
                   final fechaRaw = data['fecha'];
 
                   String fechaTexto = "Fecha no disponible";
@@ -1430,20 +1457,8 @@ class _PantallaAdminSociosState extends State<PantallaAdminSocios> {
 
   void _mostrarDialogoCobro(String docId, Map<String, dynamic> data) {
     String ultimoMesPagoStr = data['ultimo_mes_pago'] ?? '';
-    DateTime fechaBase;
-    bool esPrimerPago = false;
-
-    if (ultimoMesPagoStr.isEmpty) {
-      esPrimerPago = true;
-      if (data['fecha_alta'] != null && data['fecha_alta'] is Timestamp) {
-        fechaBase = (data['fecha_alta'] as Timestamp).toDate();
-      } else {
-        fechaBase = DateTime.now();
-      }
-    } else {
-      DateTime ultimo = DateTime.parse("$ultimoMesPagoStr-01");
-      fechaBase = DateTime(ultimo.year, ultimo.month + 1, 1);
-    }
+    final esPrimerPago = ultimoMesPagoStr.isEmpty;
+    final fechaBase = primerMesPendiente(data, DateTime.now());
 
     DateTime ahora = DateTime.now();
     DateTime mesActual = DateTime(ahora.year, ahora.month, 1);
@@ -1452,12 +1467,22 @@ class _PantallaAdminSociosState extends State<PantallaAdminSocios> {
     bool esAdelantado = mesA_Pagar.isAfter(mesActual);
 
     const meses = [
-      "Ene", "Feb", "Mar", "Abr", "May", "Jun",
-      "Jul", "Ago", "Sep", "Oct", "Nov", "Dic",
+      "Ene",
+      "Feb",
+      "Mar",
+      "Abr",
+      "May",
+      "Jun",
+      "Jul",
+      "Ago",
+      "Sep",
+      "Oct",
+      "Nov",
+      "Dic",
     ];
     String nombreMesBase = "${meses[fechaBase.month - 1]} ${fechaBase.year}";
 
-    List<String> listaActividades = _obtenerActividadesSocio(data);
+    final listaActividades = conceptosCobroSocio(data);
 
     Map<String, int> descPorActividad = {};
     Map<String, TextEditingController> preciosEditables = {};
@@ -1484,13 +1509,18 @@ class _PantallaAdminSociosState extends State<PantallaAdminSocios> {
       builder: (ctx) {
         return StatefulBuilder(
           builder: (context, setStateDialog) {
+            final mesesCobrables = mesesPorActividad(
+              data,
+              fechaBase,
+              cantidadMesesAPagar,
+            );
             double montoTotalFinal = 0;
             descPorActividad.forEach((act, desc) {
               double precioIngresado =
                   double.tryParse(preciosEditables[act]?.text ?? '0') ?? 0;
               montoTotalFinal +=
                   (precioIngresado - (precioIngresado * desc / 100)) *
-                  cantidadMesesAPagar;
+                  (mesesCobrables[act] ?? 0);
             });
 
             return AlertDialog(
@@ -1619,6 +1649,10 @@ class _PantallaAdminSociosState extends State<PantallaAdminSocios> {
                     ),
                     const SizedBox(height: 5),
 
+                    if (historialBajas(data).isNotEmpty)
+                      const Text(
+                        'Se conserva la deuda previa. Durante la baja se suma solo Cuota Social; cada actividad muestra sus meses cobrables.',
+                      ),
                     ...listaActividades.map((actividadCruda) {
                       String act = actividadCruda.trim();
                       int descActual = descPorActividad[act] ?? 0;
@@ -1636,7 +1670,7 @@ class _PantallaAdminSociosState extends State<PantallaAdminSocios> {
                             Expanded(
                               flex: 2,
                               child: Text(
-                                act,
+                                "$act (${mesesCobrables[act] ?? 0} mes/es)",
                                 style: const TextStyle(
                                   fontWeight: FontWeight.bold,
                                   fontSize: 13,
@@ -1826,36 +1860,50 @@ class _PantallaAdminSociosState extends State<PantallaAdminSocios> {
       double montoTotalRecibo = 0;
       List<String> detallesParaElPDF = [];
 
+      final mesesCobrables = mesesPorActividad(
+        socioData,
+        mesBasePagado,
+        cantidadMeses,
+      );
       descuentosActividades.forEach((actividad, descuento) {
+        final mesesActividad = mesesCobrables[actividad] ?? 0;
+        if (mesesActividad == 0) return;
         double precioElegido =
             double.tryParse(preciosEditables[actividad]?.text ?? '0') ?? 0;
 
         double subtotalMensual =
             precioElegido - (precioElegido * descuento / 100);
-        double subtotalTotal = subtotalMensual * cantidadMeses;
+        double subtotalTotal = subtotalMensual * mesesActividad;
 
         montoTotalRecibo += subtotalTotal;
 
         String etiquetaDescuento = descuento > 0 ? " ($descuento% OFF)" : "";
-        String etiquetaMeses = cantidadMeses > 1
-            ? " (x$cantidadMeses meses)"
+        String etiquetaMeses = mesesActividad > 1
+            ? " (x$mesesActividad meses)"
             : "";
 
         detallesParaElPDF.add(
           "• $actividad$etiquetaMeses$etiquetaDescuento: \$${subtotalTotal.toStringAsFixed(0)}",
         );
 
+        final mesesDelConcepto = mesesDeActividad(
+          socioData,
+          actividad,
+          mesBasePagado,
+          cantidadMeses,
+        );
         batch.set(ServicioDatosClub.movimientos.doc(), {
           'tipo': 'ingreso',
           'monto': subtotalTotal,
           'fecha': FieldValue.serverTimestamp(),
           'concepto':
-              "Cobro adelantado de $cantidadMeses mes(es) - $actividad$etiquetaDescuento",
+              "Cobro de $mesesActividad mes(es) - $actividad$etiquetaDescuento",
           'categoria': 'Cuotas',
           'socio_id': docId,
           'socio_nombre': "${socioData['apellido']} ${socioData['nombre']}",
           'admin_email': userAdmin?.email ?? 'Desconocido',
-          'mes_correspondiente': nuevoUltimoMesStr,
+          'mes_correspondiente': mesesDelConcepto.last,
+          'meses_correspondientes': mesesDelConcepto,
         });
       });
 
@@ -1919,8 +1967,10 @@ class _PantallaAdminSociosState extends State<PantallaAdminSocios> {
           builder: (context, setStateSheet) {
             // Se arman las opciones de actividades leyendo los precios configurados
             List<String> opcionesActividades = ['Todas', ..._preciosCache.keys];
-            opcionesActividades = opcionesActividades.toSet().toList(); // Evita repetidos
-            
+            opcionesActividades = opcionesActividades
+                .toSet()
+                .toList(); // Evita repetidos
+
             if (!opcionesActividades.contains(_filtroActividad)) {
               _filtroActividad = 'Todas'; // Reset de seguridad
             }
@@ -1938,7 +1988,10 @@ class _PantallaAdminSociosState extends State<PantallaAdminSocios> {
                   const SizedBox(height: 20),
                   const Text(
                     "Estado de Pago",
-                    style: TextStyle(fontWeight: FontWeight.bold, color: Colors.grey),
+                    style: TextStyle(
+                      fontWeight: FontWeight.bold,
+                      color: Colors.grey,
+                    ),
                   ),
                   const SizedBox(height: 10),
                   Wrap(
@@ -1947,10 +2000,14 @@ class _PantallaAdminSociosState extends State<PantallaAdminSocios> {
                       return ChoiceChip(
                         label: Text(estado),
                         selected: _filtroEstado == estado,
-                        selectedColor: widget.config.colorPrimario.withOpacity(0.3),
+                        selectedColor: widget.config.colorPrimario.withOpacity(
+                          0.3,
+                        ),
                         onSelected: (val) {
                           setStateSheet(() => _filtroEstado = estado);
-                          setState(() {}); // Actualiza la pantalla principal atrás
+                          setState(
+                            () {},
+                          ); // Actualiza la pantalla principal atrás
                         },
                       );
                     }).toList(),
@@ -1958,7 +2015,10 @@ class _PantallaAdminSociosState extends State<PantallaAdminSocios> {
                   const SizedBox(height: 20),
                   const Text(
                     "Actividad",
-                    style: TextStyle(fontWeight: FontWeight.bold, color: Colors.grey),
+                    style: TextStyle(
+                      fontWeight: FontWeight.bold,
+                      color: Colors.grey,
+                    ),
                   ),
                   const SizedBox(height: 10),
                   DropdownButtonFormField<String>(
@@ -1974,7 +2034,9 @@ class _PantallaAdminSociosState extends State<PantallaAdminSocios> {
                     onChanged: (val) {
                       if (val != null) {
                         setStateSheet(() => _filtroActividad = val);
-                        setState(() {}); // Actualiza la pantalla principal atrás
+                        setState(
+                          () {},
+                        ); // Actualiza la pantalla principal atrás
                       }
                     },
                   ),
@@ -1990,7 +2052,7 @@ class _PantallaAdminSociosState extends State<PantallaAdminSocios> {
                       onPressed: () => Navigator.pop(ctx),
                       child: const Text("APLICAR FILTROS"),
                     ),
-                  )
+                  ),
                 ],
               ),
             );
@@ -2002,7 +2064,8 @@ class _PantallaAdminSociosState extends State<PantallaAdminSocios> {
 
   @override
   Widget build(BuildContext context) {
-    bool hayFiltrosActivos = (_filtroEstado != 'Todos' || _filtroActividad != 'Todas');
+    bool hayFiltrosActivos =
+        (_filtroEstado != 'Todos' || _filtroActividad != 'Todas');
 
     return Scaffold(
       appBar: AppBar(
@@ -2064,14 +2127,17 @@ class _PantallaAdminSociosState extends State<PantallaAdminSocios> {
                       border: OutlineInputBorder(),
                       isDense: true,
                     ),
-                    onChanged: (val) => setState(() => _busqueda = val.toLowerCase()),
+                    onChanged: (val) =>
+                        setState(() => _busqueda = val.toLowerCase()),
                   ),
                 ),
                 const SizedBox(width: 10),
                 // Botón de Filtros
                 Container(
                   decoration: BoxDecoration(
-                    color: hayFiltrosActivos ? widget.config.colorPrimario : Colors.grey[200],
+                    color: hayFiltrosActivos
+                        ? widget.config.colorPrimario
+                        : Colors.grey[200],
                     borderRadius: BorderRadius.circular(5),
                     border: Border.all(color: Colors.grey),
                   ),
@@ -2089,9 +2155,7 @@ class _PantallaAdminSociosState extends State<PantallaAdminSocios> {
           ),
           Expanded(
             child: StreamBuilder<QuerySnapshot>(
-              stream: ServicioDatosClub.socios
-                  .orderBy('apellido')
-                  .snapshots(),
+              stream: ServicioDatosClub.socios.orderBy('apellido').snapshots(),
               builder: (context, snapshot) {
                 if (!snapshot.hasData)
                   return const Center(child: CircularProgressIndicator());
@@ -2116,16 +2180,24 @@ class _PantallaAdminSociosState extends State<PantallaAdminSocios> {
                   if (_filtroEstado != 'Todos') {
                     final estado = _obtenerEstado(data);
                     if (_filtroEstado == 'Al Día') {
-                      if (estado['texto'] != 'AL DÍA' && estado['texto'] != 'VENCE EL 10') return false;
+                      if (estado['texto'] != 'AL DÍA' &&
+                          estado['texto'] != 'VENCE EL 10') {
+                        return false;
+                      }
                     } else if (_filtroEstado == 'Con Deuda') {
-                      if (!estado['texto'].toString().contains('DEUDA') && estado['texto'] != 'SIN PAGO') return false;
+                      if (!estado['texto'].toString().contains('DEUDA') &&
+                          estado['texto'] != 'SIN PAGO') {
+                        return false;
+                      }
                     }
                   }
 
                   // 3. Filtro por Actividad
                   if (_filtroActividad != 'Todas') {
                     List<String> acts = _obtenerActividadesSocio(data);
-                    bool tieneLaActividad = acts.any((a) => a.toLowerCase() == _filtroActividad.toLowerCase());
+                    bool tieneLaActividad = acts.any(
+                      (a) => a.toLowerCase() == _filtroActividad.toLowerCase(),
+                    );
                     if (!tieneLaActividad) return false;
                   }
 
@@ -2133,7 +2205,9 @@ class _PantallaAdminSociosState extends State<PantallaAdminSocios> {
                 }).toList();
 
                 if (docs.isEmpty)
-                  return const Center(child: Text("No se encontraron socios con esos filtros."));
+                  return const Center(
+                    child: Text("No se encontraron socios con esos filtros."),
+                  );
 
                 return ListView.builder(
                   padding: const EdgeInsets.only(bottom: 80),
@@ -2194,15 +2268,15 @@ class _PantallaAdminSociosState extends State<PantallaAdminSocios> {
                                         fit: BoxFit.cover,
                                         errorBuilder:
                                             (context, error, stackTrace) {
-                                          return Icon(
-                                            esTitular
-                                                ? Icons.star
-                                                : Icons.person,
-                                            color: esTitular
-                                                ? Colors.orange
-                                                : Colors.grey,
-                                          );
-                                        },
+                                              return Icon(
+                                                esTitular
+                                                    ? Icons.star
+                                                    : Icons.person,
+                                                color: esTitular
+                                                    ? Colors.orange
+                                                    : Colors.grey,
+                                              );
+                                            },
                                       ),
                                     )
                                   : Icon(

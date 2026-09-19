@@ -4,6 +4,7 @@ import 'package:qr_flutter/qr_flutter.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter/foundation.dart' show kIsWeb;
 import '../../configuracion/configuracion_app.dart';
+import '../../servicios/actividades_baja_socio.dart';
 import '../../tusede/servicios/contexto_club.dart';
 import '../../tusede/servicios/servicio_portal_socio.dart';
 import '../../widgets/logo_club_tusede.dart';
@@ -85,7 +86,8 @@ class _PantallaDashboardSocioState extends State<PantallaDashboardSocio>
 
       // 4. Determinar Familia y traer miembros desde la capa de servicios
       String familiaId = widget.datosSocio['familia_id'] ?? widget.socioId;
-      List<Map<String, dynamic>> familiaTemp = await servicio.obtenerGrupoFamiliar(familiaId);
+      List<Map<String, dynamic>> familiaTemp = await servicio
+          .obtenerGrupoFamiliar(familiaId);
 
       double sumaMes = 0;
       double sumaDeudaVieja = 0;
@@ -192,47 +194,16 @@ class _PantallaDashboardSocioState extends State<PantallaDashboardSocio>
   }
 
   Map<String, dynamic> _calcularDeudaSocio(Map<String, dynamic> data) {
-    Set<String> setActividades = {};
-    if (data['actividades'] != null && data['actividades'] is List) {
-      for (var a in data['actividades']) {
-        setActividades.addAll(
-          a.toString().split(RegExp(r'[,+]')).map((e) => e.trim()),
-        );
-      }
-    } else if (data['actividad'] != null) {
-      setActividades.addAll(
-        (data['actividad'] ?? '')
-            .toString()
-            .split(RegExp(r'[,+]'))
-            .map((e) => e.trim()),
-      );
-    }
-
-    setActividades.removeWhere((e) => e.isEmpty || e == 'Ninguna');
-    List<String> actividadesFinal = setActividades.toList();
-
-    if (actividadesFinal.isEmpty) {
-      actividadesFinal = ['Cuota Social'];
-    }
-
-    int descuentoGlobalViejo = (data['porcentaje_descuento'] ?? 0).toInt();
-
-    String ultimoMesPagoStr = data['ultimo_mes_pago'] ?? '';
-    int mesesDeuda = 0;
-
-    if (ultimoMesPagoStr.isEmpty) {
-      mesesDeuda = 1;
-    } else {
-      try {
-        DateTime ultimo = DateTime.parse("$ultimoMesPagoStr-01");
-        DateTime ahora = DateTime.now();
-        int diff =
-            (ahora.year * 12 + ahora.month) - (ultimo.year * 12 + ultimo.month);
-        mesesDeuda = diff;
-      } catch (e) {
-        mesesDeuda = 1;
-      }
-    }
+    final ahora = DateTime.now();
+    final inicio = primerMesPendiente(data, ahora);
+    final cantidad =
+        (ahora.year - inicio.year) * 12 + ahora.month - inicio.month + 1;
+    final anteriores = mesesPorActividad(data, inicio, cantidad - 1);
+    final actuales = cantidad > 0
+        ? mesesPorActividad(data, DateTime(ahora.year, ahora.month), 1)
+        : <String, int>{};
+    final actividadesFinal = {...anteriores.keys, ...actuales.keys};
+    final descuentoGlobalViejo = (data['porcentaje_descuento'] ?? 0).toInt();
 
     double debeMes = 0;
     double debeAnterior = 0;
@@ -241,9 +212,15 @@ class _PantallaDashboardSocioState extends State<PantallaDashboardSocio>
 
     String nombreSocio = data['nombre'] ?? 'Socio';
 
-    if (mesesDeuda > 0) {
+    if (cantidad > 0) {
       for (var act in actividadesFinal) {
-        double precioActividad = _precios[act] ?? 0;
+        double precioActividad = 0;
+        for (final precio in _precios.entries) {
+          if (precio.key.toLowerCase() == act.toLowerCase()) {
+            precioActividad = precio.value;
+            break;
+          }
+        }
 
         if (descuentoGlobalViejo > 0) {
           if (descuentoGlobalViejo >= 100) {
@@ -255,22 +232,24 @@ class _PantallaDashboardSocioState extends State<PantallaDashboardSocio>
           }
         }
 
-        debeMes += precioActividad;
+        if ((actuales[act] ?? 0) > 0) {
+          debeMes += precioActividad;
+          desgloseMesLocal.add({
+            'nombre': nombreSocio,
+            'concepto': precioActividad == 0 ? "$act (Becado)" : act,
+            'monto': precioActividad,
+          });
+        }
 
-        desgloseMesLocal.add({
-          'nombre': nombreSocio,
-          'concepto': precioActividad == 0 ? "$act (Becado)" : act,
-          'monto': precioActividad,
-        });
-
-        if (mesesDeuda > 1) {
-          double deudaAtrasadaActividad = precioActividad * (mesesDeuda - 1);
+        final mesesAnteriores = anteriores[act] ?? 0;
+        if (mesesAnteriores > 0) {
+          double deudaAtrasadaActividad = precioActividad * mesesAnteriores;
           debeAnterior += deudaAtrasadaActividad;
 
           if (deudaAtrasadaActividad > 0) {
             desgloseAnteriorLocal.add({
               'nombre': nombreSocio,
-              'concepto': "$act (${mesesDeuda - 1} mes/es atrasados)",
+              'concepto': "$act ($mesesAnteriores mes/es atrasados)",
               'monto': deudaAtrasadaActividad,
             });
           }
@@ -477,7 +456,11 @@ class _PantallaDashboardSocioState extends State<PantallaDashboardSocio>
                     children: [
                       Row(
                         children: [
-                          LogoClubTuSede(config: widget.config, height: 40, width: 40),
+                          LogoClubTuSede(
+                            config: widget.config,
+                            height: 40,
+                            width: 40,
+                          ),
                           const SizedBox(width: 10),
                           Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
@@ -631,7 +614,9 @@ class _PantallaDashboardSocioState extends State<PantallaDashboardSocio>
               child: Row(
                 children: [
                   Icon(
-                    alDiaDinamico ? Icons.check_circle : Icons.warning_amber_rounded,
+                    alDiaDinamico
+                        ? Icons.check_circle
+                        : Icons.warning_amber_rounded,
                     color: alDiaDinamico ? Colors.green : Colors.red[700],
                   ),
                   const SizedBox(width: 12),
@@ -640,24 +625,33 @@ class _PantallaDashboardSocioState extends State<PantallaDashboardSocio>
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Text(
-                          alDiaDinamico ? 'Cuota al día' : 'Tenés pagos pendientes',
+                          alDiaDinamico
+                              ? 'Cuota al día'
+                              : 'Tenés pagos pendientes',
                           style: TextStyle(
                             fontWeight: FontWeight.bold,
-                            color: alDiaDinamico ? Colors.green[800] : Colors.red[800],
+                            color: alDiaDinamico
+                                ? Colors.green[800]
+                                : Colors.red[800],
                           ),
                         ),
                         if (_montoTotalPagar > 0)
                           Text(
                             'Total adeudado: \$${_montoTotalPagar.toStringAsFixed(0)}',
                             style: TextStyle(
-                              color: alDiaDinamico ? Colors.green[700] : Colors.red[700],
+                              color: alDiaDinamico
+                                  ? Colors.green[700]
+                                  : Colors.red[700],
                               fontSize: 13,
                             ),
                           )
                         else
                           Text(
                             'Podés ingresar con tu carnet habilitado',
-                            style: TextStyle(color: Colors.green[700], fontSize: 13),
+                            style: TextStyle(
+                              color: Colors.green[700],
+                              fontSize: 13,
+                            ),
                           ),
                       ],
                     ),
