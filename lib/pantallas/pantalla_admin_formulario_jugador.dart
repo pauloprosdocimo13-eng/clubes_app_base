@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
-import 'package:cloud_firestore/cloud_firestore.dart';
-import '../../configuracion/configuracion_app.dart';
-import '../../widgets/input_imagen.dart';
+import '../configuracion/configuracion_app.dart';
+import '../widgets/input_imagen.dart';
+import '../tusede/servicios/servicio_datos_club.dart';
 
 class PantallaAdminFormularioJugador extends StatefulWidget {
   final ConfiguracionApp config;
@@ -24,14 +24,17 @@ class _PantallaAdminFormularioJugadorState
     extends State<PantallaAdminFormularioJugador> {
   final _formKey = GlobalKey<FormState>();
   bool _cargando = false;
+  bool _subiendoFoto = false;
+  String? _errorCarga;
 
   final TextEditingController _nombreController = TextEditingController();
   final TextEditingController _apellidoController = TextEditingController();
   final TextEditingController _dorsalController = TextEditingController();
   final TextEditingController _posicionController = TextEditingController();
   final TextEditingController _fotoController = TextEditingController();
-  
-  final TextEditingController _fechaNacimientoController = TextEditingController();
+
+  final TextEditingController _fechaNacimientoController =
+      TextEditingController();
   String _piernaHabil = 'Derecha';
   final List<String> _opcionesPierna = ['Derecha', 'Izquierda', 'Ambidiestro'];
 
@@ -58,99 +61,113 @@ class _PantallaAdminFormularioJugadorState
     _cargarConfiguracion();
   }
 
+  @override
+  void dispose() {
+    for (final controller in [
+      _nombreController,
+      _apellidoController,
+      _dorsalController,
+      _posicionController,
+      _fotoController,
+      _fechaNacimientoController,
+      _nuevosGolesCtrl,
+      _nuevasAsistenciasCtrl,
+    ]) {
+      controller.dispose();
+    }
+    super.dispose();
+  }
+
   Future<void> _cargarConfiguracion() async {
+    setState(() {
+      _cargando = true;
+      _errorCarga = null;
+    });
     try {
-      final doc = await FirebaseFirestore.instance
-          .collection('configuracion')
-          .doc('general')
-          .get();
-      if (doc.exists) {
-        final data = doc.data()!;
-
-        final menu = List.from(data['menu_deportes'] ?? []);
-        setState(() {
-          _deportesDisponibles = menu
-              .map((e) => e as Map<String, dynamic>)
-              .toList();
-        });
-
-        _actualizarCategoriasSegunDeporte();
-
-        if (widget.jugadorId != null) {
-          _cargarDatosJugador();
+      final doc = await ServicioDatosClub.configuracionDoc('general').get();
+      final menu = doc.data()?['menu_deportes'];
+      if (!mounted) return;
+      _deportesDisponibles = menu is List
+          ? menu
+                .whereType<Map>()
+                .map((e) => Map<String, dynamic>.from(e))
+                .where((e) => (e['id'] ?? '').toString().isNotEmpty)
+                .toList()
+          : <Map<String, dynamic>>[];
+      if (widget.jugadorId != null) {
+        await _cargarDatosJugador();
+      } else {
+        if (!_deportesDisponibles.any(
+          (d) => d['id'] == _deporteSeleccionadoId,
+        )) {
+          _deporteSeleccionadoId = _deportesDisponibles.isEmpty
+              ? null
+              : _deportesDisponibles.first['id'].toString();
         }
+        _actualizarCategoriasSegunDeporte();
       }
     } catch (e) {
-      print("Error config: $e");
+      if (mounted) {
+        setState(() => _errorCarga = 'No se pudo cargar el formulario: $e');
+      }
+    } finally {
+      if (mounted) setState(() => _cargando = false);
     }
   }
 
   void _actualizarCategoriasSegunDeporte() {
-    if (_deporteSeleccionadoId == null) return;
-
     final deporte = _deportesDisponibles.firstWhere(
       (d) => d['id'] == _deporteSeleccionadoId,
       orElse: () => {},
     );
-
-    if (deporte.isNotEmpty && deporte.containsKey('categorias')) {
-      setState(() {
-        _categoriasDisponibles = List<String>.from(deporte['categorias']);
-        if (_categoriasDisponibles.isNotEmpty) {
-          if (!_categoriasDisponibles.contains(_categoria)) {
-            _categoria = _categoriasDisponibles.first;
-          }
-        }
-      });
-    }
+    final categorias = deporte['categorias'];
+    setState(() {
+      _categoriasDisponibles = categorias is List
+          ? categorias
+                .map((c) => c.toString())
+                .where((c) => c.isNotEmpty)
+                .toSet()
+                .toList()
+          : <String>[];
+      if (_categoriasDisponibles.isEmpty) _categoriasDisponibles = ['General'];
+      if (!_categoriasDisponibles.contains(_categoria)) {
+        _categoria = _categoriasDisponibles.first;
+      }
+    });
   }
 
   Future<void> _cargarDatosJugador() async {
-    setState(() => _cargando = true);
-    try {
-      final doc = await FirebaseFirestore.instance
-          .collection('jugadores')
-          .doc(widget.jugadorId)
-          .get();
-      if (doc.exists) {
-        final data = doc.data()!;
-        _nombreController.text = data['nombre'] ?? '';
-        _apellidoController.text = data['apellido'] ?? '';
-        _dorsalController.text = data['dorsal']?.toString() ?? '0';
-        _posicionController.text = data['posicion'] ?? '';
-        _fotoController.text = data['foto'] ?? '';
-        
-        _fechaNacimientoController.text = data['fecha_nacimiento'] ?? '';
-        if (data['pierna_habil'] != null && _opcionesPierna.contains(data['pierna_habil'])) {
-          _piernaHabil = data['pierna_habil'];
-        }
-        
-        // Cargamos el rol si existe
-        if (data['rol'] != null && _opcionesRol.contains(data['rol'])) {
-          _rol = data['rol'];
-        }
-
-        setState(() {
-          _golesActuales = data['goles'] ?? 0;
-          _asistenciasActuales = data['asistencias'] ?? 0;
-
-          _categoria = data['categoria'] ?? 'General';
-          _deporteSeleccionadoId = data['deporte_id'];
-        });
-
-        _actualizarCategoriasSegunDeporte();
-        if (_categoriasDisponibles.contains(data['categoria'])) {
-          setState(() => _categoria = data['categoria']);
-        }
-      }
-    } catch (e) {
-      print("Error cargando jugador: $e");
-    } finally {
-      setState(() => _cargando = false);
+    final doc = await ServicioDatosClub.jugadores.doc(widget.jugadorId).get();
+    if (!mounted) return;
+    if (!doc.exists) throw StateError('El jugador ya no existe.');
+    final data = doc.data()!;
+    _nombreController.text = (data['nombre'] ?? '').toString();
+    _apellidoController.text = (data['apellido'] ?? '').toString();
+    _dorsalController.text = (data['dorsal'] ?? 0).toString();
+    _posicionController.text = (data['posicion'] ?? '').toString();
+    _fotoController.text = (data['foto'] ?? '').toString();
+    _fechaNacimientoController.text = (data['fecha_nacimiento'] ?? '')
+        .toString();
+    if (_opcionesPierna.contains(data['pierna_habil'])) {
+      _piernaHabil = data['pierna_habil'];
     }
+    if (_opcionesRol.contains(data['rol'])) _rol = data['rol'];
+    _golesActuales = (data['goles'] as num?)?.toInt() ?? 0;
+    _asistenciasActuales = (data['asistencias'] as num?)?.toInt() ?? 0;
+    _deporteSeleccionadoId = data['deporte_id']?.toString();
+    _actualizarCategoriasSegunDeporte();
+    // Una edición no debe cambiar silenciosamente la categoría ya guardada.
+    final categoriaGuardada = (data['categoria'] ?? 'General').toString();
+    setState(() {
+      if (!_categoriasDisponibles.contains(categoriaGuardada)) {
+        _categoriasDisponibles.add(categoriaGuardada);
+      }
+      _categoria = categoriaGuardada;
+    });
   }
 
   Future<void> _guardarJugador() async {
+    if (_cargando || _subiendoFoto || _errorCarga != null) return;
     if (!_formKey.currentState!.validate()) return;
     setState(() => _cargando = true);
 
@@ -168,29 +185,30 @@ class _PantallaAdminFormularioJugadorState
         'posicion': _posicionController.text.trim(),
         'fecha_nacimiento': _fechaNacimientoController.text.trim(),
         'pierna_habil': _piernaHabil,
-        'goles': _rol == 'DT' ? 0 : golesFinales, // Si es DT, no guardamos goles
+        'goles': _rol == 'DT'
+            ? 0
+            : golesFinales, // Si es DT, no guardamos goles
         'asistencias': _rol == 'DT' ? 0 : asistenciasFinales,
         'foto': _fotoController.text.trim(),
         'categoria': _categoria,
         'deporte_id': _deporteSeleccionadoId,
         'rol': _rol,
-        'nombre_busqueda': _apellidoController.text.trim().toLowerCase(), 
+        'nombre_busqueda': _apellidoController.text.trim().toLowerCase(),
       };
 
       if (widget.jugadorId == null) {
-        await FirebaseFirestore.instance.collection('jugadores').add(datos);
+        await ServicioDatosClub.jugadores.add(datos);
       } else {
-        await FirebaseFirestore.instance
-            .collection('jugadores')
-            .doc(widget.jugadorId)
-            .update(datos);
+        await ServicioDatosClub.jugadores.doc(widget.jugadorId).update(datos);
       }
 
       if (mounted) Navigator.pop(context);
     } catch (e) {
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(const SnackBar(content: Text("Error al guardar")));
+      if (mounted) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('Error al guardar: $e')));
+      }
     } finally {
       if (mounted) setState(() => _cargando = false);
     }
@@ -223,7 +241,10 @@ class _PantallaAdminFormularioJugadorState
               Expanded(
                 child: Column(
                   children: [
-                    const Text("Actuales", style: TextStyle(fontSize: 10, color: Colors.grey)),
+                    const Text(
+                      "Actuales",
+                      style: TextStyle(fontSize: 10, color: Colors.grey),
+                    ),
                     const SizedBox(height: 5),
                     Container(
                       height: 45,
@@ -235,7 +256,10 @@ class _PantallaAdminFormularioJugadorState
                       ),
                       child: Text(
                         actuales.toString(),
-                        style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                        style: const TextStyle(
+                          fontSize: 18,
+                          fontWeight: FontWeight.bold,
+                        ),
                       ),
                     ),
                   ],
@@ -243,12 +267,22 @@ class _PantallaAdminFormularioJugadorState
               ),
               const Padding(
                 padding: EdgeInsets.symmetric(horizontal: 10),
-                child: Text("+", style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold, color: Colors.grey)),
+                child: Text(
+                  "+",
+                  style: TextStyle(
+                    fontSize: 24,
+                    fontWeight: FontWeight.bold,
+                    color: Colors.grey,
+                  ),
+                ),
               ),
               Expanded(
                 child: Column(
                   children: [
-                    const Text("Últimos", style: TextStyle(fontSize: 10, color: Colors.grey)),
+                    const Text(
+                      "Últimos",
+                      style: TextStyle(fontSize: 10, color: Colors.grey),
+                    ),
                     const SizedBox(height: 5),
                     SizedBox(
                       height: 45,
@@ -256,7 +290,10 @@ class _PantallaAdminFormularioJugadorState
                         controller: nuevosCtrl,
                         keyboardType: TextInputType.number,
                         textAlign: TextAlign.center,
-                        style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                        style: const TextStyle(
+                          fontSize: 18,
+                          fontWeight: FontWeight.bold,
+                        ),
                         decoration: const InputDecoration(
                           contentPadding: EdgeInsets.zero,
                           border: OutlineInputBorder(),
@@ -274,8 +311,15 @@ class _PantallaAdminFormularioJugadorState
                     onTap: onSumar,
                     child: Container(
                       padding: const EdgeInsets.all(6),
-                      decoration: BoxDecoration(color: Colors.green, borderRadius: BorderRadius.circular(5)),
-                      child: const Icon(Icons.check, color: Colors.white, size: 18),
+                      decoration: BoxDecoration(
+                        color: Colors.green,
+                        borderRadius: BorderRadius.circular(5),
+                      ),
+                      child: const Icon(
+                        Icons.check,
+                        color: Colors.white,
+                        size: 18,
+                      ),
                     ),
                   ),
                   const SizedBox(height: 5),
@@ -283,8 +327,15 @@ class _PantallaAdminFormularioJugadorState
                     onTap: onRestar,
                     child: Container(
                       padding: const EdgeInsets.all(6),
-                      decoration: BoxDecoration(color: Colors.red, borderRadius: BorderRadius.circular(5)),
-                      child: const Icon(Icons.remove, color: Colors.white, size: 18),
+                      decoration: BoxDecoration(
+                        color: Colors.red,
+                        borderRadius: BorderRadius.circular(5),
+                      ),
+                      child: const Icon(
+                        Icons.remove,
+                        color: Colors.white,
+                        size: 18,
+                      ),
                     ),
                   ),
                 ],
@@ -308,6 +359,19 @@ class _PantallaAdminFormularioJugadorState
       ),
       body: _cargando
           ? const Center(child: CircularProgressIndicator())
+          : _errorCarga != null
+          ? Center(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(_errorCarga!),
+                  TextButton(
+                    onPressed: _cargarConfiguracion,
+                    child: const Text('REINTENTAR'),
+                  ),
+                ],
+              ),
+            )
           : SingleChildScrollView(
               padding: const EdgeInsets.all(20),
               child: Form(
@@ -320,8 +384,18 @@ class _PantallaAdminFormularioJugadorState
                       children: [
                         Expanded(
                           child: DropdownButtonFormField<String>(
-                            value: _deporteSeleccionadoId,
-                            decoration: const InputDecoration(labelText: "Tira / Deporte", border: OutlineInputBorder()),
+                            value:
+                                _deportesDisponibles.any(
+                                  (d) => d['id'] == _deporteSeleccionadoId,
+                                )
+                                ? _deporteSeleccionadoId
+                                : null,
+                            validator: (v) =>
+                                v == null ? 'Seleccioná una tira' : null,
+                            decoration: const InputDecoration(
+                              labelText: "Tira / Deporte",
+                              border: OutlineInputBorder(),
+                            ),
                             items: _deportesDisponibles.map((d) {
                               return DropdownMenuItem<String>(
                                 value: d['id'],
@@ -337,12 +411,23 @@ class _PantallaAdminFormularioJugadorState
                         const SizedBox(width: 10),
                         Expanded(
                           child: DropdownButtonFormField<String>(
-                            value: _categoriasDisponibles.contains(_categoria) ? _categoria : null,
-                            decoration: const InputDecoration(labelText: "Categoría", border: OutlineInputBorder()),
+                            value: _categoriasDisponibles.contains(_categoria)
+                                ? _categoria
+                                : null,
+                            validator: (v) =>
+                                v == null ? 'Seleccioná una categoría' : null,
+                            decoration: const InputDecoration(
+                              labelText: "Categoría",
+                              border: OutlineInputBorder(),
+                            ),
                             items: _categoriasDisponibles.map((c) {
-                              return DropdownMenuItem<String>(value: c, child: Text(c));
+                              return DropdownMenuItem<String>(
+                                value: c,
+                                child: Text(c),
+                              );
                             }).toList(),
-                            onChanged: (val) => setState(() => _categoria = val!),
+                            onChanged: (val) =>
+                                setState(() => _categoria = val!),
                           ),
                         ),
                       ],
@@ -355,7 +440,10 @@ class _PantallaAdminFormularioJugadorState
                         Expanded(
                           child: TextFormField(
                             controller: _nombreController,
-                            decoration: const InputDecoration(labelText: "Nombre", border: OutlineInputBorder()),
+                            decoration: const InputDecoration(
+                              labelText: "Nombre",
+                              border: OutlineInputBorder(),
+                            ),
                             validator: (v) => v!.isEmpty ? 'Requerido' : null,
                           ),
                         ),
@@ -363,7 +451,10 @@ class _PantallaAdminFormularioJugadorState
                         Expanded(
                           child: TextFormField(
                             controller: _apellidoController,
-                            decoration: const InputDecoration(labelText: "Apellido", border: OutlineInputBorder()),
+                            decoration: const InputDecoration(
+                              labelText: "Apellido",
+                              border: OutlineInputBorder(),
+                            ),
                             validator: (v) => v!.isEmpty ? 'Requerido' : null,
                           ),
                         ),
@@ -377,9 +468,15 @@ class _PantallaAdminFormularioJugadorState
                         Expanded(
                           child: DropdownButtonFormField<String>(
                             value: _rol,
-                            decoration: const InputDecoration(labelText: "Rol", border: OutlineInputBorder()),
+                            decoration: const InputDecoration(
+                              labelText: "Rol",
+                              border: OutlineInputBorder(),
+                            ),
                             items: _opcionesRol.map((r) {
-                              return DropdownMenuItem<String>(value: r, child: Text(r));
+                              return DropdownMenuItem<String>(
+                                value: r,
+                                child: Text(r),
+                              );
                             }).toList(),
                             onChanged: (val) => setState(() => _rol = val!),
                           ),
@@ -388,17 +485,23 @@ class _PantallaAdminFormularioJugadorState
                         Expanded(
                           child: TextFormField(
                             controller: _posicionController,
-                            decoration: const InputDecoration(labelText: "Posición / Función", border: OutlineInputBorder()),
+                            decoration: const InputDecoration(
+                              labelText: "Posición / Función",
+                              border: OutlineInputBorder(),
+                            ),
                           ),
                         ),
                       ],
                     ),
                     const SizedBox(height: 15),
-                    
+
                     // Nacimiento
                     TextFormField(
                       controller: _fechaNacimientoController,
-                      decoration: const InputDecoration(labelText: "Nacimiento (ej: 15/04/1990)", border: OutlineInputBorder()),
+                      decoration: const InputDecoration(
+                        labelText: "Nacimiento (ej: 15/04/1990)",
+                        border: OutlineInputBorder(),
+                      ),
                     ),
                     const SizedBox(height: 15),
 
@@ -410,25 +513,41 @@ class _PantallaAdminFormularioJugadorState
                             child: TextFormField(
                               controller: _dorsalController,
                               keyboardType: TextInputType.number,
-                              decoration: const InputDecoration(labelText: "N° Camiseta", border: OutlineInputBorder()),
+                              decoration: const InputDecoration(
+                                labelText: "N° Camiseta",
+                                border: OutlineInputBorder(),
+                              ),
                             ),
                           ),
                           const SizedBox(width: 10),
                           Expanded(
                             child: DropdownButtonFormField<String>(
                               value: _piernaHabil,
-                              decoration: const InputDecoration(labelText: "Pierna Hábil", border: OutlineInputBorder()),
+                              decoration: const InputDecoration(
+                                labelText: "Pierna Hábil",
+                                border: OutlineInputBorder(),
+                              ),
                               items: _opcionesPierna.map((p) {
-                                return DropdownMenuItem<String>(value: p, child: Text(p));
+                                return DropdownMenuItem<String>(
+                                  value: p,
+                                  child: Text(p),
+                                );
                               }).toList(),
-                              onChanged: (val) => setState(() => _piernaHabil = val!),
+                              onChanged: (val) =>
+                                  setState(() => _piernaHabil = val!),
                             ),
                           ),
                         ],
                       ),
                       const SizedBox(height: 25),
 
-                      const Text("ESTADÍSTICAS DEL JUGADOR", style: TextStyle(fontWeight: FontWeight.bold, color: Colors.grey)),
+                      const Text(
+                        "ESTADÍSTICAS DEL JUGADOR",
+                        style: TextStyle(
+                          fontWeight: FontWeight.bold,
+                          color: Colors.grey,
+                        ),
+                      ),
                       const SizedBox(height: 10),
 
                       _buildCajaSuma(
@@ -462,7 +581,8 @@ class _PantallaAdminFormularioJugadorState
                         _asistenciasActuales,
                         _nuevasAsistenciasCtrl,
                         () {
-                          int sumar = int.tryParse(_nuevasAsistenciasCtrl.text) ?? 0;
+                          int sumar =
+                              int.tryParse(_nuevasAsistenciasCtrl.text) ?? 0;
                           if (sumar > 0) {
                             setState(() {
                               _asistenciasActuales += sumar;
@@ -471,11 +591,13 @@ class _PantallaAdminFormularioJugadorState
                           }
                         },
                         () {
-                          int restar = int.tryParse(_nuevasAsistenciasCtrl.text) ?? 0;
+                          int restar =
+                              int.tryParse(_nuevasAsistenciasCtrl.text) ?? 0;
                           if (restar > 0) {
                             setState(() {
                               _asistenciasActuales -= restar;
-                              if (_asistenciasActuales < 0) _asistenciasActuales = 0;
+                              if (_asistenciasActuales < 0)
+                                _asistenciasActuales = 0;
                               _nuevasAsistenciasCtrl.clear();
                             });
                           }
@@ -488,8 +610,12 @@ class _PantallaAdminFormularioJugadorState
                     InputImagen(
                       urlInicial: _fotoController.text,
                       carpeta: 'jugadores',
+                      aislarPorClub: ServicioDatosClub.usaTuSedeCentral,
+                      onCargando: (valor) {
+                        if (mounted) setState(() => _subiendoFoto = valor);
+                      },
                       alSubirImagen: (url) {
-                        _fotoController.text = url;
+                        if (mounted) if (mounted) _fotoController.text = url;
                       },
                     ),
 
@@ -500,8 +626,10 @@ class _PantallaAdminFormularioJugadorState
                         foregroundColor: Colors.white,
                         minimumSize: const Size(double.infinity, 50),
                       ),
-                      onPressed: _guardarJugador,
-                      child: const Text("GUARDAR DATOS"),
+                      onPressed: _subiendoFoto ? null : _guardarJugador,
+                      child: Text(
+                        _subiendoFoto ? "ESPERANDO IMAGEN..." : "GUARDAR DATOS",
+                      ),
                     ),
                   ],
                 ),
