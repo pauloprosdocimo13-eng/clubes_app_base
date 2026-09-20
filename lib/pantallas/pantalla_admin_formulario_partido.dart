@@ -4,6 +4,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import '../configuracion/configuracion_app.dart';
 import '../tusede/servicios/contexto_club.dart';
 import '../tusede/servicios/servicio_datos_club.dart';
+import '../tusede/servicios/logica_minuto.dart';
 
 class PantallaAdminFormularioPartido extends StatefulWidget {
   final ConfiguracionApp config;
@@ -220,11 +221,52 @@ class _PantallaAdminFormularioPartidoState
       if (!mounted) return;
       int categoriasCompletadas = 0;
 
-      for (var doc in query.docs) {
-        final data = doc.data();
-
+      Iterable<Map<String, dynamic>> candidatos = query.docs.map(
+        (d) => d.data(),
+      );
+      if (ServicioDatosClub.usaTuSedeCentral) {
+        final seleccion = LogicaMinuto.seleccionarResultados(
+          historial: candidatos.map(
+            (data) => {
+              ...data,
+              'fecha_importacion':
+                  ((data['inicio_partido_real'] ?? data['fecha']) as Timestamp?)
+                      ?.toDate(),
+            },
+          ),
+          deporteId: widget.deporteId,
+          rival: _rivalController.text,
+          fecha: _fechaSeleccionada,
+          categorias: _categorias,
+        );
+        candidatos = seleccion.values;
+        if (seleccion.isNotEmpty) {
+          final aceptar = await showDialog<bool>(
+            context: context,
+            builder: (ctx) => AlertDialog(
+              title: const Text('Importar resultados del vivo'),
+              content: Text(
+                'Se reemplazarán los resultados de estas categorías: ${seleccion.keys.join(', ')}. '
+                'Corresponden al rival y fecha seleccionados. Revisalos antes de guardar.',
+              ),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.pop(ctx, false),
+                  child: const Text('Cancelar'),
+                ),
+                ElevatedButton(
+                  onPressed: () => Navigator.pop(ctx, true),
+                  child: const Text('Importar'),
+                ),
+              ],
+            ),
+          );
+          if (!mounted || aceptar != true) return;
+        }
+      }
+      for (final data in candidatos) {
         // --- FILTRO DE FECHA MANUAL (TRUCO FLUTTER) ---
-        if (data['fecha'] != null) {
+        if (!ServicioDatosClub.usaTuSedeCentral && data['fecha'] != null) {
           DateTime fechaPartido = (data['fecha'] as Timestamp).toDate();
           if (fechaPartido.isBefore(haceDosDias)) {
             continue; // Si el partido es más viejo que 2 días, lo ignoramos y pasamos al siguiente
@@ -275,7 +317,9 @@ class _PantallaAdminFormularioPartidoState
       } else {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
-            content: Text("No se encontraron partidos recientes."),
+            content: Text(
+              "No se encontraron partidos para importar. Revisá rival, fecha y estado finalizado.",
+            ),
             backgroundColor: Colors.orange,
           ),
         );
@@ -500,23 +544,22 @@ class _PantallaAdminFormularioPartidoState
                           fontWeight: FontWeight.bold,
                         ),
                       ),
-                      if (!ServicioDatosClub.usaTuSedeCentral)
-                        ElevatedButton.icon(
-                          onPressed: _traerResultadosDelVivo,
-                          icon: const Icon(Icons.cloud_download, size: 18),
-                          label: const Text("Traer del Vivo"),
-                          style: ElevatedButton.styleFrom(
-                            backgroundColor: Colors.blue[800],
-                            foregroundColor: Colors.white,
-                            visualDensity: VisualDensity.compact,
-                          ),
+                      ElevatedButton.icon(
+                        onPressed: _traerResultadosDelVivo,
+                        icon: const Icon(Icons.cloud_download, size: 18),
+                        label: const Text("Traer del Vivo"),
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: Colors.blue[800],
+                          foregroundColor: Colors.white,
+                          visualDensity: VisualDensity.compact,
                         ),
+                      ),
                     ],
                   ),
                   const SizedBox(height: 5),
                   Text(
                     ServicioDatosClub.usaTuSedeCentral
-                        ? "Cargá los resultados de cada categoría."
+                        ? "Importá partidos finalizados del mismo rival y fecha, o cargá los resultados manualmente."
                         : "Trae los números y los goleadores automáticamente.",
                     style: const TextStyle(color: Colors.grey, fontSize: 12),
                   ),

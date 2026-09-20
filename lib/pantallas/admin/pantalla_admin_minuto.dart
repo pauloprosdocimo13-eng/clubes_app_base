@@ -2,6 +2,9 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import '../../configuracion/configuracion_app.dart';
+import '../../tusede/servicios/servicio_datos_club.dart';
+import '../../tusede/servicios/logica_minuto.dart';
+import '../pantalla_historial_minuto.dart';
 
 class PantallaAdminMinuto extends StatefulWidget {
   final ConfiguracionApp config;
@@ -20,7 +23,34 @@ class PantallaAdminMinuto extends StatefulWidget {
 class _PantallaAdminMinutoState extends State<PantallaAdminMinuto> {
   // Variables para crear partido
   String _categoriaSeleccionada = '';
-  String? _rivalSeleccionadoId;
+  bool _guardando = false;
+  String? _errorCategorias;
+  bool _cargandoPlantel = false;
+  String? _sesionVisible;
+  late final Stream<DocumentSnapshot<Map<String, dynamic>>> _vivoStream;
+
+  Future<void> _ejecutar(Future<void> Function() accion) async {
+    if (_guardando || !mounted) return;
+    setState(() => _guardando = true);
+    try {
+      await accion();
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('No se pudo completar la operación: $e')),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _guardando = false);
+    }
+  }
+
+  void _validarPartido(Map<String, dynamic>? data, String? sesion) {
+    if (data == null || data['activo'] != true || data['sesion_id'] != sesion) {
+      throw StateError('El partido cambió o ya terminó. Revisá la consola.');
+    }
+  }
+
   String _rivalNombre = "";
   String _rivalEscudo = "";
 
@@ -40,6 +70,9 @@ class _PantallaAdminMinutoState extends State<PantallaAdminMinuto> {
   @override
   void initState() {
     super.initState();
+    _vivoStream = ServicioDatosClub.partidosEnVivo
+        .doc(widget.deporteId)
+        .snapshots();
     _cargarCategoriasDelDeporte();
 
     _timer = Timer.periodic(const Duration(seconds: 1), (timer) {
@@ -48,12 +81,14 @@ class _PantallaAdminMinutoState extends State<PantallaAdminMinuto> {
   }
 
   Future<void> _cargarCategoriasDelDeporte() async {
+    if (mounted)
+      setState(() {
+        _cargandoCategorias = true;
+        _errorCategorias = null;
+      });
     List<String> categoriasEncontradas = [];
     try {
-      final doc = await FirebaseFirestore.instance
-          .collection('configuracion')
-          .doc('general')
-          .get();
+      final doc = await ServicioDatosClub.configuracion.doc('general').get();
       if (doc.exists) {
         final data = doc.data()!;
         final menuDeportes = List.from(data['menu_deportes'] ?? []);
@@ -66,9 +101,28 @@ class _PantallaAdminMinutoState extends State<PantallaAdminMinuto> {
         }
       }
     } catch (e) {
-      print("Error config: $e");
+      if (mounted)
+        setState(() {
+          _errorCategorias = 'No se pudo leer la configuración: $e';
+          _cargandoCategorias = false;
+        });
+      return;
     }
 
+    categoriasEncontradas = categoriasEncontradas
+        .map((c) => c.trim())
+        .where((c) => c.isNotEmpty)
+        .toSet()
+        .toList();
+    if (categoriasEncontradas.isEmpty && ServicioDatosClub.usaTuSedeCentral) {
+      if (mounted)
+        setState(() {
+          _errorCategorias =
+              'Configurá categorías para esta tira antes de iniciar un partido.';
+          _cargandoCategorias = false;
+        });
+      return;
+    }
     if (categoriasEncontradas.isEmpty) {
       _generarCategoriasLegacy();
     } else {
@@ -111,14 +165,18 @@ class _PantallaAdminMinutoState extends State<PantallaAdminMinuto> {
   }
 
   Future<void> _cargarJugadoresLocales(String categoria) async {
+    if (_cargandoPlantel || !mounted) return;
+    _cargandoPlantel = true;
+    _jugadoresLocales = [];
+    _categoriaPlantelCargado = categoria;
     try {
-      final snap = await FirebaseFirestore.instance
-          .collection('jugadores')
+      final snap = await ServicioDatosClub.jugadores
           .where('deporte_id', isEqualTo: widget.deporteId)
           .where('categoria', isEqualTo: categoria)
           .get();
 
-      List<Map<String, dynamic>> lista = snap.docs.map((doc) {
+      List<Map<String, dynamic>>
+      lista = snap.docs.where((doc) => doc.data()['rol'] != 'DT').map((doc) {
         final d = doc.data();
         return {
           'id': doc.id,
@@ -137,7 +195,16 @@ class _PantallaAdminMinutoState extends State<PantallaAdminMinuto> {
         });
       }
     } catch (e) {
-      print("Error cargando jugadores locales: $e");
+      if (mounted)
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              'No se pudo cargar el plantel. Podés ingresar el autor manualmente: $e',
+            ),
+          ),
+        );
+    } finally {
+      _cargandoPlantel = false;
     }
   }
 
@@ -200,189 +267,151 @@ class _PantallaAdminMinutoState extends State<PantallaAdminMinuto> {
       ),
     );
 
-    if (confirm == true) {
+    if (confirm == true && mounted) {
       try {
-        final snapshot = await FirebaseFirestore.instance
-            .collection('historial_partidos')
+        final snapshot = await ServicioDatosClub.historialPartidos
             .where('deporte_id', isEqualTo: widget.deporteId)
             .get();
-        WriteBatch batch = FirebaseFirestore.instance.batch();
-        for (final doc in snapshot.docs) batch.delete(doc.reference);
-        await batch.commit();
+        for (var offset = 0; offset < snapshot.docs.length; offset += 400) {
+          final batch = ServicioDatosClub.firestore.batch();
+          for (final doc in snapshot.docs.skip(offset).take(400)) {
+            batch.delete(doc.reference);
+          }
+          await batch.commit();
+        }
         if (mounted)
           ScaffoldMessenger.of(
             context,
           ).showSnackBar(const SnackBar(content: Text("Historial limpio.")));
       } catch (e) {
         if (mounted)
-          ScaffoldMessenger.of(
-            context,
-          ).showSnackBar(const SnackBar(content: Text("Error al borrar.")));
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text(
+                "No se completó la limpieza. Revisá el historial antes de reintentar.",
+              ),
+            ),
+          );
       }
     }
   }
 
-  Future<void> _iniciarTransmision() async {
-    if (_rivalNombre.isEmpty) return;
-
-    await FirebaseFirestore.instance
-        .collection('partidos_en_vivo')
-        .doc(widget.deporteId)
-        .set({
-          'activo': true,
-          'categoria': _categoriaSeleccionada,
-          'rival': _rivalNombre,
-          'escudo_rival': _rivalEscudo,
-          'goles_local': 0,
-          'goles_visita': 0,
-          'estado': '1T',
-          'inicio_tiempo': FieldValue.serverTimestamp(),
-          'inicio_partido_real': FieldValue.serverTimestamp(),
-          'eventos': [],
-        });
-
-    _cargarJugadoresLocales(_categoriaSeleccionada);
-  }
-
-  Future<void> _cambiarEstado(
-    String nuevoEstado, {
-    String? motivoSuspension,
-  }) async {
-    final docRef = FirebaseFirestore.instance
-        .collection('partidos_en_vivo')
-        .doc(widget.deporteId);
-    Map<String, dynamic> updateData = {'estado': nuevoEstado};
-
-    if (nuevoEstado == '1T' || nuevoEstado == '2T') {
-      updateData['inicio_tiempo'] = FieldValue.serverTimestamp();
+  Future<void> _iniciarTransmision() => _ejecutar(() async {
+    if (_rivalNombre.trim().isEmpty || _categoriaSeleccionada.isEmpty) {
+      throw StateError('Completá categoría y rival.');
     }
-
-    if (nuevoEstado == 'FINALIZADO' || nuevoEstado == 'SUSPENDIDO') {
-      updateData['activo'] = false;
-      if (motivoSuspension != null)
-        updateData['motivo_suspension'] = motivoSuspension;
-
-      final docSnapshot = await docRef.get();
-      if (docSnapshot.exists) {
-        final data = docSnapshot.data()!;
-        data['estado'] = nuevoEstado;
-        data['activo'] = false;
-        data['deporte_id'] = widget.deporteId;
-        data['fecha'] = FieldValue.serverTimestamp();
-        if (motivoSuspension != null)
-          data['motivo_suspension'] = motivoSuspension;
-
-        await FirebaseFirestore.instance
-            .collection('historial_partidos')
-            .add(data);
+    final ref = ServicioDatosClub.partidosEnVivo.doc(widget.deporteId);
+    final sesion = ServicioDatosClub.historialPartidos.doc().id;
+    await ServicioDatosClub.firestore.runTransaction((tx) async {
+      final previo = await tx.get(ref);
+      if (previo.data()?['activo'] == true) {
+        throw StateError('Ya hay una transmisión activa en esta tira.');
       }
-    }
-    await docRef.update(updateData);
-  }
-
-  // --- ANULAR EVENTO Y RESTAR ESTADÍSTICAS ---
-  Future<void> _borrarEvento(Map<String, dynamic> eventoABorrar) async {
-    final docRef = FirebaseFirestore.instance
-        .collection('partidos_en_vivo')
-        .doc(widget.deporteId);
-    final doc = await docRef.get();
-    if (!doc.exists) return;
-
-    List eventos = List.from(doc.data()!['eventos'] ?? []);
-    eventos.removeWhere((e) => e['timestamp'] == eventoABorrar['timestamp']);
-
-    WriteBatch batch = FirebaseFirestore.instance.batch();
-
-    Map<String, dynamic> updateData = {'eventos': eventos};
-
-    if (eventoABorrar['tipo'] == 'gol') {
-      if (eventoABorrar['equipo'] == 'local') {
-        updateData['goles_local'] = FieldValue.increment(-1);
-        // --- ELIMINADA LA ACTUALIZACIÓN AUTOMÁTICA EN 'jugadores' ---
-      } else {
-        updateData['goles_visita'] = FieldValue.increment(-1);
-      }
-    }
-
-    batch.update(docRef, updateData);
-    await batch.commit();
-  }
-
-  Future<void> _agregarEventoBase(
-    String tipo,
-    String equipo,
-    String detalle,
-  ) async {
-    final docRef = FirebaseFirestore.instance
-        .collection('partidos_en_vivo')
-        .doc(widget.deporteId);
-    final doc = await docRef.get();
-    if (!doc.exists) return;
-
-    final data = doc.data()!;
-    List eventos = List.from(data['eventos'] ?? []);
-
-    eventos.add({
-      'tipo': tipo,
-      'equipo': equipo,
-      'detalle': detalle,
-      'minuto': _calcularTiempoEvento(data),
-      'timestamp': DateTime.now().toString(),
+      tx.set(ref, {
+        'sesion_id': sesion,
+        'deporte_id': widget.deporteId,
+        'activo': true,
+        'categoria': _categoriaSeleccionada,
+        'rival': _rivalNombre.trim(),
+        'escudo_rival': _rivalEscudo,
+        'goles_local': 0,
+        'goles_visita': 0,
+        'estado': '1T',
+        'inicio_tiempo': FieldValue.serverTimestamp(),
+        'inicio_partido_real': FieldValue.serverTimestamp(),
+        'eventos': [],
+      });
     });
+    await _cargarJugadoresLocales(_categoriaSeleccionada);
+  });
 
-    Map<String, dynamic> updateData = {'eventos': eventos};
-    if (tipo == 'gol') {
-      if (equipo == 'local')
-        updateData['goles_local'] = FieldValue.increment(1);
-      else
-        updateData['goles_visita'] = FieldValue.increment(1);
-    }
-    await docRef.update(updateData);
+  Future<void> _cambiarEstado(String nuevoEstado, {String? motivoSuspension}) {
+    final sesion = _sesionVisible;
+    final estadoEsperado = _estadoRef;
+    return _ejecutar(() async {
+      final ref = ServicioDatosClub.partidosEnVivo.doc(widget.deporteId);
+      final historial = ServicioDatosClub.historialPartidos.doc();
+      await ServicioDatosClub.firestore.runTransaction((tx) async {
+        final snapshot = await tx.get(ref);
+        final data = snapshot.data();
+        _validarPartido(data, sesion);
+        if (data!['estado'] != estadoEsperado) {
+          throw StateError('El tiempo del partido cambió. Revisá la consola.');
+        }
+        final cambios = <String, dynamic>{'estado': nuevoEstado};
+        if (nuevoEstado == '2T') {
+          cambios['inicio_tiempo'] = FieldValue.serverTimestamp();
+        }
+        if (nuevoEstado == 'FINALIZADO' || nuevoEstado == 'SUSPENDIDO') {
+          cambios['activo'] = false;
+          if (motivoSuspension != null)
+            cambios['motivo_suspension'] = motivoSuspension;
+          // Archivo y cierre atómicos: no se duplica el historial al reintentar.
+          tx.set(historial, {
+            ...data,
+            ...cambios,
+            'deporte_id': widget.deporteId,
+            'fecha': FieldValue.serverTimestamp(),
+          });
+        }
+        tx.update(ref, cambios);
+      });
+    });
   }
 
-  // --- REGISTRAR GOL LOCAL ---
+  Future<void> _guardarEvento(
+    Map<String, dynamic> evento, {
+    bool borrar = false,
+  }) {
+    final sesion = _sesionVisible;
+    return _ejecutar(() async {
+      final ref = ServicioDatosClub.partidosEnVivo.doc(widget.deporteId);
+      await ServicioDatosClub.firestore.runTransaction((tx) async {
+        final snapshot = await tx.get(ref);
+        final data = snapshot.data();
+        _validarPartido(data, sesion);
+        final nuevo = {...evento};
+        if (!borrar) nuevo['minuto'] = _calcularTiempoEvento(data!);
+        final cambios = LogicaMinuto.actualizarEvento(
+          data!,
+          nuevo,
+          borrar: borrar,
+        );
+        if (cambios.isNotEmpty) tx.update(ref, cambios);
+      });
+    });
+  }
+
+  Future<void> _borrarEvento(Map<String, dynamic> evento) =>
+      _guardarEvento(evento, borrar: true);
+
+  Future<void> _agregarEventoBase(String tipo, String equipo, String detalle) =>
+      _guardarEvento({
+        'tipo': tipo,
+        'equipo': equipo,
+        'detalle': detalle,
+        'timestamp': DateTime.now().toIso8601String(),
+      });
+
   Future<void> _registrarGolLocal(
     String? idAutor,
     String nombreAutor,
     String? idAsistencia,
     String? nombreAsistencia,
-  ) async {
-    final docRef = FirebaseFirestore.instance
-        .collection('partidos_en_vivo')
-        .doc(widget.deporteId);
-    final doc = await docRef.get();
-    if (!doc.exists) return;
-
-    final data = doc.data()!;
-    List eventos = List.from(data['eventos'] ?? []);
-
-    String detalle = nombreAutor;
-    if (nombreAsistencia != null) detalle += " (Asistencia: $nombreAsistencia)";
-
-    eventos.add({
-      'tipo': 'gol',
-      'equipo': 'local',
-      'detalle': detalle,
-      'idAutor': idAutor,
-      'idAsistencia': idAsistencia,
-      'minuto': _calcularTiempoEvento(data),
-      'timestamp': DateTime.now().toString(),
-    });
-
-    WriteBatch batch = FirebaseFirestore.instance.batch();
-    batch.update(docRef, {
-      'eventos': eventos,
-      'goles_local': FieldValue.increment(1),
-    });
-
-    // --- ELIMINADA LA ACTUALIZACIÓN AUTOMÁTICA EN 'jugadores' ---
-    // Si el gol se lo dan en planilla a otro, se carga manual desde la ficha del jugador.
-
-    await batch.commit();
-  }
+  ) => _guardarEvento({
+    'tipo': 'gol',
+    'equipo': 'local',
+    'detalle': nombreAsistencia == null || nombreAsistencia.trim().isEmpty
+        ? nombreAutor
+        : '$nombreAutor (Asistencia: $nombreAsistencia)',
+    'idAutor': idAutor,
+    'idAsistencia': idAsistencia,
+    'timestamp': DateTime.now().toIso8601String(),
+  });
 
   // --- DIÁLOGOS ---
   void _dialogoGolLocal() {
+    final sesionDialogo = _sesionVisible;
     String? seleccionAutor;
     String? idAutor;
     String? nombreAutor;
@@ -398,7 +427,7 @@ class _PantallaAdminMinutoState extends State<PantallaAdminMinuto> {
       context: context,
       builder: (c) => StatefulBuilder(
         builder: (ctx, setDialogState) => AlertDialog(
-          title: const Text("⚽ GOL DE GÜEMES"),
+          title: Text("⚽ GOL DE ${widget.config.nombreApp}"),
           content: SingleChildScrollView(
             child: Column(
               mainAxisSize: MainAxisSize.min,
@@ -440,6 +469,11 @@ class _PantallaAdminMinutoState extends State<PantallaAdminMinuto> {
                     if (v == 'vacio') return;
                     setDialogState(() {
                       seleccionAutor = v;
+                      if (seleccionAsistencia == v) {
+                        seleccionAsistencia = null;
+                        idAsistencia = null;
+                        nombreAsistencia = null;
+                      }
                       if (v == 'manual') {
                         idAutor = null;
                         nombreAutor = _autorManualCtrl.text;
@@ -539,7 +573,19 @@ class _PantallaAdminMinutoState extends State<PantallaAdminMinuto> {
                 foregroundColor: Colors.white,
               ),
               onPressed: () {
-                if (seleccionAutor == 'manual' && _autorManualCtrl.text.isEmpty)
+                if (sesionDialogo != _sesionVisible) {
+                  Navigator.pop(c);
+                  ScaffoldMessenger.of(this.context).showSnackBar(
+                    const SnackBar(
+                      content: Text(
+                        'El partido cambió. Abrí nuevamente la acción.',
+                      ),
+                    ),
+                  );
+                  return;
+                }
+                if (seleccionAutor == 'manual' &&
+                    _autorManualCtrl.text.trim().isEmpty)
                   return;
 
                 if (seleccionAutor != null && seleccionAutor != 'vacio') {
@@ -561,6 +607,7 @@ class _PantallaAdminMinutoState extends State<PantallaAdminMinuto> {
   }
 
   void _dialogoGolVisita() {
+    final sesionDialogo = _sesionVisible;
     final controller = TextEditingController();
     showDialog(
       context: context,
@@ -579,6 +626,17 @@ class _PantallaAdminMinutoState extends State<PantallaAdminMinuto> {
           ),
           ElevatedButton(
             onPressed: () {
+              if (sesionDialogo != _sesionVisible) {
+                Navigator.pop(c);
+                ScaffoldMessenger.of(this.context).showSnackBar(
+                  const SnackBar(
+                    content: Text(
+                      'El partido cambió. Abrí nuevamente la acción.',
+                    ),
+                  ),
+                );
+                return;
+              }
               _agregarEventoBase(
                 'gol',
                 'visita',
@@ -594,6 +652,7 @@ class _PantallaAdminMinutoState extends State<PantallaAdminMinuto> {
   }
 
   void _dialogoTarjeta(String tipo, Color color) {
+    final sesionDialogo = _sesionVisible;
     final controller = TextEditingController();
     String equipoSeleccionado = 'local';
     String? idJugadorLocal;
@@ -665,6 +724,17 @@ class _PantallaAdminMinutoState extends State<PantallaAdminMinuto> {
               ),
               ElevatedButton(
                 onPressed: () {
+                  if (sesionDialogo != _sesionVisible) {
+                    Navigator.pop(c);
+                    ScaffoldMessenger.of(this.context).showSnackBar(
+                      const SnackBar(
+                        content: Text(
+                          'El partido cambió. Abrí nuevamente la acción.',
+                        ),
+                      ),
+                    );
+                    return;
+                  }
                   String detalle = equipoSeleccionado == 'local'
                       ? (idJugadorLocal ?? controller.text)
                       : controller.text;
@@ -683,6 +753,7 @@ class _PantallaAdminMinutoState extends State<PantallaAdminMinuto> {
   }
 
   void _dialogoSuspender() {
+    final sesionDialogo = _sesionVisible;
     final controller = TextEditingController();
     showDialog(
       context: context,
@@ -720,6 +791,17 @@ class _PantallaAdminMinutoState extends State<PantallaAdminMinuto> {
               foregroundColor: Colors.white,
             ),
             onPressed: () {
+              if (sesionDialogo != _sesionVisible) {
+                Navigator.pop(c);
+                ScaffoldMessenger.of(this.context).showSnackBar(
+                  const SnackBar(
+                    content: Text(
+                      'El partido cambió. Abrí nuevamente la acción.',
+                    ),
+                  ),
+                );
+                return;
+              }
               if (controller.text.isNotEmpty) {
                 _cambiarEstado('SUSPENDIDO', motivoSuspension: controller.text);
                 Navigator.pop(c);
@@ -740,31 +822,41 @@ class _PantallaAdminMinutoState extends State<PantallaAdminMinuto> {
         backgroundColor: Colors.black87,
         foregroundColor: Colors.white,
       ),
-      body: StreamBuilder<DocumentSnapshot>(
-        stream: FirebaseFirestore.instance
-            .collection('partidos_en_vivo')
-            .doc(widget.deporteId)
-            .snapshots(),
-        builder: (context, snapshot) {
-          if (!snapshot.hasData)
-            return const Center(child: CircularProgressIndicator());
-          bool activo = false;
-          if (snapshot.data!.exists) {
-            final d = snapshot.data!.data() as Map<String, dynamic>;
-            activo = d['activo'] ?? false;
-          }
-          if (!activo) return _buildPantallaConfiguracion();
-          final data = snapshot.data!.data() as Map<String, dynamic>;
-          _estadoRef = data['estado'] ?? '1T';
-          if (data['inicio_tiempo'] != null)
-            _inicioTiempoRef = data['inicio_tiempo'];
-          if (_categoriaPlantelCargado != data['categoria']) {
-            WidgetsBinding.instance.addPostFrameCallback((_) {
-              _cargarJugadoresLocales(data['categoria']);
-            });
-          }
-          return _buildConsolaEnVivo(data);
-        },
+      body: AbsorbPointer(
+        absorbing: _guardando,
+        child: StreamBuilder<DocumentSnapshot>(
+          stream: _vivoStream,
+          builder: (context, snapshot) {
+            if (snapshot.hasError) {
+              return Center(
+                child: Text('No se pudo leer el vivo: ${snapshot.error}'),
+              );
+            }
+            if (!snapshot.hasData)
+              return const Center(child: CircularProgressIndicator());
+            bool activo = false;
+            if (snapshot.data!.exists) {
+              final d = snapshot.data!.data() as Map<String, dynamic>;
+              activo = d['activo'] ?? false;
+            }
+            if (!activo) {
+              _inicioTiempoRef = null;
+              _estadoRef = '';
+              _sesionVisible = null;
+              return _buildPantallaConfiguracion();
+            }
+            final data = snapshot.data!.data() as Map<String, dynamic>;
+            _sesionVisible = data['sesion_id'] as String?;
+            _estadoRef = data['estado'] ?? '1T';
+            _inicioTiempoRef = data['inicio_tiempo'] as Timestamp?;
+            if (_categoriaPlantelCargado != data['categoria']) {
+              WidgetsBinding.instance.addPostFrameCallback((_) {
+                _cargarJugadoresLocales(data['categoria']);
+              });
+            }
+            return _buildConsolaEnVivo(data);
+          },
+        ),
       ),
     );
   }
@@ -772,6 +864,20 @@ class _PantallaAdminMinutoState extends State<PantallaAdminMinuto> {
   Widget _buildPantallaConfiguracion() {
     if (_cargandoCategorias)
       return const Center(child: CircularProgressIndicator());
+    if (_errorCategorias != null) {
+      return Center(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text(_errorCategorias!),
+            TextButton(
+              onPressed: _cargarCategoriasDelDeporte,
+              child: const Text('Reintentar'),
+            ),
+          ],
+        ),
+      );
+    }
     return SingleChildScrollView(
       padding: const EdgeInsets.all(20),
       child: Column(
@@ -801,37 +907,60 @@ class _PantallaAdminMinutoState extends State<PantallaAdminMinuto> {
             onChanged: (v) => setState(() => _categoriaSeleccionada = v!),
           ),
           const SizedBox(height: 20),
-          StreamBuilder<QuerySnapshot>(
-            stream: FirebaseFirestore.instance
-                .collection('rivales')
-                .where('deporte_id', isEqualTo: widget.deporteId)
-                .snapshots(),
-            builder: (context, snapshot) {
-              if (!snapshot.hasData) return const CircularProgressIndicator();
-              List<DropdownMenuItem<String>> items = snapshot.data!.docs.map((
-                doc,
-              ) {
-                final d = doc.data() as Map<String, dynamic>;
-                return DropdownMenuItem(
-                  value: doc.id,
-                  child: Text(d['nombre'] ?? 'Sin nombre'),
-                  onTap: () {
-                    _rivalNombre = d['nombre'];
-                    _rivalEscudo = d['escudo_url'] ?? '';
+          if (ServicioDatosClub.usaTuSedeCentral)
+            TextFormField(
+              initialValue: _rivalNombre,
+              decoration: const InputDecoration(
+                labelText: 'Rival',
+                border: OutlineInputBorder(),
+              ),
+              onChanged: (valor) {
+                _rivalNombre = valor;
+                _rivalEscudo = '';
+              },
+            )
+          else
+            StreamBuilder<QuerySnapshot>(
+              stream: ServicioDatosClub.rivales
+                  .where('deporte_id', isEqualTo: widget.deporteId)
+                  .snapshots(),
+              builder: (context, snapshot) {
+                if (snapshot.hasError)
+                  return const Text('No se pudieron cargar los rivales.');
+                if (!snapshot.hasData) return const CircularProgressIndicator();
+                List<DropdownMenuItem<String>> items = snapshot.data!.docs.map((
+                  doc,
+                ) {
+                  final d = doc.data() as Map<String, dynamic>;
+                  return DropdownMenuItem(
+                    value: doc.id,
+                    child: Text(d['nombre'] ?? 'Sin nombre'),
+                    onTap: () {
+                      _rivalNombre = d['nombre'];
+                      _rivalEscudo = d['escudo_url'] ?? '';
+                    },
+                  );
+                }).toList();
+                return DropdownButtonFormField<String>(
+                  decoration: const InputDecoration(
+                    labelText: "Rival",
+                    border: OutlineInputBorder(),
+                  ),
+                  hint: const Text("Seleccionar Club Rival"),
+                  items: items,
+                  onChanged: (v) {
+                    final elegido = snapshot.data!.docs.firstWhere(
+                      (d) => d.id == v,
+                    );
+                    final data = elegido.data() as Map<String, dynamic>;
+                    setState(() {
+                      _rivalNombre = (data['nombre'] ?? '').toString();
+                      _rivalEscudo = (data['escudo_url'] ?? '').toString();
+                    });
                   },
                 );
-              }).toList();
-              return DropdownButtonFormField<String>(
-                decoration: const InputDecoration(
-                  labelText: "Rival",
-                  border: OutlineInputBorder(),
-                ),
-                hint: const Text("Seleccionar Club Rival"),
-                items: items,
-                onChanged: (v) => setState(() => _rivalSeleccionadoId = v),
-              );
-            },
-          ),
+              },
+            ),
           const SizedBox(height: 40),
           ElevatedButton.icon(
             style: ElevatedButton.styleFrom(
@@ -845,12 +974,25 @@ class _PantallaAdminMinutoState extends State<PantallaAdminMinuto> {
           ),
           const SizedBox(height: 40),
           const Divider(),
+          TextButton.icon(
+            icon: const Icon(Icons.history),
+            label: const Text('VER HISTORIAL'),
+            onPressed: () => Navigator.push(
+              context,
+              MaterialPageRoute(
+                builder: (_) => PantallaHistorialMinuto(
+                  config: widget.config,
+                  deporteId: widget.deporteId,
+                ),
+              ),
+            ),
+          ),
           const SizedBox(height: 20),
           TextButton.icon(
             style: TextButton.styleFrom(foregroundColor: Colors.red),
             icon: const Icon(Icons.delete_forever),
             label: const Text("LIMPIAR HISTORIAL (NUEVA FECHA)"),
-            onPressed: _limpiarHistorial,
+            onPressed: () => _ejecutar(_limpiarHistorial),
           ),
         ],
       ),
@@ -1041,7 +1183,7 @@ class _PantallaAdminMinutoState extends State<PantallaAdminMinuto> {
                   ),
                 ),
                 subtitle: Text(
-                  e['equipo'] == 'local' ? 'Güemes' : rival,
+                  e['equipo'] == 'local' ? widget.config.nombreApp : rival,
                   style: const TextStyle(fontSize: 10),
                 ),
                 trailing: IconButton(
@@ -1052,6 +1194,7 @@ class _PantallaAdminMinutoState extends State<PantallaAdminMinuto> {
                   ),
                   tooltip: "Anular este evento",
                   onPressed: () {
+                    final sesionDialogo = _sesionVisible;
                     showDialog(
                       context: context,
                       builder: (c) => AlertDialog(
@@ -1066,7 +1209,8 @@ class _PantallaAdminMinutoState extends State<PantallaAdminMinuto> {
                           ),
                           ElevatedButton(
                             onPressed: () {
-                              _borrarEvento(e);
+                              if (sesionDialogo == _sesionVisible)
+                                _borrarEvento(e);
                               Navigator.pop(c);
                             },
                             child: const Text("Sí, anular"),

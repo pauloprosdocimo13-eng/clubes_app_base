@@ -142,6 +142,22 @@ class ServicioDatosClub {
     return FirebaseFirestore.instance.collection('partidos');
   }
 
+  static CollectionReference<Map<String, dynamic>> get partidosEnVivo {
+    if (usaTuSedeCentral) {
+      validarAccesoOperativo();
+      return FirestoreTuSede.coleccion('partidos_en_vivo');
+    }
+    return FirebaseFirestore.instance.collection('partidos_en_vivo');
+  }
+
+  static CollectionReference<Map<String, dynamic>> get rivales {
+    if (usaTuSedeCentral) {
+      validarAccesoOperativo();
+      return FirestoreTuSede.coleccion('rivales');
+    }
+    return FirebaseFirestore.instance.collection('rivales');
+  }
+
   /// Historial consultado al importar resultados desde el vivo.
   static CollectionReference<Map<String, dynamic>> get historialPartidos {
     if (usaTuSedeCentral) {
