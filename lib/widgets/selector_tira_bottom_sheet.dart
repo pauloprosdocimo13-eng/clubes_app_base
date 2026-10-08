@@ -1,27 +1,59 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
+
 import '../configuracion/configuracion_app.dart';
 import '../pantallas/pantalla_inicio.dart';
+import '../tusede/servicios/servicio_contenido_publico.dart';
+import '../tusede/servicios/servicio_datos_club.dart';
 
 class SelectorTiraBottomSheet {
+  static bool get _usaCentral => ServicioDatosClub.usaTuSedeCentral;
+
+  static Future<List<Map<String, dynamic>>> _cargarDeportes() async {
+    if (_usaCentral) {
+      final configuracion =
+          await ServicioContenidoPublico.cargarConfiguracion();
+
+      return List<Map<String, dynamic>>.from(configuracion.menuDeportes);
+    }
+
+    final doc = await FirebaseFirestore.instance
+        .collection('configuracion')
+        .doc('general')
+        .get();
+
+    final lista = <Map<String, dynamic>>[];
+
+    final raw = doc.data()?['menu_deportes'];
+
+    if (raw is List) {
+      for (final item in raw) {
+        if (item is Map) {
+          lista.add(Map<String, dynamic>.from(item));
+        }
+      }
+    }
+
+    return lista;
+  }
+
   static Future<void> mostrar(
     BuildContext context, {
     required ConfiguracionApp config,
     required String deporteIdActual,
   }) async {
     try {
-      final doc = await FirebaseFirestore.instance
-          .collection('configuracion')
-          .doc('general')
-          .get();
+      final lista = await _cargarDeportes();
 
-      if (!context.mounted) return;
+      if (!context.mounted) {
+        return;
+      }
 
-      final lista = doc.data()?['menu_deportes'] as List<dynamic>? ?? [];
       if (lista.isEmpty) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(content: Text('No hay categorías configuradas')),
         );
+
         return;
       }
 
@@ -47,7 +79,7 @@ class SelectorTiraBottomSheet {
 
 class _ContenidoSelector extends StatelessWidget {
   final ConfiguracionApp config;
-  final List<dynamic> deportes;
+  final List<Map<String, dynamic>> deportes;
   final String deporteIdActual;
 
   const _ContenidoSelector({
@@ -57,26 +89,58 @@ class _ContenidoSelector extends StatelessWidget {
   });
 
   IconData _iconoDeporte(String id) {
-    if (id.contains('baby')) return Icons.sports_soccer;
-    if (id.contains('futsal')) return Icons.sports_handball;
+    final normalizado = id.toLowerCase();
+
+    if (normalizado.contains('baby')) {
+      return Icons.sports_soccer;
+    }
+
+    if (normalizado.contains('futsal')) {
+      return Icons.sports_handball;
+    }
+
+    if (normalizado.contains('futbol') || normalizado.contains('fútbol')) {
+      return Icons.sports_soccer;
+    }
+
+    if (normalizado.contains('patin') || normalizado.contains('patín')) {
+      return Icons.sports_gymnastics;
+    }
+
+    if (normalizado.contains('boxeo')) {
+      return Icons.sports_mma;
+    }
+
+    if (normalizado.contains('taekwondo')) {
+      return Icons.sports_martial_arts;
+    }
+
     return Icons.star;
   }
 
   void _seleccionar(BuildContext context, Map<String, dynamic> deporte) {
-    final id = deporte['id']?.toString() ?? '';
+    final id = (deporte['id'] ?? '').toString().trim();
+
+    final titulo = (deporte['titulo'] ?? id).toString().trim();
+
+    if (id.isEmpty) {
+      return;
+    }
+
     if (id == deporteIdActual) {
       Navigator.pop(context);
       return;
     }
 
     Navigator.pop(context);
+
     Navigator.pushReplacement(
       context,
       MaterialPageRoute(
         builder: (_) => PantallaInicio(
           config: config,
           deporteId: id,
-          deporteTitulo: deporte['titulo']?.toString() ?? id,
+          deporteTitulo: titulo.isEmpty ? id : titulo,
         ),
       ),
     );
@@ -132,37 +196,50 @@ class _ContenidoSelector extends StatelessWidget {
               shrinkWrap: true,
               padding: const EdgeInsets.fromLTRB(16, 8, 16, 24),
               itemCount: deportes.length,
-              separatorBuilder: (_, __) => const SizedBox(height: 8),
+              separatorBuilder: (_, _) => const SizedBox(height: 8),
               itemBuilder: (context, index) {
-                final deporte = deportes[index] as Map<String, dynamic>;
-                final id = deporte['id']?.toString() ?? '';
-                final titulo = deporte['titulo']?.toString() ?? id;
+                final deporte = deportes[index];
+
+                final id = (deporte['id'] ?? '').toString();
+
+                final titulo = (deporte['titulo'] ?? id).toString();
+
                 final seleccionado = id == deporteIdActual;
 
                 return ListTile(
                   shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(14),
                     side: BorderSide(
-                      color: seleccionado ? config.colorPrimario : Colors.grey[200]!,
+                      color: seleccionado
+                          ? config.colorPrimario
+                          : Colors.grey[200]!,
                       width: seleccionado ? 2 : 1,
                     ),
                   ),
-                  tileColor: seleccionado ? config.colorPrimario.withOpacity(0.08) : null,
+                  tileColor: seleccionado
+                      ? config.colorPrimario.withValues(alpha: 0.08)
+                      : null,
                   leading: CircleAvatar(
-                    backgroundColor: config.colorPrimario.withOpacity(0.15),
+                    backgroundColor: config.colorPrimario.withValues(
+                      alpha: 0.15,
+                    ),
                     child: Icon(_iconoDeporte(id), color: config.colorPrimario),
                   ),
                   title: Text(
                     titulo.toUpperCase(),
                     style: TextStyle(
                       fontWeight: FontWeight.bold,
-                      color: seleccionado ? config.colorPrimario : Colors.black87,
+                      color: seleccionado
+                          ? config.colorPrimario
+                          : Colors.black87,
                     ),
                   ),
                   trailing: seleccionado
                       ? Icon(Icons.check_circle, color: config.colorPrimario)
                       : const Icon(Icons.arrow_forward_ios, size: 16),
-                  onTap: () => _seleccionar(context, deporte),
+                  onTap: () {
+                    _seleccionar(context, deporte);
+                  },
                 );
               },
             ),

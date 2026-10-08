@@ -2,6 +2,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import '../../configuracion/configuracion_app.dart';
+import '../../tusede/servicios/contexto_club.dart';
 import '../../tusede/servicios/servicio_datos_club.dart';
 import '../../tusede/servicios/logica_minuto.dart';
 import '../pantalla_historial_minuto.dart';
@@ -21,6 +22,18 @@ class PantallaAdminMinuto extends StatefulWidget {
 }
 
 class _PantallaAdminMinutoState extends State<PantallaAdminMinuto> {
+  String get _nombreClubLocal {
+    if (ServicioDatosClub.usaTuSedeCentral) {
+      final nombre = ContextoClub.nombreClub.trim();
+
+      if (nombre.isNotEmpty) {
+        return nombre;
+      }
+    }
+
+    return widget.config.nombreApp;
+  }
+
   // Variables para crear partido
   String _categoriaSeleccionada = '';
   bool _guardando = false;
@@ -30,7 +43,9 @@ class _PantallaAdminMinutoState extends State<PantallaAdminMinuto> {
   late final Stream<DocumentSnapshot<Map<String, dynamic>>> _vivoStream;
 
   Future<void> _ejecutar(Future<void> Function() accion) async {
-    if (_guardando || !mounted) return;
+    if (_guardando || !mounted) {
+      return;
+    }
     setState(() => _guardando = true);
     try {
       await accion();
@@ -41,7 +56,9 @@ class _PantallaAdminMinutoState extends State<PantallaAdminMinuto> {
         );
       }
     } finally {
-      if (mounted) setState(() => _guardando = false);
+      if (mounted) {
+        setState(() => _guardando = false);
+      }
     }
   }
 
@@ -81,11 +98,12 @@ class _PantallaAdminMinutoState extends State<PantallaAdminMinuto> {
   }
 
   Future<void> _cargarCategoriasDelDeporte() async {
-    if (mounted)
+    if (mounted) {
       setState(() {
         _cargandoCategorias = true;
         _errorCategorias = null;
       });
+    }
     List<String> categoriasEncontradas = [];
     try {
       final doc = await ServicioDatosClub.configuracion.doc('general').get();
@@ -101,11 +119,12 @@ class _PantallaAdminMinutoState extends State<PantallaAdminMinuto> {
         }
       }
     } catch (e) {
-      if (mounted)
+      if (mounted) {
         setState(() {
           _errorCategorias = 'No se pudo leer la configuración: $e';
           _cargandoCategorias = false;
         });
+      }
       return;
     }
 
@@ -115,12 +134,13 @@ class _PantallaAdminMinutoState extends State<PantallaAdminMinuto> {
         .toSet()
         .toList();
     if (categoriasEncontradas.isEmpty && ServicioDatosClub.usaTuSedeCentral) {
-      if (mounted)
+      if (mounted) {
         setState(() {
           _errorCategorias =
               'Configurá categorías para esta tira antes de iniciar un partido.';
           _cargandoCategorias = false;
         });
+      }
       return;
     }
     if (categoriasEncontradas.isEmpty) {
@@ -165,7 +185,9 @@ class _PantallaAdminMinutoState extends State<PantallaAdminMinuto> {
   }
 
   Future<void> _cargarJugadoresLocales(String categoria) async {
-    if (_cargandoPlantel || !mounted) return;
+    if (_cargandoPlantel || !mounted) {
+      return;
+    }
     _cargandoPlantel = true;
     _jugadoresLocales = [];
     _categoriaPlantelCargado = categoria;
@@ -195,7 +217,7 @@ class _PantallaAdminMinutoState extends State<PantallaAdminMinuto> {
         });
       }
     } catch (e) {
-      if (mounted)
+      if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text(
@@ -203,6 +225,7 @@ class _PantallaAdminMinutoState extends State<PantallaAdminMinuto> {
             ),
           ),
         );
+      }
     } finally {
       _cargandoPlantel = false;
     }
@@ -215,8 +238,10 @@ class _PantallaAdminMinutoState extends State<PantallaAdminMinuto> {
   }
 
   void _actualizarReloj() {
-    if (_inicioTiempoRef == null || (_estadoRef != '1T' && _estadoRef != '2T'))
+    if (_inicioTiempoRef == null ||
+        (_estadoRef != '1T' && _estadoRef != '2T')) {
       return;
+    }
     final now = DateTime.now();
     final inicio = _inicioTiempoRef!.toDate();
     final difference = now.difference(inicio);
@@ -279,12 +304,13 @@ class _PantallaAdminMinutoState extends State<PantallaAdminMinuto> {
           }
           await batch.commit();
         }
-        if (mounted)
+        if (mounted) {
           ScaffoldMessenger.of(
             context,
           ).showSnackBar(const SnackBar(content: Text("Historial limpio.")));
+        }
       } catch (e) {
-        if (mounted)
+        if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(
               content: Text(
@@ -292,6 +318,7 @@ class _PantallaAdminMinutoState extends State<PantallaAdminMinuto> {
               ),
             ),
           );
+        }
       }
     }
   }
@@ -344,8 +371,9 @@ class _PantallaAdminMinutoState extends State<PantallaAdminMinuto> {
         }
         if (nuevoEstado == 'FINALIZADO' || nuevoEstado == 'SUSPENDIDO') {
           cambios['activo'] = false;
-          if (motivoSuspension != null)
+          if (motivoSuspension != null) {
             cambios['motivo_suspension'] = motivoSuspension;
+          }
           // Archivo y cierre atómicos: no se duplica el historial al reintentar.
           tx.set(historial, {
             ...data,
@@ -420,20 +448,20 @@ class _PantallaAdminMinutoState extends State<PantallaAdminMinuto> {
     String? idAsistencia;
     String? nombreAsistencia;
 
-    final _autorManualCtrl = TextEditingController();
-    final _asistenciaManualCtrl = TextEditingController();
+    final autorManualCtrl = TextEditingController();
+    final asistenciaManualCtrl = TextEditingController();
 
     showDialog(
       context: context,
       builder: (c) => StatefulBuilder(
         builder: (ctx, setDialogState) => AlertDialog(
-          title: Text("⚽ GOL DE ${widget.config.nombreApp}"),
+          title: Text("⚽ GOL DE $_nombreClubLocal"),
           content: SingleChildScrollView(
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
                 DropdownButtonFormField<String>(
-                  value: seleccionAutor,
+                  initialValue: seleccionAutor,
                   decoration: const InputDecoration(
                     labelText: "Autor del Gol *",
                     border: OutlineInputBorder(),
@@ -476,7 +504,7 @@ class _PantallaAdminMinutoState extends State<PantallaAdminMinuto> {
                       }
                       if (v == 'manual') {
                         idAutor = null;
-                        nombreAutor = _autorManualCtrl.text;
+                        nombreAutor = autorManualCtrl.text;
                       } else {
                         idAutor = v;
                         nombreAutor = _jugadoresLocales.firstWhere(
@@ -489,7 +517,7 @@ class _PantallaAdminMinutoState extends State<PantallaAdminMinuto> {
                 if (seleccionAutor == 'manual') ...[
                   const SizedBox(height: 10),
                   TextField(
-                    controller: _autorManualCtrl,
+                    controller: autorManualCtrl,
                     decoration: const InputDecoration(
                       labelText: "Nombre del jugador (Ej: Benja 2017)",
                       border: OutlineInputBorder(),
@@ -500,7 +528,7 @@ class _PantallaAdminMinutoState extends State<PantallaAdminMinuto> {
                 ],
                 const SizedBox(height: 15),
                 DropdownButtonFormField<String>(
-                  value: seleccionAsistencia,
+                  initialValue: seleccionAsistencia,
                   decoration: const InputDecoration(
                     labelText: "Asistencia (Opcional)",
                     border: OutlineInputBorder(),
@@ -537,7 +565,7 @@ class _PantallaAdminMinutoState extends State<PantallaAdminMinuto> {
                         nombreAsistencia = null;
                       } else if (v == 'manual') {
                         idAsistencia = null;
-                        nombreAsistencia = _asistenciaManualCtrl.text;
+                        nombreAsistencia = asistenciaManualCtrl.text;
                       } else {
                         idAsistencia = v;
                         nombreAsistencia = _jugadoresLocales.firstWhere(
@@ -550,7 +578,7 @@ class _PantallaAdminMinutoState extends State<PantallaAdminMinuto> {
                 if (seleccionAsistencia == 'manual') ...[
                   const SizedBox(height: 10),
                   TextField(
-                    controller: _asistenciaManualCtrl,
+                    controller: asistenciaManualCtrl,
                     decoration: const InputDecoration(
                       labelText: "Nombre de la asistencia",
                       border: OutlineInputBorder(),
@@ -575,7 +603,7 @@ class _PantallaAdminMinutoState extends State<PantallaAdminMinuto> {
               onPressed: () {
                 if (sesionDialogo != _sesionVisible) {
                   Navigator.pop(c);
-                  ScaffoldMessenger.of(this.context).showSnackBar(
+                  ScaffoldMessenger.of(context).showSnackBar(
                     const SnackBar(
                       content: Text(
                         'El partido cambió. Abrí nuevamente la acción.',
@@ -585,8 +613,9 @@ class _PantallaAdminMinutoState extends State<PantallaAdminMinuto> {
                   return;
                 }
                 if (seleccionAutor == 'manual' &&
-                    _autorManualCtrl.text.trim().isEmpty)
+                    autorManualCtrl.text.trim().isEmpty) {
                   return;
+                }
 
                 if (seleccionAutor != null && seleccionAutor != 'vacio') {
                   _registrarGolLocal(
@@ -628,7 +657,7 @@ class _PantallaAdminMinutoState extends State<PantallaAdminMinuto> {
             onPressed: () {
               if (sesionDialogo != _sesionVisible) {
                 Navigator.pop(c);
-                ScaffoldMessenger.of(this.context).showSnackBar(
+                ScaffoldMessenger.of(context).showSnackBar(
                   const SnackBar(
                     content: Text(
                       'El partido cambió. Abrí nuevamente la acción.',
@@ -726,7 +755,7 @@ class _PantallaAdminMinutoState extends State<PantallaAdminMinuto> {
                 onPressed: () {
                   if (sesionDialogo != _sesionVisible) {
                     Navigator.pop(c);
-                    ScaffoldMessenger.of(this.context).showSnackBar(
+                    ScaffoldMessenger.of(context).showSnackBar(
                       const SnackBar(
                         content: Text(
                           'El partido cambió. Abrí nuevamente la acción.',
@@ -761,7 +790,7 @@ class _PantallaAdminMinutoState extends State<PantallaAdminMinuto> {
         title: const Row(
           children: [
             Icon(Icons.warning, color: Colors.orange),
-            const SizedBox(width: 10),
+            SizedBox(width: 10),
             Text("Suspender Partido"),
           ],
         ),
@@ -793,7 +822,7 @@ class _PantallaAdminMinutoState extends State<PantallaAdminMinuto> {
             onPressed: () {
               if (sesionDialogo != _sesionVisible) {
                 Navigator.pop(c);
-                ScaffoldMessenger.of(this.context).showSnackBar(
+                ScaffoldMessenger.of(context).showSnackBar(
                   const SnackBar(
                     content: Text(
                       'El partido cambió. Abrí nuevamente la acción.',
@@ -832,8 +861,9 @@ class _PantallaAdminMinutoState extends State<PantallaAdminMinuto> {
                 child: Text('No se pudo leer el vivo: ${snapshot.error}'),
               );
             }
-            if (!snapshot.hasData)
+            if (!snapshot.hasData) {
               return const Center(child: CircularProgressIndicator());
+            }
             bool activo = false;
             if (snapshot.data!.exists) {
               final d = snapshot.data!.data() as Map<String, dynamic>;
@@ -862,8 +892,9 @@ class _PantallaAdminMinutoState extends State<PantallaAdminMinuto> {
   }
 
   Widget _buildPantallaConfiguracion() {
-    if (_cargandoCategorias)
+    if (_cargandoCategorias) {
       return const Center(child: CircularProgressIndicator());
+    }
     if (_errorCategorias != null) {
       return Center(
         child: Column(
@@ -889,7 +920,7 @@ class _PantallaAdminMinutoState extends State<PantallaAdminMinuto> {
           ),
           const SizedBox(height: 20),
           DropdownButtonFormField<String>(
-            value: _categoriaSeleccionada,
+            initialValue: _categoriaSeleccionada,
             decoration: const InputDecoration(
               labelText: "Categoría",
               border: OutlineInputBorder(),
@@ -925,8 +956,9 @@ class _PantallaAdminMinutoState extends State<PantallaAdminMinuto> {
                   .where('deporte_id', isEqualTo: widget.deporteId)
                   .snapshots(),
               builder: (context, snapshot) {
-                if (snapshot.hasError)
+                if (snapshot.hasError) {
                   return const Text('No se pudieron cargar los rivales.');
+                }
                 if (!snapshot.hasData) return const CircularProgressIndicator();
                 List<DropdownMenuItem<String>> items = snapshot.data!.docs.map((
                   doc,
@@ -1019,7 +1051,7 @@ class _PantallaAdminMinutoState extends State<PantallaAdminMinuto> {
                 Column(
                   children: [
                     Text(
-                      widget.config.nombreApp,
+                      _nombreClubLocal,
                       style: const TextStyle(color: Colors.white),
                     ),
                     Text(
@@ -1183,7 +1215,7 @@ class _PantallaAdminMinutoState extends State<PantallaAdminMinuto> {
                   ),
                 ),
                 subtitle: Text(
-                  e['equipo'] == 'local' ? widget.config.nombreApp : rival,
+                  e['equipo'] == 'local' ? _nombreClubLocal : rival,
                   style: const TextStyle(fontSize: 10),
                 ),
                 trailing: IconButton(
@@ -1209,8 +1241,9 @@ class _PantallaAdminMinutoState extends State<PantallaAdminMinuto> {
                           ),
                           ElevatedButton(
                             onPressed: () {
-                              if (sesionDialogo == _sesionVisible)
+                              if (sesionDialogo == _sesionVisible) {
                                 _borrarEvento(e);
+                              }
                               Navigator.pop(c);
                             },
                             child: const Text("Sí, anular"),

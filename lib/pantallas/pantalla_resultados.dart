@@ -1,6 +1,10 @@
-import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:flutter/material.dart';
+
 import '../configuracion/configuracion_app.dart';
+import '../tusede/servicios/contexto_club.dart';
+import '../tusede/servicios/servicio_contenido_publico.dart';
+import '../tusede/servicios/servicio_datos_club.dart';
 
 class PantallaResultados extends StatelessWidget {
   final ConfiguracionApp config;
@@ -21,7 +25,7 @@ class PantallaResultados extends StatelessWidget {
       child: Scaffold(
         backgroundColor: Colors.grey[200],
         appBar: AppBar(
-          title: Text("Resultados $tituloDeporte"),
+          title: Text('Resultados $tituloDeporte'),
           backgroundColor: config.colorPrimario,
           foregroundColor: Colors.white,
           bottom: const TabBar(
@@ -31,8 +35,8 @@ class PantallaResultados extends StatelessWidget {
             labelColor: Colors.white,
             unselectedLabelColor: Colors.white60,
             tabs: [
-              Tab(text: "Apertura"),
-              Tab(text: "Clausura"),
+              Tab(text: 'Apertura'),
+              Tab(text: 'Clausura'),
             ],
           ),
         ),
@@ -55,7 +59,7 @@ class PantallaResultados extends StatelessWidget {
   }
 }
 
-class _ListaPartidos extends StatelessWidget {
+class _ListaPartidos extends StatefulWidget {
   final ConfiguracionApp config;
   final String deporteId;
   final String torneo;
@@ -66,16 +70,104 @@ class _ListaPartidos extends StatelessWidget {
     required this.torneo,
   });
 
+  @override
+  State<_ListaPartidos> createState() => _ListaPartidosState();
+}
+
+class _ListaPartidosState extends State<_ListaPartidos> {
+  Stream<QuerySnapshot<Map<String, dynamic>>>? _streamLegacy;
+
+  Future<List<Map<String, dynamic>>>? _futureCentral;
+
+  bool get _usaCentral => ServicioDatosClub.usaTuSedeCentral;
+
+  ConfiguracionApp get config => widget.config;
+
+  String get deporteId => widget.deporteId;
+
+  String get torneo => widget.torneo;
+
+  String get _nombreClubLocal {
+    if (_usaCentral) {
+      final nombre = ContextoClub.nombreClub.trim();
+
+      if (nombre.isNotEmpty) {
+        return nombre;
+      }
+    }
+
+    return config.nombreApp;
+  }
+
+  Widget _logoClubLocal() {
+    if (_usaCentral) {
+      final logoUrl = ContextoClub.logoUrlCentral.trim();
+
+      if (logoUrl.isNotEmpty) {
+        return Image.network(
+          logoUrl,
+          width: 56,
+          height: 56,
+          fit: BoxFit.contain,
+          errorBuilder: (context, error, stackTrace) {
+            return Image.asset(
+              config.rutaLogo,
+              width: 56,
+              height: 56,
+              fit: BoxFit.contain,
+            );
+          },
+        );
+      }
+    }
+
+    return Image.asset(
+      config.rutaLogo,
+      width: 56,
+      height: 56,
+      fit: BoxFit.contain,
+    );
+  }
+
+  @override
+  void initState() {
+    super.initState();
+
+    if (_usaCentral) {
+      _cargarCentral();
+    } else {
+      _streamLegacy = FirebaseFirestore.instance
+          .collection('partidos')
+          .where('deporte_id', isEqualTo: deporteId)
+          .where('torneo', isEqualTo: torneo)
+          .snapshots();
+    }
+  }
+
+  void _cargarCentral() {
+    _futureCentral = ServicioContenidoPublico.cargarResultados(
+      deporteId,
+      torneo: torneo,
+    );
+  }
+
+  void _reintentarCentral() {
+    setState(() {
+      _cargarCentral();
+    });
+  }
+
   void _mostrarGoleadores(
     BuildContext context,
-    String cat,
+    String categoria,
     List<String> autoresPropios,
     List<String> autoresRival,
     bool esLocal,
     String nombreRival,
   ) {
-    List<String> golesLocal = esLocal ? autoresPropios : autoresRival;
-    List<String> golesVisita = esLocal ? autoresRival : autoresPropios;
+    final golesLocal = esLocal ? autoresPropios : autoresRival;
+
+    final golesVisita = esLocal ? autoresRival : autoresPropios;
 
     showModalBottomSheet(
       context: context,
@@ -84,14 +176,14 @@ class _ListaPartidos extends StatelessWidget {
       ),
       builder: (ctx) {
         return Padding(
-          padding: const EdgeInsets.all(20.0),
+          padding: const EdgeInsets.all(20),
           child: Column(
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Center(
                 child: Text(
-                  "Detalles Cat. $cat",
+                  'Detalles Cat. $categoria',
                   style: TextStyle(
                     fontSize: 18,
                     fontWeight: FontWeight.bold,
@@ -100,13 +192,13 @@ class _ListaPartidos extends StatelessWidget {
                 ),
               ),
               const Divider(height: 30),
-
               if (golesLocal.isEmpty && golesVisita.isEmpty)
                 const Center(
                   child: Padding(
-                    padding: EdgeInsets.all(20.0),
+                    padding: EdgeInsets.all(20),
                     child: Text(
-                      "No hay detalles de goleadores para este partido.",
+                      'No hay detalles de goleadores '
+                      'para este partido.',
                       style: TextStyle(
                         color: Colors.grey,
                         fontStyle: FontStyle.italic,
@@ -114,10 +206,10 @@ class _ListaPartidos extends StatelessWidget {
                     ),
                   ),
                 ),
-
               if (golesLocal.isNotEmpty) ...[
                 Text(
-                  "Goles ${esLocal ? config.nombreApp : nombreRival}",
+                  'Goles '
+                  '${esLocal ? _nombreClubLocal : nombreRival}',
                   style: const TextStyle(
                     fontWeight: FontWeight.bold,
                     fontSize: 14,
@@ -125,7 +217,7 @@ class _ListaPartidos extends StatelessWidget {
                 ),
                 const SizedBox(height: 5),
                 ...golesLocal.map(
-                  (g) => Padding(
+                  (gol) => Padding(
                     padding: const EdgeInsets.only(bottom: 4),
                     child: Row(
                       children: [
@@ -136,7 +228,10 @@ class _ListaPartidos extends StatelessWidget {
                         ),
                         const SizedBox(width: 8),
                         Expanded(
-                          child: Text(g, style: const TextStyle(fontSize: 13)),
+                          child: Text(
+                            gol,
+                            style: const TextStyle(fontSize: 13),
+                          ),
                         ),
                       ],
                     ),
@@ -144,10 +239,10 @@ class _ListaPartidos extends StatelessWidget {
                 ),
                 const SizedBox(height: 15),
               ],
-
               if (golesVisita.isNotEmpty) ...[
                 Text(
-                  "Goles ${!esLocal ? config.nombreApp : nombreRival}",
+                  'Goles '
+                  '${!esLocal ? _nombreClubLocal : nombreRival}',
                   style: const TextStyle(
                     fontWeight: FontWeight.bold,
                     fontSize: 14,
@@ -155,7 +250,7 @@ class _ListaPartidos extends StatelessWidget {
                 ),
                 const SizedBox(height: 5),
                 ...golesVisita.map(
-                  (g) => Padding(
+                  (gol) => Padding(
                     padding: const EdgeInsets.only(bottom: 4),
                     child: Row(
                       children: [
@@ -166,7 +261,10 @@ class _ListaPartidos extends StatelessWidget {
                         ),
                         const SizedBox(width: 8),
                         Expanded(
-                          child: Text(g, style: const TextStyle(fontSize: 13)),
+                          child: Text(
+                            gol,
+                            style: const TextStyle(fontSize: 13),
+                          ),
                         ),
                       ],
                     ),
@@ -181,25 +279,122 @@ class _ListaPartidos extends StatelessWidget {
     );
   }
 
-  @override
-  Widget build(BuildContext context) {
-    return StreamBuilder<QuerySnapshot>(
-      stream: FirebaseFirestore.instance
-          .collection('partidos')
-          .where('deporte_id', isEqualTo: deporteId)
-          .where('torneo', isEqualTo: torneo)
-          .snapshots(),
+  List<Map<String, dynamic>> _ordenarPartidos(
+    List<Map<String, dynamic>> partidos,
+  ) {
+    final resultado = List<Map<String, dynamic>>.from(partidos);
+
+    resultado.sort((a, b) {
+      final fechaA = a['fecha'];
+
+      final fechaB = b['fecha'];
+
+      if (fechaA is! Timestamp && fechaB is! Timestamp) {
+        return 0;
+      }
+
+      if (fechaA is! Timestamp) {
+        return 1;
+      }
+
+      if (fechaB is! Timestamp) {
+        return -1;
+      }
+
+      return fechaA.compareTo(fechaB);
+    });
+
+    return resultado;
+  }
+
+  Widget _estadoVacio() {
+    return Center(
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Icon(Icons.emoji_events_outlined, size: 60, color: Colors.grey[400]),
+          const SizedBox(height: 10),
+          Text(
+            'No hay partidos en el torneo $torneo.',
+            style: TextStyle(color: Colors.grey[600]),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _errorCentral(Object? error) {
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.all(24),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Icon(Icons.cloud_off, size: 52, color: Colors.grey),
+            const SizedBox(height: 12),
+            const Text(
+              'No pudimos cargar los resultados.',
+              textAlign: TextAlign.center,
+              style: TextStyle(fontWeight: FontWeight.bold),
+            ),
+            const SizedBox(height: 6),
+            Text(
+              '$error',
+              textAlign: TextAlign.center,
+              style: const TextStyle(color: Colors.grey, fontSize: 12),
+            ),
+            const SizedBox(height: 16),
+            ElevatedButton.icon(
+              onPressed: _reintentarCentral,
+              icon: const Icon(Icons.refresh),
+              label: const Text('Reintentar'),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _contenidoCentral() {
+    return FutureBuilder<List<Map<String, dynamic>>>(
+      future: _futureCentral,
       builder: (context, snapshot) {
         if (snapshot.connectionState == ConnectionState.waiting) {
           return const Center(child: CircularProgressIndicator());
         }
 
         if (snapshot.hasError) {
+          return _errorCentral(snapshot.error);
+        }
+
+        final partidos = snapshot.data ?? <Map<String, dynamic>>[];
+
+        if (partidos.isEmpty) {
+          return _estadoVacio();
+        }
+
+        return _listaPartidos(partidos);
+      },
+    );
+  }
+
+  Widget _contenidoLegacy() {
+    return StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
+      stream: _streamLegacy,
+      builder: (context, snapshot) {
+        if (snapshot.connectionState == ConnectionState.waiting &&
+            !snapshot.hasData) {
+          return const Center(child: CircularProgressIndicator());
+        }
+
+        if (snapshot.hasError) {
           return Center(
             child: Padding(
-              padding: const EdgeInsets.all(20.0),
+              padding: const EdgeInsets.all(20),
               child: Text(
-                "Cargando resultados... Si el problema persiste, contacte al administrador.",
+                'Cargando resultados... '
+                'Si el problema persiste, '
+                'contacte al administrador.',
                 style: TextStyle(color: Colors.grey[600]),
                 textAlign: TextAlign.center,
               ),
@@ -207,485 +402,514 @@ class _ListaPartidos extends StatelessWidget {
           );
         }
 
-        if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
-          return Center(
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                Icon(
-                  Icons.emoji_events_outlined,
-                  size: 60,
-                  color: Colors.grey[400],
-                ),
-                const SizedBox(height: 10),
-                Text(
-                  "No hay partidos en el torneo $torneo.",
-                  style: TextStyle(color: Colors.grey[600]),
-                ),
-              ],
-            ),
-          );
+        final partidos =
+            snapshot.data?.docs
+                .map(
+                  (doc) => <String, dynamic>{'_doc_id': doc.id, ...doc.data()},
+                )
+                .toList() ??
+            <Map<String, dynamic>>[];
+
+        if (partidos.isEmpty) {
+          return _estadoVacio();
         }
 
-        final partidos = snapshot.data!.docs.toList();
-        partidos.sort((a, b) {
-          final dataA = a.data() as Map<String, dynamic>;
-          final dataB = b.data() as Map<String, dynamic>;
-          Timestamp? tA = dataA['fecha'];
-          Timestamp? tB = dataB['fecha'];
-          if (tA == null && tB == null) return 0;
-          if (tA == null) return 1;
-          if (tB == null) return -1;
-          return tA.compareTo(tB);
+        return _listaPartidos(partidos);
+      },
+    );
+  }
+
+  Widget _listaPartidos(List<Map<String, dynamic>> partidosOriginales) {
+    final partidos = _ordenarPartidos(partidosOriginales);
+
+    return ListView.builder(
+      padding: const EdgeInsets.all(16),
+      itemCount: partidos.length,
+      itemBuilder: (context, index) {
+        final data = partidos[index];
+
+        final rival = (data['rival'] ?? 'Rival').toString();
+
+        final esLocal = data['es_local'] ?? true;
+
+        final estado = (data['estado'] ?? 'programado').toString();
+
+        final jornada = (data['jornada'] ?? 'Partido').toString();
+
+        final escudoRival = (data['escudo_rival'] ?? data['escudo_url'] ?? '')
+            .toString();
+
+        String fechaTexto = '--/--';
+
+        final fecha = data['fecha'];
+
+        if (fecha is Timestamp) {
+          final date = fecha.toDate();
+
+          fechaTexto =
+              '${date.day.toString().padLeft(2, '0')}/'
+              '${date.month.toString().padLeft(2, '0')}/'
+              '${date.year}';
+        }
+
+        final rawResultados = data['resultado'] is List
+            ? data['resultado'] as List
+            : data['resultados'] is List
+            ? data['resultados'] as List
+            : const [];
+
+        final listaResultados = List<dynamic>.from(rawResultados);
+
+        listaResultados.sort((a, b) {
+          final categoriaA = a is Map ? (a['categoria'] ?? '').toString() : '';
+
+          final categoriaB = b is Map ? (b['categoria'] ?? '').toString() : '';
+
+          return categoriaA.compareTo(categoriaB);
         });
 
-        return ListView.builder(
-          padding: const EdgeInsets.all(16),
-          itemCount: partidos.length,
-          itemBuilder: (context, index) {
-            final data = partidos[index].data() as Map<String, dynamic>;
+        final nombreEq1 = esLocal ? _nombreClubLocal : rival.toUpperCase();
 
-            final String rival = data['rival'] ?? 'Rival';
-            final bool esLocal = data['es_local'] ?? true;
-            final String estado = data['estado'] ?? 'programado';
-            final String jornada = data['jornada'] ?? 'Partido';
+        final nombreEq2 = esLocal ? rival.toUpperCase() : _nombreClubLocal;
 
-            // --- NUEVO: Extraemos la URL del escudo del rival ---
-            final String escudoRival =
-                data['escudo_rival'] ?? data['escudo_url'] ?? '';
-
-            String fechaTexto = "--/--";
-            if (data['fecha'] != null) {
-              Timestamp ts = data['fecha'];
-              DateTime dt = ts.toDate();
-              fechaTexto =
-                  "${dt.day.toString().padLeft(2, '0')}/${dt.month.toString().padLeft(2, '0')}/${dt.year}";
-            }
-
-            List<dynamic> listaResultados = [];
-            if (data.containsKey('resultado')) {
-              listaResultados = data['resultado'];
-            } else if (data.containsKey('resultados')) {
-              listaResultados = data['resultados'];
-            }
-            try {
-              listaResultados.sort(
-                (a, b) => (a['categoria'] ?? '').toString().compareTo(
-                  (b['categoria'] ?? '').toString(),
+        return Card(
+          elevation: 4,
+          shadowColor: Colors.black26,
+          margin: const EdgeInsets.only(bottom: 20),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(15),
+          ),
+          clipBehavior: Clip.antiAlias,
+          child: Column(
+            children: [
+              Container(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 15,
+                  vertical: 8,
                 ),
-              );
-            } catch (e) {
-              print(e);
-            }
-
-            String nombreEq1 = esLocal ? config.nombreApp : rival.toUpperCase();
-            String nombreEq2 = esLocal ? rival.toUpperCase() : config.nombreApp;
-
-            return Card(
-              elevation: 4,
-              shadowColor: Colors.black26,
-              margin: const EdgeInsets.only(bottom: 20),
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(15),
-              ),
-              clipBehavior: Clip.antiAlias,
-              child: Column(
-                children: [
-                  // --- FRANJA SUPERIOR ---
-                  Container(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 15,
-                      vertical: 8,
+                color: config.colorPrimario,
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Text(
+                      jornada.toUpperCase(),
+                      style: const TextStyle(
+                        fontWeight: FontWeight.bold,
+                        color: Colors.white,
+                        fontSize: 13,
+                        letterSpacing: 1,
+                      ),
                     ),
-                    color: config.colorPrimario,
-                    child: Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    Row(
                       children: [
+                        const Icon(
+                          Icons.calendar_today,
+                          size: 14,
+                          color: Colors.white70,
+                        ),
+                        const SizedBox(width: 6),
                         Text(
-                          jornada.toUpperCase(),
+                          fechaTexto,
                           style: const TextStyle(
-                            fontWeight: FontWeight.bold,
                             color: Colors.white,
-                            fontSize: 13,
-                            letterSpacing: 1,
+                            fontSize: 12,
+                            fontWeight: FontWeight.bold,
                           ),
                         ),
-                        Row(
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+              Theme(
+                data: Theme.of(
+                  context,
+                ).copyWith(dividerColor: Colors.transparent),
+                child: ExpansionTile(
+                  tilePadding: const EdgeInsets.only(
+                    left: 15,
+                    right: 15,
+                    top: 10,
+                    bottom: 5,
+                  ),
+                  backgroundColor: Colors.white,
+                  collapsedBackgroundColor: Colors.white,
+                  iconColor: config.colorPrimario,
+                  collapsedIconColor: Colors.grey[400],
+                  trailing: const SizedBox.shrink(),
+                  title: Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Expanded(
+                        flex: 3,
+                        child: Column(
                           children: [
-                            const Icon(
-                              Icons.calendar_today,
-                              size: 14,
-                              color: Colors.white70,
+                            CircleAvatar(
+                              backgroundColor: Colors.transparent,
+                              radius: 28,
+                              child: esLocal
+                                  ? ClipOval(child: _logoClubLocal())
+                                  : escudoRival.isNotEmpty
+                                  ? ClipOval(
+                                      child: Image.network(
+                                        escudoRival,
+                                        width: 56,
+                                        height: 56,
+                                        fit: BoxFit.contain,
+                                        errorBuilder:
+                                            (context, error, stackTrace) {
+                                              return Text(
+                                                nombreEq1.isNotEmpty
+                                                    ? nombreEq1.substring(0, 1)
+                                                    : '',
+                                                style: const TextStyle(
+                                                  fontWeight: FontWeight.bold,
+                                                  color: Colors.black54,
+                                                  fontSize: 24,
+                                                ),
+                                              );
+                                            },
+                                      ),
+                                    )
+                                  : Text(
+                                      nombreEq1.isNotEmpty
+                                          ? nombreEq1.substring(0, 1)
+                                          : '',
+                                      style: const TextStyle(
+                                        fontWeight: FontWeight.bold,
+                                        color: Colors.black54,
+                                        fontSize: 24,
+                                      ),
+                                    ),
                             ),
-                            const SizedBox(width: 6),
+                            const SizedBox(height: 8),
                             Text(
-                              fechaTexto,
+                              nombreEq1,
+                              textAlign: TextAlign.center,
+                              maxLines: 2,
+                              overflow: TextOverflow.ellipsis,
                               style: const TextStyle(
-                                color: Colors.white,
-                                fontSize: 12,
                                 fontWeight: FontWeight.bold,
+                                fontSize: 12,
                               ),
                             ),
                           ],
                         ),
-                      ],
-                    ),
-                  ),
-
-                  // --- PARTE BLANCA DESPLEGABLE ---
-                  Theme(
-                    data: Theme.of(
-                      context,
-                    ).copyWith(dividerColor: Colors.transparent),
-                    child: ExpansionTile(
-                      tilePadding: const EdgeInsets.only(
-                        left: 15,
-                        right: 15,
-                        top: 10,
-                        bottom: 5,
                       ),
-                      backgroundColor: Colors.white,
-                      collapsedBackgroundColor: Colors.white,
-                      iconColor: config.colorPrimario,
-                      collapsedIconColor: Colors.grey[400],
-                      trailing: const SizedBox.shrink(),
-
-                      title: Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                        children: [
-                          // --- EQUIPO 1 (IZQUIERDA) ---
-                          Expanded(
-                            flex: 3,
-                            child: Column(
-                              children: [
-                                CircleAvatar(
-                                  backgroundColor: Colors.transparent,
-                                  radius: 28,
-                                  backgroundImage: esLocal
-                                      ? AssetImage(config.rutaLogo)
-                                            as ImageProvider
-                                      : (escudoRival.isNotEmpty
-                                            ? NetworkImage(escudoRival)
-                                                  as ImageProvider
-                                            : null),
-                                  child: (!esLocal && escudoRival.isEmpty)
-                                      ? Text(
-                                          nombreEq1.isNotEmpty
-                                              ? nombreEq1.substring(0, 1)
-                                              : '',
-                                          style: const TextStyle(
-                                            fontWeight: FontWeight.bold,
-                                            color: Colors.black54,
-                                            fontSize: 24,
-                                          ),
-                                        )
-                                      : null,
-                                ),
-                                const SizedBox(height: 8),
-                                Text(
-                                  nombreEq1,
-                                  textAlign: TextAlign.center,
-                                  maxLines: 2,
-                                  overflow: TextOverflow.ellipsis,
-                                  style: const TextStyle(
-                                    fontWeight: FontWeight.bold,
-                                    fontSize: 12,
+                      Expanded(
+                        flex: 3,
+                        child: estado == 'programado'
+                            ? Column(
+                                children: [
+                                  Icon(
+                                    Icons.schedule,
+                                    color: Colors.orange[800],
+                                    size: 28,
                                   ),
-                                ),
-                              ],
-                            ),
-                          ),
-
-                          // --- ESTADO O RESULTADO CENTRAL ---
-                          Expanded(
-                            flex: 3,
-                            child: estado == 'programado'
-                                ? Column(
-                                    children: [
-                                      Icon(
-                                        Icons.schedule,
-                                        color: Colors.orange[800],
-                                        size: 28,
+                                  const SizedBox(height: 5),
+                                  const Text(
+                                    'PROG.',
+                                    style: TextStyle(
+                                      fontSize: 11,
+                                      fontWeight: FontWeight.bold,
+                                      color: Colors.orange,
+                                    ),
+                                  ),
+                                ],
+                              )
+                            : Column(
+                                children: [
+                                  Container(
+                                    padding: const EdgeInsets.symmetric(
+                                      horizontal: 14,
+                                      vertical: 6,
+                                    ),
+                                    decoration: BoxDecoration(
+                                      color: Colors.green[600],
+                                      borderRadius: BorderRadius.circular(20),
+                                      boxShadow: [
+                                        BoxShadow(
+                                          color: Colors.green.withValues(
+                                            alpha: 0.4,
+                                          ),
+                                          blurRadius: 4,
+                                          offset: const Offset(0, 2),
+                                        ),
+                                      ],
+                                    ),
+                                    child: const Text(
+                                      'FINAL',
+                                      textAlign: TextAlign.center,
+                                      style: TextStyle(
+                                        fontSize: 13,
+                                        fontWeight: FontWeight.w900,
+                                        color: Colors.white,
+                                        letterSpacing: 1,
                                       ),
-                                      const SizedBox(height: 5),
-                                      const Text(
-                                        "PROG.",
+                                    ),
+                                  ),
+                                  const SizedBox(height: 10),
+                                  Row(
+                                    mainAxisAlignment: MainAxisAlignment.center,
+                                    children: [
+                                      Text(
+                                        'Ver detalles',
                                         style: TextStyle(
                                           fontSize: 11,
+                                          color: config.colorPrimario,
                                           fontWeight: FontWeight.bold,
-                                          color: Colors.orange,
                                         ),
+                                      ),
+                                      Icon(
+                                        Icons.keyboard_arrow_down,
+                                        size: 16,
+                                        color: config.colorPrimario,
                                       ),
                                     ],
-                                  )
-                                : Column(
-                                    children: [
-                                      Container(
-                                        padding: const EdgeInsets.symmetric(
-                                          horizontal: 14,
-                                          vertical: 6,
-                                        ),
-                                        decoration: BoxDecoration(
-                                          color: Colors.green[600],
-                                          borderRadius: BorderRadius.circular(
-                                            20,
-                                          ),
-                                          boxShadow: [
-                                            BoxShadow(
-                                              color: Colors.green.withOpacity(
-                                                0.4,
-                                              ),
-                                              blurRadius: 4,
-                                              offset: const Offset(0, 2),
-                                            ),
-                                          ],
-                                        ),
-                                        child: const Text(
-                                          "FINAL",
-                                          textAlign: TextAlign.center,
-                                          style: TextStyle(
-                                            fontSize: 13,
-                                            fontWeight: FontWeight.w900,
-                                            color: Colors.white,
-                                            letterSpacing: 1,
+                                  ),
+                                ],
+                              ),
+                      ),
+                      Expanded(
+                        flex: 3,
+                        child: Column(
+                          children: [
+                            CircleAvatar(
+                              backgroundColor: Colors.transparent,
+                              radius: 28,
+                              child: !esLocal
+                                  ? ClipOval(child: _logoClubLocal())
+                                  : escudoRival.isNotEmpty
+                                  ? ClipOval(
+                                      child: Image.network(
+                                        escudoRival,
+                                        width: 56,
+                                        height: 56,
+                                        fit: BoxFit.contain,
+                                        errorBuilder:
+                                            (context, error, stackTrace) {
+                                              return Text(
+                                                nombreEq2.isNotEmpty
+                                                    ? nombreEq2.substring(0, 1)
+                                                    : '',
+                                                style: const TextStyle(
+                                                  fontWeight: FontWeight.bold,
+                                                  color: Colors.black54,
+                                                  fontSize: 24,
+                                                ),
+                                              );
+                                            },
+                                      ),
+                                    )
+                                  : Text(
+                                      nombreEq2.isNotEmpty
+                                          ? nombreEq2.substring(0, 1)
+                                          : '',
+                                      style: const TextStyle(
+                                        fontWeight: FontWeight.bold,
+                                        color: Colors.black54,
+                                        fontSize: 24,
+                                      ),
+                                    ),
+                            ),
+                            const SizedBox(height: 8),
+                            Text(
+                              nombreEq2,
+                              textAlign: TextAlign.center,
+                              maxLines: 2,
+                              overflow: TextOverflow.ellipsis,
+                              style: const TextStyle(
+                                fontWeight: FontWeight.bold,
+                                fontSize: 12,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
+                  children: [
+                    Container(
+                      color: Colors.grey[50],
+                      padding: const EdgeInsets.only(
+                        left: 15,
+                        right: 15,
+                        bottom: 20,
+                        top: 10,
+                      ),
+                      child: estado == 'programado'
+                          ? Padding(
+                              padding: const EdgeInsets.all(15),
+                              child: Row(
+                                mainAxisAlignment: MainAxisAlignment.center,
+                                children: [
+                                  Icon(
+                                    Icons.sports_soccer,
+                                    color: Colors.grey[400],
+                                  ),
+                                  const SizedBox(width: 10),
+                                  Text(
+                                    'Esperando resultados...',
+                                    style: TextStyle(
+                                      color: Colors.grey[600],
+                                      fontStyle: FontStyle.italic,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            )
+                          : GridView.builder(
+                              shrinkWrap: true,
+                              physics: const NeverScrollableScrollPhysics(),
+                              gridDelegate:
+                                  const SliverGridDelegateWithFixedCrossAxisCount(
+                                    crossAxisCount: 2,
+                                    childAspectRatio: 2.5,
+                                    crossAxisSpacing: 10,
+                                    mainAxisSpacing: 10,
+                                  ),
+                              itemCount: listaResultados.length,
+                              itemBuilder: (context, i) {
+                                if (listaResultados[i] is! Map) {
+                                  return const SizedBox();
+                                }
+
+                                final resultado = Map<String, dynamic>.from(
+                                  listaResultados[i] as Map,
+                                );
+
+                                String categoria =
+                                    (resultado['categoria'] ?? '-').toString();
+
+                                if (RegExp(r'^[0-9]+$').hasMatch(categoria)) {
+                                  categoria = 'Cat. $categoria';
+                                }
+
+                                final golesPropios =
+                                    int.tryParse(
+                                      (resultado['goles_propios'] ?? 0)
+                                          .toString(),
+                                    ) ??
+                                    0;
+
+                                final golesRival =
+                                    int.tryParse(
+                                      (resultado['goles_rival'] ?? 0)
+                                          .toString(),
+                                    ) ??
+                                    0;
+
+                                final autoresPropios = List<String>.from(
+                                  resultado['autores_propios'] ?? const [],
+                                );
+
+                                final autoresRival = List<String>.from(
+                                  resultado['autores_rival'] ?? const [],
+                                );
+
+                                Color colorFondo = Colors.grey[200]!;
+
+                                Color colorTexto = Colors.black87;
+
+                                if (golesPropios > golesRival) {
+                                  colorFondo = Colors.green[100]!;
+                                  colorTexto = Colors.green[800]!;
+                                }
+
+                                if (golesPropios < golesRival) {
+                                  colorFondo = Colors.red[100]!;
+                                  colorTexto = Colors.red[800]!;
+                                }
+
+                                if (golesPropios == golesRival &&
+                                    (golesPropios > 0 || golesRival > 0)) {
+                                  colorFondo = Colors.blue[50]!;
+                                  colorTexto = Colors.blue[800]!;
+                                }
+
+                                final golesIzq = esLocal
+                                    ? golesPropios
+                                    : golesRival;
+
+                                final golesDer = esLocal
+                                    ? golesRival
+                                    : golesPropios;
+
+                                return Material(
+                                  color: Colors.transparent,
+                                  child: InkWell(
+                                    borderRadius: BorderRadius.circular(8),
+                                    onTap: () {
+                                      _mostrarGoleadores(
+                                        context,
+                                        categoria,
+                                        autoresPropios,
+                                        autoresRival,
+                                        esLocal,
+                                        rival,
+                                      );
+                                    },
+                                    child: Ink(
+                                      decoration: BoxDecoration(
+                                        color: colorFondo,
+                                        borderRadius: BorderRadius.circular(8),
+                                        border: Border.all(
+                                          color: colorTexto.withValues(
+                                            alpha: 0.3,
                                           ),
                                         ),
                                       ),
-                                      const SizedBox(height: 10),
-                                      Row(
+                                      child: Row(
                                         mainAxisAlignment:
-                                            MainAxisAlignment.center,
+                                            MainAxisAlignment.spaceEvenly,
                                         children: [
                                           Text(
-                                            "Ver detalles",
+                                            categoria,
                                             style: TextStyle(
                                               fontSize: 11,
-                                              color: config.colorPrimario,
                                               fontWeight: FontWeight.bold,
+                                              color: Colors.grey[700],
                                             ),
                                           ),
-                                          Icon(
-                                            Icons.keyboard_arrow_down,
-                                            size: 16,
-                                            color: config.colorPrimario,
+                                          Container(
+                                            padding: const EdgeInsets.symmetric(
+                                              horizontal: 8,
+                                              vertical: 2,
+                                            ),
+                                            decoration: BoxDecoration(
+                                              color: Colors.white,
+                                              borderRadius:
+                                                  BorderRadius.circular(4),
+                                            ),
+                                            child: Text(
+                                              '$golesIzq - $golesDer',
+                                              style: TextStyle(
+                                                fontWeight: FontWeight.bold,
+                                                color: colorTexto,
+                                                fontSize: 13,
+                                              ),
+                                            ),
                                           ),
                                         ],
                                       ),
-                                    ],
+                                    ),
                                   ),
-                          ),
-
-                          // --- EQUIPO 2 (DERECHA) ---
-                          Expanded(
-                            flex: 3,
-                            child: Column(
-                              children: [
-                                CircleAvatar(
-                                  backgroundColor: Colors.transparent,
-                                  radius: 28,
-                                  backgroundImage: !esLocal
-                                      ? AssetImage(config.rutaLogo)
-                                            as ImageProvider
-                                      : (escudoRival.isNotEmpty
-                                            ? NetworkImage(escudoRival)
-                                                  as ImageProvider
-                                            : null),
-                                  child: (esLocal && escudoRival.isEmpty)
-                                      ? Text(
-                                          nombreEq2.isNotEmpty
-                                              ? nombreEq2.substring(0, 1)
-                                              : '',
-                                          style: const TextStyle(
-                                            fontWeight: FontWeight.bold,
-                                            color: Colors.black54,
-                                            fontSize: 24,
-                                          ),
-                                        )
-                                      : null,
-                                ),
-                                const SizedBox(height: 8),
-                                Text(
-                                  nombreEq2,
-                                  textAlign: TextAlign.center,
-                                  maxLines: 2,
-                                  overflow: TextOverflow.ellipsis,
-                                  style: const TextStyle(
-                                    fontWeight: FontWeight.bold,
-                                    fontSize: 12,
-                                  ),
-                                ),
-                              ],
+                                );
+                              },
                             ),
-                          ),
-                        ],
-                      ),
-
-                      children: [
-                        Container(
-                          color: Colors.grey[50],
-                          padding: const EdgeInsets.only(
-                            left: 15,
-                            right: 15,
-                            bottom: 20,
-                            top: 10,
-                          ),
-                          child: estado == 'programado'
-                              ? Padding(
-                                  padding: const EdgeInsets.all(15.0),
-                                  child: Row(
-                                    mainAxisAlignment: MainAxisAlignment.center,
-                                    children: [
-                                      Icon(
-                                        Icons.sports_soccer,
-                                        color: Colors.grey[400],
-                                      ),
-                                      const SizedBox(width: 10),
-                                      Text(
-                                        "Esperando resultados...",
-                                        style: TextStyle(
-                                          color: Colors.grey[600],
-                                          fontStyle: FontStyle.italic,
-                                        ),
-                                      ),
-                                    ],
-                                  ),
-                                )
-                              : GridView.builder(
-                                  shrinkWrap: true,
-                                  physics: const NeverScrollableScrollPhysics(),
-                                  gridDelegate:
-                                      const SliverGridDelegateWithFixedCrossAxisCount(
-                                        crossAxisCount: 2,
-                                        childAspectRatio: 2.5,
-                                        crossAxisSpacing: 10,
-                                        mainAxisSpacing: 10,
-                                      ),
-                                  itemCount: listaResultados.length,
-                                  itemBuilder: (context, i) {
-                                    if (listaResultados[i] is! Map)
-                                      return const SizedBox();
-                                    final resultado =
-                                        listaResultados[i]
-                                            as Map<String, dynamic>;
-
-                                    String cat =
-                                        resultado['categoria']?.toString() ??
-                                        '-';
-                                    if (RegExp(r'^[0-9]+$').hasMatch(cat))
-                                      cat = "Cat. $cat";
-
-                                    final int gProp =
-                                        int.tryParse(
-                                          resultado['goles_propios'].toString(),
-                                        ) ??
-                                        0;
-                                    final int gRival =
-                                        int.tryParse(
-                                          resultado['goles_rival'].toString(),
-                                        ) ??
-                                        0;
-
-                                    List<String> autoresPropios =
-                                        List<String>.from(
-                                          resultado['autores_propios'] ?? [],
-                                        );
-                                    List<String> autoresRival =
-                                        List<String>.from(
-                                          resultado['autores_rival'] ?? [],
-                                        );
-
-                                    Color colorFondo = Colors.grey[200]!;
-                                    Color colorTexto = Colors.black87;
-                                    if (gProp > gRival) {
-                                      colorFondo = Colors.green[100]!;
-                                      colorTexto = Colors.green[800]!;
-                                    }
-                                    if (gProp < gRival) {
-                                      colorFondo = Colors.red[100]!;
-                                      colorTexto = Colors.red[800]!;
-                                    }
-                                    if (gProp == gRival &&
-                                        (gProp > 0 || gRival > 0)) {
-                                      colorFondo = Colors.blue[50]!;
-                                      colorTexto = Colors.blue[800]!;
-                                    }
-
-                                    int golesIzq = esLocal ? gProp : gRival;
-                                    int golesDer = esLocal ? gRival : gProp;
-
-                                    return Material(
-                                      color: Colors.transparent,
-                                      child: InkWell(
-                                        borderRadius: BorderRadius.circular(8),
-                                        onTap: () => _mostrarGoleadores(
-                                          context,
-                                          cat,
-                                          autoresPropios,
-                                          autoresRival,
-                                          esLocal,
-                                          rival,
-                                        ),
-                                        child: Ink(
-                                          decoration: BoxDecoration(
-                                            color: colorFondo,
-                                            borderRadius: BorderRadius.circular(
-                                              8,
-                                            ),
-                                            border: Border.all(
-                                              color: colorTexto.withOpacity(
-                                                0.3,
-                                              ),
-                                            ),
-                                          ),
-                                          child: Row(
-                                            mainAxisAlignment:
-                                                MainAxisAlignment.spaceEvenly,
-                                            children: [
-                                              Text(
-                                                cat,
-                                                style: TextStyle(
-                                                  fontSize: 11,
-                                                  fontWeight: FontWeight.bold,
-                                                  color: Colors.grey[700],
-                                                ),
-                                              ),
-                                              Container(
-                                                padding:
-                                                    const EdgeInsets.symmetric(
-                                                      horizontal: 8,
-                                                      vertical: 2,
-                                                    ),
-                                                decoration: BoxDecoration(
-                                                  color: Colors.white,
-                                                  borderRadius:
-                                                      BorderRadius.circular(4),
-                                                ),
-                                                child: Text(
-                                                  "$golesIzq - $golesDer",
-                                                  style: TextStyle(
-                                                    fontWeight: FontWeight.bold,
-                                                    color: colorTexto,
-                                                    fontSize: 13,
-                                                  ),
-                                                ),
-                                              ),
-                                            ],
-                                          ),
-                                        ),
-                                      ),
-                                    );
-                                  },
-                                ),
-                        ),
-                      ],
                     ),
-                  ),
-                ],
+                  ],
+                ),
               ),
-            );
-          },
+            ],
+          ),
         );
       },
     );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return _usaCentral ? _contenidoCentral() : _contenidoLegacy();
   }
 }

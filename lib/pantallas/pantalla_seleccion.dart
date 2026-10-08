@@ -1,16 +1,20 @@
-import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:flutter/material.dart';
+
 import '../configuracion/configuracion_app.dart';
-import '../tusede/servicios/contexto_club.dart';
 import '../servicios/servicio_aviso_entrada.dart';
 import '../servicios/servicio_version.dart';
+import '../tusede/servicios/contexto_club.dart';
+import '../tusede/servicios/servicio_contenido_publico.dart';
+import '../tusede/servicios/servicio_datos_club.dart';
 import '../widgets/estado_carga.dart';
 import '../widgets/logo_club_tusede.dart';
+
 // PANTALLAS DE NAVEGACIÓN
 import 'pantalla_inicio.dart';
-import 'socios/pantalla_acceso_socio.dart';
-import 'pantalla_reservas.dart';
 import 'pantalla_login_admin.dart';
+import 'pantalla_reservas.dart';
+import 'socios/pantalla_acceso_socio.dart';
 
 class PantallaSeleccion extends StatefulWidget {
   final ConfiguracionApp config;
@@ -21,34 +25,392 @@ class PantallaSeleccion extends StatefulWidget {
   State<PantallaSeleccion> createState() => _PantallaSeleccionState();
 }
 
+class _DatosSeleccion {
+  final List<Map<String, dynamic>> deportes;
+  final bool mostrarInstitucional;
+  final bool mostrarReservas;
+
+  const _DatosSeleccion({
+    required this.deportes,
+    required this.mostrarInstitucional,
+    required this.mostrarReservas,
+  });
+}
+
 class _PantallaSeleccionState extends State<PantallaSeleccion> {
+  late Future<_DatosSeleccion> _futureDatos;
+
+  bool get _usaCentral => ServicioDatosClub.usaTuSedeCentral;
+
   @override
   void initState() {
     super.initState();
+
+    _futureDatos = _cargarDatos();
+
     WidgetsBinding.instance.addPostFrameCallback((_) async {
       await ServicioVersion.mostrarBloqueoSiCorresponde(context);
+
       if (mounted) {
         await ServicioAvisoEntrada.mostrarSiCorresponde(context, widget.config);
       }
     });
   }
 
-  // --- MÉTODOS AUXILIARES ---
+  // ============================================================
+  // CARGA DE CONFIGURACIÓN
+  // ============================================================
+
+  Future<_DatosSeleccion> _cargarDatos() async {
+    if (_usaCentral) {
+      return _cargarDatosCentral();
+    }
+
+    return _cargarDatosLegacy();
+  }
+
+  Future<_DatosSeleccion> _cargarDatosCentral() async {
+    final configuracion = await ServicioContenidoPublico.cargarConfiguracion();
+
+    return _DatosSeleccion(
+      deportes: List<Map<String, dynamic>>.from(configuracion.menuDeportes),
+      mostrarInstitucional: configuracion.moduloActivo('institucional'),
+      mostrarReservas: configuracion.moduloActivo('reservas'),
+    );
+  }
+
+  Future<_DatosSeleccion> _cargarDatosLegacy() async {
+    final doc = await FirebaseFirestore.instance
+        .collection('configuracion')
+        .doc('general')
+        .get();
+
+    final deportes = <Map<String, dynamic>>[];
+
+    bool mostrarInstitucional = false;
+    bool mostrarReservas = false;
+
+    if (doc.exists && doc.data() != null) {
+      final data = doc.data()!;
+
+      final menuRaw = data['menu_deportes'];
+
+      if (menuRaw is List) {
+        for (final item in menuRaw) {
+          if (item is Map) {
+            deportes.add(Map<String, dynamic>.from(item));
+          }
+        }
+      }
+
+      final modulosRaw = data['modulos_activos'];
+
+      if (modulosRaw is Map) {
+        mostrarInstitucional = modulosRaw['institucional'] == true;
+
+        mostrarReservas = modulosRaw['reservas'] == true;
+      }
+    }
+
+    return _DatosSeleccion(
+      deportes: deportes,
+      mostrarInstitucional: mostrarInstitucional,
+      mostrarReservas: mostrarReservas,
+    );
+  }
+
+  void _recargar() {
+    setState(() {
+      _futureDatos = _cargarDatos();
+    });
+  }
+
+  // ============================================================
+  // ADMIN
+  // ============================================================
+
+  Future<void> _abrirAdmin() async {
+    await Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => PantallaLoginAdmin(config: widget.config),
+      ),
+    );
+
+    if (mounted) {
+      _recargar();
+    }
+  }
+
+  // ============================================================
+  // NAVEGACIÓN
+  // ============================================================
+
+  void _abrirDeporte(Map<String, dynamic> deporte) {
+    final id = (deporte['id'] ?? '').toString().trim();
+
+    final titulo = (deporte['titulo'] ?? id).toString().trim();
+
+    if (id.isEmpty) {
+      return;
+    }
+
+    Navigator.pushReplacement(
+      context,
+      MaterialPageRoute(
+        builder: (_) => PantallaInicio(
+          config: widget.config,
+          deporteId: id,
+          deporteTitulo: titulo.isEmpty ? id : titulo,
+        ),
+      ),
+    );
+  }
+
+  // ============================================================
+  // ICONOS
+  // ============================================================
+
   IconData _obtenerIcono(String id) {
-    if (id.contains('baby')) return Icons.sports_soccer;
-    if (id.contains('futsal')) return Icons.sports_handball;
+    final idNormalizado = id.toLowerCase();
+
+    if (idNormalizado.contains('baby')) {
+      return Icons.sports_soccer;
+    }
+
+    if (idNormalizado.contains('futsal')) {
+      return Icons.sports_handball;
+    }
+
+    if (idNormalizado.contains('futbol') || idNormalizado.contains('fútbol')) {
+      return Icons.sports_soccer;
+    }
+
+    if (idNormalizado.contains('patin') || idNormalizado.contains('patín')) {
+      return Icons.sports_gymnastics;
+    }
+
+    if (idNormalizado.contains('boxeo')) {
+      return Icons.sports_mma;
+    }
+
+    if (idNormalizado.contains('taekwondo')) {
+      return Icons.sports_martial_arts;
+    }
+
     return Icons.star;
   }
 
+  // ============================================================
+  // PANTALLA VACÍA
+  // ============================================================
+
+  Widget _sinDeportes(Color colorPrimario) {
+    return Center(
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          const Icon(Icons.sports_soccer, size: 50, color: Colors.white24),
+          const SizedBox(height: 10),
+          const Text(
+            'No hay categorías activas.',
+            style: TextStyle(color: Colors.white54),
+          ),
+          const SizedBox(height: 5),
+          TextButton(
+            onPressed: _abrirAdmin,
+            child: const Text('Ingresar al Panel de Admin'),
+          ),
+          const SizedBox(height: 10),
+          TextButton.icon(
+            onPressed: _recargar,
+            icon: const Icon(Icons.refresh),
+            label: const Text('Actualizar'),
+            style: TextButton.styleFrom(
+              foregroundColor: colorPrimario.computeLuminance() > 0.5
+                  ? Colors.black87
+                  : Colors.white,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  // ============================================================
+  // LISTA DE DEPORTES
+  // ============================================================
+
+  Widget _listaDeportes(
+    List<Map<String, dynamic>> deportes,
+    Color colorPrimario,
+  ) {
+    if (deportes.isEmpty) {
+      return _sinDeportes(colorPrimario);
+    }
+
+    return ListView.builder(
+      padding: const EdgeInsets.symmetric(horizontal: 20),
+      itemCount: deportes.length,
+      itemBuilder: (context, index) {
+        final deporte = deportes[index];
+
+        final id = (deporte['id'] ?? '').toString();
+
+        final titulo = (deporte['titulo'] ?? id).toString();
+
+        return Padding(
+          padding: const EdgeInsets.only(bottom: 15),
+          child: ElevatedButton(
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Colors.white,
+              foregroundColor: colorPrimario,
+              padding: const EdgeInsets.symmetric(vertical: 20),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(15),
+              ),
+              elevation: 5,
+            ),
+            onPressed: () {
+              _abrirDeporte(deporte);
+            },
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Icon(_obtenerIcono(id)),
+                const SizedBox(width: 10),
+                Flexible(
+                  child: Text(
+                    titulo.toUpperCase(),
+                    textAlign: TextAlign.center,
+                    style: const TextStyle(
+                      fontSize: 18,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        );
+      },
+    );
+  }
+
+  // ============================================================
+  // MÓDULOS INSTITUCIONALES
+  // ============================================================
+
+  Widget _modulosExtras({
+    required bool mostrarInstitucional,
+    required bool mostrarReservas,
+  }) {
+    final hayModulosExtras = mostrarInstitucional || mostrarReservas;
+
+    if (!hayModulosExtras) {
+      return const SizedBox.shrink();
+    }
+
+    return Container(
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        color: Colors.black.withValues(alpha: 0.3),
+        borderRadius: const BorderRadius.only(
+          topLeft: Radius.circular(20),
+          topRight: Radius.circular(20),
+        ),
+      ),
+      child: Column(
+        children: [
+          const Text(
+            'INSTITUCIONAL / SERVICIOS',
+            style: TextStyle(
+              color: Colors.white54,
+              fontSize: 12,
+              letterSpacing: 2,
+            ),
+          ),
+          const SizedBox(height: 15),
+          if (mostrarReservas) ...[
+            ElevatedButton(
+              style: ElevatedButton.styleFrom(
+                backgroundColor: Colors.white,
+                foregroundColor: Colors.teal[800],
+                padding: const EdgeInsets.symmetric(vertical: 15),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(10),
+                ),
+                minimumSize: const Size(double.infinity, 50),
+              ),
+              onPressed: () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (_) => PantallaReservas(config: widget.config),
+                  ),
+                );
+              },
+              child: const Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Icon(Icons.calendar_month),
+                  SizedBox(width: 10),
+                  Text(
+                    'ALQUILER DE CANCHAS / SALÓN',
+                    style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold),
+                  ),
+                ],
+              ),
+            ),
+            if (mostrarInstitucional) const SizedBox(height: 10),
+          ],
+          if (mostrarInstitucional)
+            ElevatedButton(
+              style: ElevatedButton.styleFrom(
+                backgroundColor: Colors.green[700],
+                foregroundColor: Colors.white,
+                padding: const EdgeInsets.symmetric(vertical: 15),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(10),
+                ),
+                minimumSize: const Size(double.infinity, 50),
+              ),
+              onPressed: () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (_) => PantallaAccesoSocio(config: widget.config),
+                  ),
+                );
+              },
+              child: const Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Icon(Icons.badge),
+                  SizedBox(width: 10),
+                  Text(
+                    'ACCESO SOCIOS',
+                    style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold),
+                  ),
+                ],
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+
+  // ============================================================
+  // BUILD
+  // ============================================================
+
   @override
   Widget build(BuildContext context) {
-    // ============================================================
-    // ETAPA 4E-1D - IDENTIDAD DINAMICA TUSEDE
-    // ============================================================
-    final Color colorPrimario = ContextoClub.colorPrimario;
-    final Color colorSecundario = ContextoClub.colorSecundario;
+    final colorPrimario = ContextoClub.colorPrimario;
 
-    final Color colorFondoSuperior = Color.alphaBlend(
+    final colorSecundario = ContextoClub.colorSecundario;
+
+    final colorFondoSuperior = Color.alphaBlend(
       Colors.black.withAlpha(170),
       colorSecundario,
     );
@@ -59,18 +421,12 @@ class _PantallaSeleccionState extends State<PantallaSeleccion> {
           gradient: LinearGradient(
             begin: Alignment.topCenter,
             end: Alignment.bottomCenter,
-            colors: [
-              colorFondoSuperior,
-              colorPrimario.withOpacity(0.88),
-            ],
+            colors: [colorFondoSuperior, colorPrimario.withValues(alpha: 0.88)],
           ),
         ),
         child: SafeArea(
-          child: FutureBuilder<DocumentSnapshot>(
-            future: FirebaseFirestore.instance
-                .collection('configuracion')
-                .doc('general')
-                .get(),
+          child: FutureBuilder<_DatosSeleccion>(
+            future: _futureDatos,
             builder: (context, snapshot) {
               if (snapshot.connectionState == ConnectionState.waiting) {
                 return EstadoCarga(
@@ -83,32 +439,23 @@ class _PantallaSeleccionState extends State<PantallaSeleccion> {
                 return EstadoCarga(
                   estado: TipoEstadoPantalla.error,
                   colorPrimario: colorPrimario,
-                  onReintentar: () => setState(() {}),
+                  onReintentar: _recargar,
                 );
               }
 
-              // Preparamos variables por defecto
-              List<dynamic> listaDeportes = [];
-              bool mostrarInstitucional = false;
-              bool mostrarReservas = false;
-
-              // 2. SI HAY DATOS, LOS LEEMOS
-              if (snapshot.hasData && snapshot.data!.exists) {
-                final data = snapshot.data!.data() as Map<String, dynamic>;
-                listaDeportes = data['menu_deportes'] as List<dynamic>? ?? [];
-
-                final modulos =
-                    data['modulos_activos'] as Map<String, dynamic>? ?? {};
-                mostrarInstitucional = modulos['institucional'] ?? false;
-                mostrarReservas = modulos['reservas'] ?? false;
-              }
-
-              final bool hayModulosExtras =
-                  mostrarInstitucional || mostrarReservas;
+              final datos =
+                  snapshot.data ??
+                  const _DatosSeleccion(
+                    deportes: [],
+                    mostrarInstitucional: false,
+                    mostrarReservas: false,
+                  );
 
               return Column(
                 children: [
-                  // --- ENCABEZADO CON "PUERTA TRASERA" ADMIN ---
+                  // ==================================================
+                  // ENCABEZADO
+                  // ==================================================
                   Padding(
                     padding: const EdgeInsets.symmetric(
                       horizontal: 10,
@@ -117,245 +464,52 @@ class _PantallaSeleccionState extends State<PantallaSeleccion> {
                     child: Row(
                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [
-                        // Espacio vacío para equilibrar
                         const SizedBox(width: 40),
-
-                        // LOGO CENTRAL
                         LogoClubTuSede(
                           config: widget.config,
                           width: 100,
                           height: 100,
                           fit: BoxFit.contain,
                         ),
-
-                        // BOTÓN DE ACCESO ADMIN (Salvavidas)
                         IconButton(
                           icon: const Icon(
                             Icons.settings,
                             color: Colors.white24,
-                          ), // Sutil
-                          onPressed: () {
-                            // Navegamos directo al Login de Admin
-                            Navigator.push(
-                              context,
-                              MaterialPageRoute(
-                                builder: (context) =>
-                                    PantallaLoginAdmin(config: widget.config),
-                              ),
-                            );
-                          },
+                          ),
+                          tooltip: 'Administración',
+                          onPressed: _abrirAdmin,
                         ),
                       ],
                     ),
                   ),
 
                   const SizedBox(height: 10),
+
                   const Text(
-                    "Seleccioná una categoría",
+                    'Seleccioná una categoría',
                     style: TextStyle(
                       color: Colors.white,
                       fontSize: 22,
                       fontWeight: FontWeight.bold,
                     ),
                   ),
+
                   const SizedBox(height: 20),
 
-                  // --- LISTA DE DEPORTES ---
+                  // ==================================================
+                  // DEPORTES / TIRAS
+                  // ==================================================
                   Expanded(
-                    child: listaDeportes.isEmpty
-                        ? Center(
-                            child: Column(
-                              mainAxisAlignment: MainAxisAlignment.center,
-                              children: [
-                                const Icon(
-                                  Icons.sports_soccer,
-                                  size: 50,
-                                  color: Colors.white24,
-                                ),
-                                const SizedBox(height: 10),
-                                const Text(
-                                  "No hay categorías activas.",
-                                  style: TextStyle(color: Colors.white54),
-                                ),
-                                const SizedBox(height: 5),
-                                TextButton(
-                                  onPressed: () {
-                                    Navigator.push(
-                                      context,
-                                      MaterialPageRoute(
-                                        builder: (context) =>
-                                            PantallaLoginAdmin(
-                                              config: widget.config,
-                                            ),
-                                      ),
-                                    );
-                                  },
-                                  child: const Text(
-                                    "Ingresar al Panel de Admin",
-                                  ),
-                                ),
-                              ],
-                            ),
-                          )
-                        : ListView.builder(
-                            padding: const EdgeInsets.symmetric(horizontal: 20),
-                            itemCount: listaDeportes.length,
-                            itemBuilder: (context, index) {
-                              final deporte =
-                                  listaDeportes[index] as Map<String, dynamic>;
-                              return Padding(
-                                padding: const EdgeInsets.only(bottom: 15),
-                                child: ElevatedButton(
-                                  style: ElevatedButton.styleFrom(
-                                    backgroundColor: Colors.white,
-                                    foregroundColor: colorPrimario,
-                                    padding: const EdgeInsets.symmetric(
-                                      vertical: 20,
-                                    ),
-                                    shape: RoundedRectangleBorder(
-                                      borderRadius: BorderRadius.circular(15),
-                                    ),
-                                    elevation: 5,
-                                  ),
-                                  onPressed: () {
-                                    Navigator.pushReplacement(
-                                      context,
-                                      MaterialPageRoute(
-                                        builder: (context) => PantallaInicio(
-                                          config: widget.config,
-                                          deporteId: deporte['id'],
-                                          deporteTitulo: deporte['titulo'],
-                                        ),
-                                      ),
-                                    );
-                                  },
-                                  child: Row(
-                                    mainAxisAlignment: MainAxisAlignment.center,
-                                    children: [
-                                      Icon(_obtenerIcono(deporte['id'])),
-                                      const SizedBox(width: 10),
-                                      Text(
-                                        deporte['titulo']
-                                            .toString()
-                                            .toUpperCase(),
-                                        style: const TextStyle(
-                                          fontSize: 18,
-                                          fontWeight: FontWeight.bold,
-                                        ),
-                                      ),
-                                    ],
-                                  ),
-                                ),
-                              );
-                            },
-                          ),
+                    child: _listaDeportes(datos.deportes, colorPrimario),
                   ),
 
-                  // --- SECCIÓN INFERIOR (MÓDULOS) ---
-                  if (hayModulosExtras)
-                    Container(
-                      padding: const EdgeInsets.all(20),
-                      decoration: BoxDecoration(
-                        color: Colors.black.withOpacity(0.3),
-                        borderRadius: const BorderRadius.only(
-                          topLeft: Radius.circular(20),
-                          topRight: Radius.circular(20),
-                        ),
-                      ),
-                      child: Column(
-                        children: [
-                          const Text(
-                            "INSTITUCIONAL / SERVICIOS",
-                            style: TextStyle(
-                              color: Colors.white54,
-                              fontSize: 12,
-                              letterSpacing: 2,
-                            ),
-                          ),
-                          const SizedBox(height: 15),
-
-                          if (mostrarReservas) ...[
-                            ElevatedButton(
-                              style: ElevatedButton.styleFrom(
-                                backgroundColor: Colors.white,
-                                foregroundColor: Colors.teal[800],
-                                padding: const EdgeInsets.symmetric(
-                                  vertical: 15,
-                                ),
-                                shape: RoundedRectangleBorder(
-                                  borderRadius: BorderRadius.circular(10),
-                                ),
-                                minimumSize: const Size(double.infinity, 50),
-                              ),
-                              onPressed: () {
-                                Navigator.push(
-                                  context,
-                                  MaterialPageRoute(
-                                    builder: (context) =>
-                                        PantallaReservas(config: widget.config),
-                                  ),
-                                );
-                              },
-                              child: const Row(
-                                mainAxisAlignment: MainAxisAlignment.center,
-                                children: [
-                                  Icon(Icons.calendar_month),
-                                  SizedBox(width: 10),
-                                  Text(
-                                    "ALQUILER DE CANCHAS / SALÓN",
-                                    style: TextStyle(
-                                      fontSize: 14,
-                                      fontWeight: FontWeight.bold,
-                                    ),
-                                  ),
-                                ],
-                              ),
-                            ),
-                            if (mostrarInstitucional)
-                              const SizedBox(height: 10),
-                          ],
-
-                          if (mostrarInstitucional)
-                            ElevatedButton(
-                              style: ElevatedButton.styleFrom(
-                                backgroundColor: Colors.green[700],
-                                foregroundColor: Colors.white,
-                                padding: const EdgeInsets.symmetric(
-                                  vertical: 15,
-                                ),
-                                shape: RoundedRectangleBorder(
-                                  borderRadius: BorderRadius.circular(10),
-                                ),
-                                minimumSize: const Size(double.infinity, 50),
-                              ),
-                              onPressed: () {
-                                Navigator.push(
-                                  context,
-                                  MaterialPageRoute(
-                                    builder: (context) => PantallaAccesoSocio(
-                                      config: widget.config,
-                                    ),
-                                  ),
-                                );
-                              },
-                              child: const Row(
-                                mainAxisAlignment: MainAxisAlignment.center,
-                                children: [
-                                  Icon(Icons.badge),
-                                  SizedBox(width: 10),
-                                  Text(
-                                    "ACCESO SOCIOS",
-                                    style: TextStyle(
-                                      fontSize: 14,
-                                      fontWeight: FontWeight.bold,
-                                    ),
-                                  ),
-                                ],
-                              ),
-                            ),
-                        ],
-                      ),
-                    ),
+                  // ==================================================
+                  // SERVICIOS
+                  // ==================================================
+                  _modulosExtras(
+                    mostrarInstitucional: datos.mostrarInstitucional,
+                    mostrarReservas: datos.mostrarReservas,
+                  ),
                 ],
               );
             },
