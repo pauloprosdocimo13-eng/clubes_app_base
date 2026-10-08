@@ -1,5 +1,10 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:flutter/foundation.dart';
+
+import '../tusede/servicios/contexto_usuario_tusede.dart';
+import '../tusede/servicios/servicio_datos_club.dart';
+import '../tusede/servicios/servicio_sesion_tusede.dart';
 
 class AdminPermisos {
   static const String admin = 'admin';
@@ -8,8 +13,7 @@ class AdminPermisos {
   static const String deportes = 'deportes';
   static const String institucional = 'institucional';
 
-  // Dejamos de usar "final" para poder sobreescribir esta variable con lo de Firebase
-  static Map<String, List<String>> _accesos = {
+  static final Map<String, List<String>> _accesos = {
     tesoreria: [
       'Caja y Finanzas',
       'Padrón Socios',
@@ -45,50 +49,120 @@ class AdminPermisos {
     ],
   };
 
-  // --- NUEVA FUNCIÓN: Descarga los permisos desde Firebase ---
+  // ============================================================
+  // MATRIZ DE PERMISOS
+  // ============================================================
+
   static Future<void> inicializarMatriz() async {
     try {
-      final doc = await FirebaseFirestore.instance
-          .collection('configuracion')
-          .doc('permisos_roles')
-          .get();
-      if (doc.exists && doc.data() != null) {
-        Map<String, dynamic> data = doc.data()!;
-        data.forEach((rol, modulos) {
-          _accesos[rol] = List<String>.from(modulos);
-        });
+      final doc = await ServicioDatosClub.configuracionDoc(
+        'permisos_roles',
+      ).get();
+
+      if (!doc.exists || doc.data() == null) {
+        return;
       }
+
+      final data = doc.data()!;
+
+      data.forEach((rol, modulos) {
+        if (modulos is List) {
+          _accesos[rol] = modulos
+              .map((modulo) => modulo.toString())
+              .where((modulo) => modulo.trim().isNotEmpty)
+              .toList();
+        }
+      });
     } catch (e) {
-      print("Error cargando matriz de permisos: $e");
+      debugPrint('Error cargando matriz de permisos: $e');
     }
   }
 
+  // ============================================================
+  // ROL ACTUAL
+  // ============================================================
+
   static Future<String> obtenerRol() async {
+    if (ServicioDatosClub.usaTuSedeCentral) {
+      return _obtenerRolCentral();
+    }
+
+    return _obtenerRolLegacy();
+  }
+
+  static Future<String> _obtenerRolCentral() async {
+    try {
+      var usuario = ContextoUsuarioTuSede.usuarioActualNullable;
+
+      usuario ??= await ServicioSesionTuSede.restaurarSesion();
+
+      if (usuario == null) {
+        return '';
+      }
+
+      final rol = usuario.rol.trim().toLowerCase();
+
+      // El panel actual reconoce "admin" como acceso total.
+      // Los roles administrativos equivalentes de TuSede
+      // se normalizan al mismo comportamiento visual.
+      if (rol == 'superadmin' || rol == 'admin_club') {
+        return admin;
+      }
+
+      return rol;
+    } catch (e) {
+      debugPrint('Error obteniendo rol TuSede: $e');
+
+      return '';
+    }
+  }
+
+  static Future<String> _obtenerRolLegacy() async {
     final user = FirebaseAuth.instance.currentUser;
-    if (user == null) return '';
+
+    if (user == null) {
+      return '';
+    }
+
+    final email = user.email?.trim();
+
+    if (email == null || email.isEmpty) {
+      return '';
+    }
 
     try {
       final doc = await FirebaseFirestore.instance
           .collection('permisos_admin')
-          .doc(user.email)
+          .doc(email)
           .get();
 
       if (doc.exists) {
-        return doc.data()?['rol'] ?? '';
+        return (doc.data()?['rol'] ?? '').toString();
       }
 
       return '';
     } catch (e) {
-      print("Error obteniendo rol: $e");
+      debugPrint('Error obteniendo rol Legacy: $e');
+
       return '';
     }
   }
 
-  static bool puedeVer(String rolUsuario, String tituloMenu) {
-    if (rolUsuario == admin) return true; // El admin ve todo siempre
-    if (rolUsuario.isEmpty) return false;
+  // ============================================================
+  // VISIBILIDAD
+  // ============================================================
 
-    final permitidos = _accesos[rolUsuario] ?? [];
+  static bool puedeVer(String rolUsuario, String tituloMenu) {
+    if (rolUsuario == admin) {
+      return true;
+    }
+
+    if (rolUsuario.isEmpty) {
+      return false;
+    }
+
+    final permitidos = _accesos[rolUsuario] ?? const <String>[];
+
     return permitidos.contains(tituloMenu);
   }
 }

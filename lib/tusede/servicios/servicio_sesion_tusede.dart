@@ -6,6 +6,7 @@ import 'package:flutter/foundation.dart';
 import '../modelos/usuario_tusede.dart';
 import 'contexto_club.dart';
 import 'contexto_usuario_tusede.dart';
+import 'servicio_datos_club.dart';
 import 'servicio_firebase_tusede.dart';
 
 class SesionTuSedeException implements Exception {
@@ -51,6 +52,16 @@ class ServicioSesionTuSede {
   // ============================================================
 
   static void _activarSincronizacionConLegacy() {
+    // En clubes que ya operan nativamente contra TuSede Central
+    // (por ejemplo generico / Horizonte), la sesión Central es la
+    // autoridad. No debe depender de FirebaseAuth.instance (Legacy).
+    //
+    // La sincronización Legacy -> Central se conserva únicamente
+    // para clubes que todavía usan Firebase Legacy como autoridad.
+    if (ServicioDatosClub.usaTuSedeCentral) {
+      return;
+    }
+
     if (_suscripcionSesionLegacy != null) {
       return;
     }

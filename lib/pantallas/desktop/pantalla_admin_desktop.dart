@@ -4,7 +4,10 @@ import 'package:firebase_auth/firebase_auth.dart';
 import '../../configuracion/configuracion_app.dart';
 import '../../configuracion/admin_permisos.dart';
 import '../../tusede/configuracion/modulos_tusede.dart';
+import '../../tusede/servicios/contexto_club.dart';
+import '../../tusede/servicios/servicio_datos_club.dart';
 import '../../tusede/servicios/servicio_modulos_tusede.dart';
+import '../../tusede/servicios/servicio_sesion_tusede.dart';
 
 // --- IMPORTAMOS TODOS LOS MÓDULOS DE GESTIÓN ---
 import '../admin/pantalla_admin_socios.dart';
@@ -43,6 +46,56 @@ class _PantallaAdminDesktopState extends State<PantallaAdminDesktop> {
   int _selectedIndex = 0;
   String _rolUsuario = '';
 
+  bool get _usaCentral => ServicioDatosClub.usaTuSedeCentral;
+
+  Color get _colorPrimario =>
+      _usaCentral ? ContextoClub.colorPrimario : widget.config.colorPrimario;
+
+  String get _nombreClub {
+    if (_usaCentral) {
+      final nombre = ContextoClub.nombreClub.trim();
+      if (nombre.isNotEmpty) {
+        return nombre;
+      }
+    }
+
+    return widget.config.nombreApp;
+  }
+
+  Widget _logoClub() {
+    if (_usaCentral) {
+      final logoUrl = ContextoClub.logoUrlCentral.trim();
+
+      if (logoUrl.isNotEmpty) {
+        return ClipOval(
+          child: Image.network(
+            logoUrl,
+            width: 70,
+            height: 70,
+            fit: BoxFit.contain,
+            errorBuilder: (context, error, stackTrace) {
+              return Image.asset(
+                widget.config.rutaLogo,
+                width: 70,
+                height: 70,
+                fit: BoxFit.contain,
+              );
+            },
+          ),
+        );
+      }
+    }
+
+    return ClipOval(
+      child: Image.asset(
+        widget.config.rutaLogo,
+        width: 70,
+        height: 70,
+        fit: BoxFit.contain,
+      ),
+    );
+  }
+
   @override
   void initState() {
     super.initState();
@@ -59,25 +112,50 @@ class _PantallaAdminDesktopState extends State<PantallaAdminDesktop> {
     }
   }
 
-  void _cerrarSesion() async {
-    await FirebaseAuth.instance.signOut();
-    if (mounted) Navigator.of(context).pop();
+  Future<void> _cerrarSesion() async {
+    if (_usaCentral) {
+      await ServicioSesionTuSede.cerrarSesion();
+    } else {
+      await FirebaseAuth.instance.signOut();
+    }
+
+    if (mounted) {
+      Navigator.of(context).pop();
+    }
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      body: StreamBuilder<DocumentSnapshot>(
-        stream: FirebaseFirestore.instance
-            .collection('configuracion')
-            .doc('general')
-            .snapshots(),
+      body: StreamBuilder<DocumentSnapshot<Map<String, dynamic>>>(
+        stream: ServicioDatosClub.configuracionDoc('general').snapshots(),
         builder: (context, snapshot) {
           Map<String, dynamic> modulosActivos = {};
+
           if (snapshot.hasData && snapshot.data!.exists) {
-            final data = snapshot.data!.data() as Map<String, dynamic>;
-            modulosActivos =
-                data['modulos_activos'] as Map<String, dynamic>? ?? {};
+            final data = snapshot.data!.data() ?? <String, dynamic>{};
+            final raw = data['modulos_activos'];
+
+            if (raw is Map) {
+              modulosActivos = Map<String, dynamic>.from(raw);
+            }
+          }
+
+          if (_usaCentral) {
+            final modulosCentral = ContextoClub.modulos;
+
+            modulosActivos = <String, dynamic>{
+              ...modulosActivos,
+              'institucional': modulosCentral['socios'] == true,
+              'reservas': modulosCentral['reservas'] == true,
+              'minuto_a_minuto':
+                  modulosCentral['deportes'] == true &&
+                  modulosCentral['partidos'] == true,
+              'tienda': modulosCentral['productos'] == true,
+              'sorteos': modulosCentral['sorteos'] == true,
+              'prode': modulosCentral['prode'] == true,
+              'votacion': modulosCentral['votacion'] == true,
+            };
           }
 
           final List<Widget> pantallas = [];
@@ -91,17 +169,15 @@ class _PantallaAdminDesktopState extends State<PantallaAdminDesktop> {
             String? keyModulo,
             String? moduloTuSede,
           }) {
-            // 1. Permisos Legacy por rol.
+            // 1. Permisos del rol actual.
             if (!AdminPermisos.puedeVer(_rolUsuario, label)) return;
 
-            // 2. Configuración Legacy del módulo.
+            // 2. Configuración efectiva del módulo (Central o Legacy).
             if (requiereModulo && keyModulo != null) {
               if (modulosActivos[keyModulo] != true) return;
             }
 
             // 3. Configuración central TuSede.
-            // TuSede puede restringir un módulo, pero nunca fuerza
-            // la habilitación de algo apagado en Legacy.
             if (moduloTuSede != null &&
                 !ServicioModulosTuSede.activo(moduloTuSede)) {
               return;
@@ -113,7 +189,10 @@ class _PantallaAdminDesktopState extends State<PantallaAdminDesktop> {
 
           // --- 1. DASHBOARD PRINCIPAL ---
           agregarModulo(
-            _DashboardResumen(config: widget.config),
+            _DashboardResumen(
+              nombreClub: _nombreClub,
+              colorPrimario: _colorPrimario,
+            ),
             Icons.dashboard,
             'Inicio',
           );
@@ -268,13 +347,13 @@ class _PantallaAdminDesktopState extends State<PantallaAdminDesktop> {
                     CircleAvatar(
                       backgroundColor: Colors.white,
                       radius: 35,
-                      backgroundImage: AssetImage(widget.config.rutaLogo),
+                      child: _logoClub(),
                     ),
                     const SizedBox(height: 10),
                     Padding(
                       padding: const EdgeInsets.symmetric(horizontal: 10),
                       child: Text(
-                        widget.config.nombreApp.toUpperCase(),
+                        _nombreClub.toUpperCase(),
                         textAlign: TextAlign.center,
                         style: const TextStyle(
                           color: Colors.white,
@@ -323,7 +402,7 @@ class _PantallaAdminDesktopState extends State<PantallaAdminDesktop> {
                             ),
                             decoration: BoxDecoration(
                               color: isSelected
-                                  ? widget.config.colorPrimario.withOpacity(0.2)
+                                  ? _colorPrimario.withValues(alpha: 0.2)
                                   : Colors.transparent,
                               borderRadius: BorderRadius.circular(8),
                             ),
@@ -332,7 +411,7 @@ class _PantallaAdminDesktopState extends State<PantallaAdminDesktop> {
                               leading: Icon(
                                 item.icon,
                                 color: isSelected
-                                    ? widget.config.colorPrimario
+                                    ? _colorPrimario
                                     : Colors.white54,
                                 size: 22,
                               ),
@@ -400,8 +479,13 @@ class _MenuItemData {
 }
 
 class _DashboardResumen extends StatelessWidget {
-  final ConfiguracionApp config;
-  const _DashboardResumen({required this.config});
+  final String nombreClub;
+  final Color colorPrimario;
+
+  const _DashboardResumen({
+    required this.nombreClub,
+    required this.colorPrimario,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -412,11 +496,11 @@ class _DashboardResumen extends StatelessWidget {
           Icon(
             Icons.analytics,
             size: 80,
-            color: config.colorPrimario.withOpacity(0.5),
+            color: colorPrimario.withValues(alpha: 0.5),
           ),
           const SizedBox(height: 20),
           Text(
-            "Panel de Gestión: ${config.nombreApp}",
+            'Panel de Gestión: $nombreClub',
             style: const TextStyle(
               fontSize: 24,
               fontWeight: FontWeight.bold,
@@ -425,7 +509,7 @@ class _DashboardResumen extends StatelessWidget {
           ),
           const SizedBox(height: 10),
           const Text(
-            "Selecciona una opción del menú lateral para comenzar.",
+            'Selecciona una opción del menú lateral para comenzar.',
             style: TextStyle(fontSize: 16, color: Colors.grey),
           ),
         ],

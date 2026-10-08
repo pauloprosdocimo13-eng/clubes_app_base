@@ -1,9 +1,11 @@
 import 'package:flutter/material.dart';
-import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import '../../configuracion/configuracion_app.dart';
 import '../../configuracion/admin_permisos.dart'; // <--- IMPORTANTE
 import '../tusede/configuracion/modulos_tusede.dart';
+import '../tusede/servicios/contexto_club.dart';
+import '../tusede/servicios/servicio_datos_club.dart';
+import '../tusede/servicios/servicio_sesion_tusede.dart';
 import '../tusede/servicios/servicio_modulos_tusede.dart';
 
 // PANTALLAS ADMIN (Básicas)
@@ -56,6 +58,8 @@ class PantallaAdminDashboard extends StatefulWidget {
 }
 
 class _PantallaAdminDashboardState extends State<PantallaAdminDashboard> {
+  bool get _usaCentral => ServicioDatosClub.usaTuSedeCentral;
+
   String _deporteSeleccionadoId = 'baby_h';
   String _deporteSeleccionadoNombre = 'Cargando...';
 
@@ -103,70 +107,144 @@ class _PantallaAdminDashboardState extends State<PantallaAdminDashboard> {
 
   Future<void> _cargarConfiguracionGlobal() async {
     try {
-      final doc = await FirebaseFirestore.instance
-          .collection('configuracion')
-          .doc('general')
-          .get();
-      if (doc.exists) {
-        final data = doc.data()!;
+      final doc = await ServicioDatosClub.configuracionDoc('general').get();
 
-        // A. CARGAR DEPORTES
-        if (data.containsKey('menu_deportes')) {
-          List<dynamic> menu = data['menu_deportes'];
-          List<Map<String, String>> listaTemporal = [];
-          for (var item in menu) {
-            listaTemporal.add({
-              'id': item['id'],
-              'nombre': item['titulo'].toString().toUpperCase(),
-            });
+      if (!doc.exists || doc.data() == null) {
+        return;
+      }
+
+      final data = doc.data()!;
+
+      // ========================================================
+      // A. DEPORTES / TIRAS
+      // ========================================================
+
+      final menuRaw = data['menu_deportes'];
+      final listaTemporal = <Map<String, String>>[];
+
+      if (menuRaw is List) {
+        for (final itemRaw in menuRaw) {
+          if (itemRaw is! Map) {
+            continue;
           }
 
-          if (listaTemporal.isNotEmpty) {
-            if (mounted) {
-              setState(() {
-                _deportesDisponibles = listaTemporal;
-                final existe = _deportesDisponibles.any(
-                  (d) => d['id'] == _deporteSeleccionadoId,
-                );
+          final item = Map<String, dynamic>.from(itemRaw);
+          final id = (item['id'] ?? '').toString().trim();
+          final titulo = (item['titulo'] ?? '').toString().trim();
 
-                if (existe) {
-                  final deporte = _deportesDisponibles.firstWhere(
-                    (d) => d['id'] == _deporteSeleccionadoId,
-                  );
-                  _deporteSeleccionadoNombre = deporte['nombre']!;
-                } else {
-                  _deporteSeleccionadoId = listaTemporal[0]['id']!;
-                  _deporteSeleccionadoNombre = listaTemporal[0]['nombre']!;
-                }
-              });
-            }
+          if (id.isEmpty || titulo.isEmpty) {
+            continue;
           }
-        }
 
-        // B. VERIFICAR QUÉ MÓDULOS ESTÁN ACTIVOS (GLOBALMENTE)
-        final modulos = data['modulos_activos'] as Map<String, dynamic>? ?? {};
-        if (mounted) {
-          setState(() {
-            _mostrarModuloSocios = modulos['institucional'] ?? false;
-            _mostrarModuloReservas = modulos['reservas'] ?? false;
-            _mostrarMinutoAMinuto = modulos['minuto_a_minuto'] ?? false;
-            _mostrarTienda = modulos['tienda'] ?? false;
-            _mostrarSorteos = modulos['sorteos'] ?? false;
-            _mostrarStream = modulos['stream'] ?? false;
-            _mostrarProde = modulos['prode'] ?? false;
-            _mostrarVotacion = modulos['votacion'] ?? false;
-            _mostrarPizarra = modulos['pizarra'] ?? false;
-          });
+          listaTemporal.add({'id': id, 'nombre': titulo.toUpperCase()});
         }
       }
+
+      if (listaTemporal.isNotEmpty && mounted) {
+        setState(() {
+          _deportesDisponibles = listaTemporal;
+
+          final existe = _deportesDisponibles.any(
+            (d) => d['id'] == _deporteSeleccionadoId,
+          );
+
+          if (existe) {
+            final deporte = _deportesDisponibles.firstWhere(
+              (d) => d['id'] == _deporteSeleccionadoId,
+            );
+
+            _deporteSeleccionadoNombre = deporte['nombre']!;
+          } else {
+            _deporteSeleccionadoId = listaTemporal.first['id']!;
+            _deporteSeleccionadoNombre = listaTemporal.first['nombre']!;
+          }
+        });
+      }
+
+      // ========================================================
+      // B. MÓDULOS
+      // ========================================================
+      //
+      // Horizonte / generico:
+      // la autoridad es clubes/{clubId}.modulos.
+      //
+      // Algunos módulos históricos que todavía no tienen una clave
+      // física propia en el mapa Central (stream / pizarra) conservan
+      // su valor funcional de configuracion/general.modulos_activos.
+      //
+      // Güemes y demás flavors Legacy conservan exactamente el mapa
+      // modulos_activos de su Firebase actual.
+
+      final modulosRaw = data['modulos_activos'];
+
+      final modulosLegacy = modulosRaw is Map
+          ? Map<String, dynamic>.from(modulosRaw)
+          : <String, dynamic>{};
+
+      if (!mounted) {
+        return;
+      }
+
+      if (_usaCentral) {
+        final modulosCentral = ContextoClub.modulos;
+
+        setState(() {
+          _mostrarModuloSocios = modulosCentral['socios'] == true;
+
+          _mostrarModuloReservas = modulosCentral['reservas'] == true;
+
+          _mostrarMinutoAMinuto =
+              modulosCentral['deportes'] == true &&
+              modulosCentral['partidos'] == true;
+
+          _mostrarTienda = modulosCentral['productos'] == true;
+
+          _mostrarSorteos = modulosCentral['sorteos'] == true;
+
+          _mostrarProde = modulosCentral['prode'] == true;
+
+          _mostrarVotacion = modulosCentral['votacion'] == true;
+
+          _mostrarStream = modulosLegacy['stream'] == true;
+
+          _mostrarPizarra = modulosLegacy['pizarra'] == true;
+        });
+      } else {
+        setState(() {
+          _mostrarModuloSocios = modulosLegacy['institucional'] ?? false;
+
+          _mostrarModuloReservas = modulosLegacy['reservas'] ?? false;
+
+          _mostrarMinutoAMinuto = modulosLegacy['minuto_a_minuto'] ?? false;
+
+          _mostrarTienda = modulosLegacy['tienda'] ?? false;
+
+          _mostrarSorteos = modulosLegacy['sorteos'] ?? false;
+
+          _mostrarStream = modulosLegacy['stream'] ?? false;
+
+          _mostrarProde = modulosLegacy['prode'] ?? false;
+
+          _mostrarVotacion = modulosLegacy['votacion'] ?? false;
+
+          _mostrarPizarra = modulosLegacy['pizarra'] ?? false;
+        });
+      }
     } catch (e) {
-      print("Error cargando configuración: $e");
+      debugPrint('Error cargando configuración administrativa: $e');
     }
   }
 
-  void _cerrarSesion(BuildContext context) async {
-    await FirebaseAuth.instance.signOut();
-    if (context.mounted) Navigator.of(context).pop();
+  Future<void> _cerrarSesion(BuildContext context) async {
+    if (_usaCentral) {
+      await ServicioSesionTuSede.cerrarSesion();
+    } else {
+      await FirebaseAuth.instance.signOut();
+    }
+
+    if (context.mounted) {
+      Navigator.of(context).pop();
+    }
   }
 
   // --- FUNCIÓN HELPER PARA VERIFICAR VISIBILIDAD ---
@@ -176,17 +254,16 @@ class _PantallaAdminDashboardState extends State<PantallaAdminDashboard> {
     bool moduloActivo = true,
     String? moduloTuSede,
   }) {
-    // 1. Configuración Legacy: si el módulo está apagado, nadie lo ve.
+    // 1. Configuración efectiva del club: si está apagado, nadie lo ve.
     if (!moduloActivo) return false;
 
     // 2. Configuración central TuSede: solo puede restringir.
     // Si TuSede no pudo cargar su configuración, el servicio conserva Legacy.
-    if (moduloTuSede != null &&
-        !ServicioModulosTuSede.activo(moduloTuSede)) {
+    if (moduloTuSede != null && !ServicioModulosTuSede.activo(moduloTuSede)) {
       return false;
     }
 
-    // 3. Permisos Legacy por rol.
+    // 3. Permisos del rol actual (Central o Legacy).
     return AdminPermisos.puedeVer(_rolUsuario, titulo);
   }
 
@@ -859,7 +936,7 @@ class _TarjetaAdmin extends StatelessWidget {
               Container(
                 padding: const EdgeInsets.all(12),
                 decoration: BoxDecoration(
-                  color: color.withOpacity(0.1),
+                  color: color.withValues(alpha: 0.1),
                   shape: BoxShape.circle,
                 ),
                 child: Icon(icono, color: color, size: 30),
