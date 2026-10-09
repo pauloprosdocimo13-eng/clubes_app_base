@@ -21,7 +21,7 @@ if (keystorePropertiesFile.exists()) {
 android {
     namespace = "com.martinguemesfutbol.app" // El namespace principal queda igual
     compileSdk = 36
-    ndkVersion = "27.0.12077973"
+    ndkVersion = "28.2.13676358"
 
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_1_8
@@ -75,7 +75,7 @@ android {
         create("generico") {
             dimension = "club"
             applicationId = "com.prosdodigital.generico" // ID único en Google Play para tu demo
-            manifestPlaceholders["appName"] = "Demo ProsdoDigital"
+            manifestPlaceholders["appName"] = "TuSede"
         }
 
         // SABOR 3: CLUB FÁTIMA
