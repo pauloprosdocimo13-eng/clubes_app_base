@@ -7,8 +7,9 @@ import 'package:flutter_localizations/flutter_localizations.dart';
 class MiAplicacion extends StatelessWidget {
   final ConfiguracionApp config;
   final GlobalKey<NavigatorState>? navigatorKey;
+  final VoidCallback? onNavegacionLista;
 
-  const MiAplicacion({super.key, required this.config, this.navigatorKey});
+  const MiAplicacion({super.key, required this.config, this.navigatorKey, this.onNavegacionLista});
 
   @override
   Widget build(BuildContext context) {
@@ -47,7 +48,7 @@ class MiAplicacion extends StatelessWidget {
           foregroundColor: Colors.white,
         ),
       ),
-      home: PantallaSplash(config: config),
+      home: PantallaSplash(config: config, onNavegacionLista: onNavegacionLista),
     );
   }
 }

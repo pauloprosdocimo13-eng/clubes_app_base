@@ -49,12 +49,14 @@ class DefaultFirebaseOptions {
     storageBucket: 'club-generico.firebasestorage.app',
   );
 
+  // Android Horizonte usa Central como instancia DEFAULT para FCM.
+  // Las demás plataformas conservan su configuración existente.
   static const FirebaseOptions android = FirebaseOptions(
-    apiKey: 'AIzaSyCthWeLhAygdV8rdyCiMkXADcHLqZTDdoI',
-    appId: '1:1023847313810:android:d765df0bd9de9967f0d14b',
-    messagingSenderId: '1023847313810',
-    projectId: 'club-generico',
-    storageBucket: 'club-generico.firebasestorage.app',
+    apiKey: 'AIzaSyCY2GcpvdPQ6qf5OXJce-4sI20toRaRvVM',
+    appId: '1:22406792089:android:facb1d93fbe48e58ca0908',
+    messagingSenderId: '22406792089',
+    projectId: 'tu-sede-app',
+    storageBucket: 'tu-sede-app.firebasestorage.app',
   );
 
   static const FirebaseOptions ios = FirebaseOptions(

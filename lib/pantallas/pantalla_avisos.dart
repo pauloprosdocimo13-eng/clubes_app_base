@@ -8,24 +8,24 @@ import '../tusede/servicios/servicio_datos_club.dart';
 class PantallaAvisos extends StatelessWidget {
   final ConfiguracionApp config;
   final String deporteId;
+  final String? avisoId;
 
   const PantallaAvisos({
     super.key,
     required this.config,
     required this.deporteId,
+    this.avisoId,
   });
 
   @override
   Widget build(BuildContext context) {
     if (ServicioDatosClub.usaTuSedeCentral) {
-      return _AvisosTuSede(
-        config: config,
-        deporteId: deporteId,
-      );
+      return _AvisosTuSede(config: config, deporteId: deporteId);
     }
 
     return _AvisosLegacy(
       config: config,
+      avisoId: avisoId,
       deporteId: deporteId,
     );
   }
@@ -35,14 +35,10 @@ class _AvisosTuSede extends StatefulWidget {
   final ConfiguracionApp config;
   final String deporteId;
 
-  const _AvisosTuSede({
-    required this.config,
-    required this.deporteId,
-  });
+  const _AvisosTuSede({required this.config, required this.deporteId});
 
   @override
-  State<_AvisosTuSede> createState() =>
-      _AvisosTuSedeState();
+  State<_AvisosTuSede> createState() => _AvisosTuSedeState();
 }
 
 class _AvisosTuSedeState extends State<_AvisosTuSede> {
@@ -51,16 +47,12 @@ class _AvisosTuSedeState extends State<_AvisosTuSede> {
   @override
   void initState() {
     super.initState();
-    _future = ServicioContenidoPublico.cargarAvisos(
-      widget.deporteId,
-    );
+    _future = ServicioContenidoPublico.cargarAvisos(widget.deporteId);
   }
 
   void _recargar() {
     setState(() {
-      _future = ServicioContenidoPublico.cargarAvisos(
-        widget.deporteId,
-      );
+      _future = ServicioContenidoPublico.cargarAvisos(widget.deporteId);
     });
   }
 
@@ -71,11 +63,8 @@ class _AvisosTuSedeState extends State<_AvisosTuSede> {
       child: FutureBuilder<List<Map<String, dynamic>>>(
         future: _future,
         builder: (context, snapshot) {
-          if (snapshot.connectionState ==
-              ConnectionState.waiting) {
-            return const Center(
-              child: CircularProgressIndicator(),
-            );
+          if (snapshot.connectionState == ConnectionState.waiting) {
+            return const Center(child: CircularProgressIndicator());
           }
 
           if (snapshot.hasError) {
@@ -109,8 +98,7 @@ class _AvisosTuSedeState extends State<_AvisosTuSede> {
 
           return _ListaAvisos(
             config: widget.config,
-            avisos:
-                snapshot.data ?? <Map<String, dynamic>>[],
+            avisos: snapshot.data ?? <Map<String, dynamic>>[],
           );
         },
       ),
@@ -121,22 +109,26 @@ class _AvisosTuSedeState extends State<_AvisosTuSede> {
 class _AvisosLegacy extends StatelessWidget {
   final ConfiguracionApp config;
   final String deporteId;
+  final String? avisoId;
 
   const _AvisosLegacy({
     required this.config,
     required this.deporteId,
+    this.avisoId,
   });
 
   @override
   Widget build(BuildContext context) {
+    final coleccion = FirebaseFirestore.instance.collection('avisos');
+    final consulta = avisoId != null
+        ? coleccion.where(FieldPath.documentId, isEqualTo: avisoId)
+        : coleccion
+              .where('deporte_id', isEqualTo: deporteId)
+              .orderBy('fecha', descending: true);
     return Container(
       color: Colors.grey[100],
       child: StreamBuilder<QuerySnapshot>(
-        stream: FirebaseFirestore.instance
-            .collection('avisos')
-            .where('deporte_id', isEqualTo: deporteId)
-            .orderBy('fecha', descending: true)
-            .snapshots(),
+        stream: consulta.snapshots(),
         builder: (context, snapshot) {
           if (snapshot.hasError) {
             return Center(
@@ -144,33 +136,23 @@ class _AvisosLegacy extends StatelessWidget {
                 padding: const EdgeInsets.all(20),
                 child: SelectableText(
                   'Error: ${snapshot.error}',
-                  style: const TextStyle(
-                    color: Colors.red,
-                  ),
+                  style: const TextStyle(color: Colors.red),
                 ),
               ),
             );
           }
 
-          if (snapshot.connectionState ==
-              ConnectionState.waiting) {
-            return const Center(
-              child: CircularProgressIndicator(),
-            );
+          if (snapshot.connectionState == ConnectionState.waiting) {
+            return const Center(child: CircularProgressIndicator());
           }
 
-          final avisos = snapshot.data?.docs
-                  .map(
-                    (doc) =>
-                        doc.data() as Map<String, dynamic>,
-                  )
+          final avisos =
+              snapshot.data?.docs
+                  .map((doc) => doc.data() as Map<String, dynamic>)
                   .toList() ??
               <Map<String, dynamic>>[];
 
-          return _ListaAvisos(
-            config: config,
-            avisos: avisos,
-          );
+          return _ListaAvisos(config: config, avisos: avisos);
         },
       ),
     );
@@ -181,10 +163,7 @@ class _ListaAvisos extends StatelessWidget {
   final ConfiguracionApp config;
   final List<Map<String, dynamic>> avisos;
 
-  const _ListaAvisos({
-    required this.config,
-    required this.avisos,
-  });
+  const _ListaAvisos({required this.config, required this.avisos});
 
   String _fechaTexto(dynamic valor) {
     if (valor is Timestamp) {
@@ -214,9 +193,8 @@ class _ListaAvisos extends StatelessWidget {
             const SizedBox(height: 10),
             Text(
               'No hay avisos recientes',
-              style: TextStyle(
-                color: Colors.grey[600],
-              ),
+              textAlign: TextAlign.center,
+              style: TextStyle(color: Colors.grey[600]),
             ),
           ],
         ),
@@ -228,8 +206,7 @@ class _ListaAvisos extends StatelessWidget {
       itemCount: avisos.length,
       itemBuilder: (context, index) {
         final data = avisos[index];
-        final importante =
-            data['importante'] ?? false;
+        final importante = data['importante'] ?? false;
 
         return Card(
           elevation: 3,
@@ -242,9 +219,7 @@ class _ListaAvisos extends StatelessWidget {
               borderRadius: BorderRadius.circular(12),
               border: Border(
                 left: BorderSide(
-                  color: importante
-                      ? Colors.red
-                      : config.colorPrimario,
+                  color: importante ? Colors.red : config.colorPrimario,
                   width: 5,
                 ),
               ),
@@ -252,23 +227,18 @@ class _ListaAvisos extends StatelessWidget {
             child: Padding(
               padding: const EdgeInsets.all(15),
               child: Column(
-                crossAxisAlignment:
-                    CrossAxisAlignment.start,
+                crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Row(
-                    mainAxisAlignment:
-                        MainAxisAlignment.spaceBetween,
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
                       Expanded(
                         child: Text(
-                          (data['titulo'] ?? 'Aviso')
-                              .toString(),
+                          (data['titulo'] ?? 'Aviso').toString(),
                           style: TextStyle(
                             fontSize: 18,
                             fontWeight: FontWeight.bold,
-                            color: importante
-                                ? Colors.red
-                                : Colors.black87,
+                            color: importante ? Colors.red : Colors.black87,
                           ),
                         ),
                       ),
@@ -282,18 +252,12 @@ class _ListaAvisos extends StatelessWidget {
                   const SizedBox(height: 5),
                   Text(
                     _fechaTexto(data['fecha']),
-                    style: TextStyle(
-                      fontSize: 12,
-                      color: Colors.grey[500],
-                    ),
+                    style: TextStyle(fontSize: 12, color: Colors.grey[500]),
                   ),
                   const Divider(),
                   Text(
                     (data['mensaje'] ?? '').toString(),
-                    style: const TextStyle(
-                      fontSize: 15,
-                      height: 1.4,
-                    ),
+                    style: const TextStyle(fontSize: 15, height: 1.4),
                   ),
                 ],
               ),

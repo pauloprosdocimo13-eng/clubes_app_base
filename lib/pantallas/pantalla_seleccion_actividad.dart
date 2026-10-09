@@ -256,54 +256,66 @@ class _PantallaSeleccionActividadState
     showModalBottomSheet(
       context: context,
       backgroundColor: Colors.transparent,
+      isScrollControlled: true,
+      useSafeArea: true,
       builder: (context) {
-        return Container(
-          padding: const EdgeInsets.all(25),
-          decoration: const BoxDecoration(
-            color: Colors.white,
-            borderRadius: BorderRadius.only(
-              topLeft: Radius.circular(30),
-              topRight: Radius.circular(30),
-            ),
+        return ConstrainedBox(
+          constraints: BoxConstraints(
+            maxHeight: MediaQuery.sizeOf(context).height * 0.85,
           ),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Center(
-                child: Container(
-                  width: 50,
-                  height: 5,
-                  decoration: BoxDecoration(
-                    color: Colors.grey[300],
-                    borderRadius: BorderRadius.circular(10),
-                  ),
+          child: SingleChildScrollView(
+            child: Container(
+              padding: const EdgeInsets.all(25),
+              decoration: const BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.only(
+                  topLeft: Radius.circular(30),
+                  topRight: Radius.circular(30),
                 ),
               ),
-              const SizedBox(height: 20),
-              const Text(
-                'Contacto y Redes',
-                style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
-              ),
-              const SizedBox(height: 25),
-              ..._contactos.map(
-                (c) => Column(
-                  children: [
-                    ListTile(
-                      leading: CircleAvatar(
-                        backgroundColor: c.color,
-                        child: Icon(c.iconData, color: Colors.white),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Center(
+                    child: Container(
+                      width: 50,
+                      height: 5,
+                      decoration: BoxDecoration(
+                        color: Colors.grey[300],
+                        borderRadius: BorderRadius.circular(10),
                       ),
-                      title: Text(c.titulo),
-                      subtitle: Text(c.subtitulo),
-                      trailing: const Icon(Icons.arrow_forward_ios, size: 16),
-                      onTap: () => _abrirLink(context, c.url),
                     ),
-                    const Divider(),
-                  ],
-                ),
+                  ),
+                  const SizedBox(height: 20),
+                  const Text(
+                    'Contacto y Redes',
+                    style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
+                  ),
+                  const SizedBox(height: 25),
+                  ..._contactos.map(
+                    (c) => Column(
+                      children: [
+                        ListTile(
+                          leading: CircleAvatar(
+                            backgroundColor: c.color,
+                            child: Icon(c.iconData, color: Colors.white),
+                          ),
+                          title: Text(c.titulo),
+                          subtitle: Text(c.subtitulo),
+                          trailing: const Icon(
+                            Icons.arrow_forward_ios,
+                            size: 16,
+                          ),
+                          onTap: () => _abrirLink(context, c.url),
+                        ),
+                        const Divider(),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(height: 20),
+                ],
               ),
-              const SizedBox(height: 20),
-            ],
+            ),
           ),
         );
       },

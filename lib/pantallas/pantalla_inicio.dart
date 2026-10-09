@@ -788,6 +788,7 @@ class _PantallaInicioState extends State<PantallaInicio> {
                       children: [
                         const Text(
                           'Desarrollado por PROSDO DIGITAL',
+                          textAlign: TextAlign.center,
                           style: TextStyle(
                             color: Colors.white,
                             fontSize: 11,
@@ -795,14 +796,18 @@ class _PantallaInicioState extends State<PantallaInicio> {
                           ),
                         ),
                         const SizedBox(height: 4),
-                        Row(
-                          mainAxisAlignment: MainAxisAlignment.center,
+                        Wrap(
+                          alignment: WrapAlignment.center,
+                          crossAxisAlignment: WrapCrossAlignment.center,
+                          spacing: 15,
+                          runSpacing: 8,
                           children: [
                             GestureDetector(
                               onTap: () {
                                 _lanzarURL('https://prosdodigital.site');
                               },
                               child: const Row(
+                                mainAxisSize: MainAxisSize.min,
                                 children: [
                                   Icon(
                                     Icons.language,
@@ -820,12 +825,12 @@ class _PantallaInicioState extends State<PantallaInicio> {
                                 ],
                               ),
                             ),
-                            const SizedBox(width: 15),
                             GestureDetector(
                               onTap: () {
                                 _lanzarURL('https://wa.me/5491126440284');
                               },
                               child: const Row(
+                                mainAxisSize: MainAxisSize.min,
                                 children: [
                                   Icon(
                                     Icons.phone_android,
@@ -840,12 +845,12 @@ class _PantallaInicioState extends State<PantallaInicio> {
                                       fontSize: 11,
                                     ),
                                   ),
-                                  EtiquetaVersion(),
                                 ],
                               ),
                             ),
                           ],
                         ),
+                        const EtiquetaVersion(),
                       ],
                     ),
                   ),

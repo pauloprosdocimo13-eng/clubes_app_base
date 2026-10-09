@@ -8,8 +8,9 @@ import 'pantalla_seleccion_actividad.dart';
 
 class PantallaSplash extends StatefulWidget {
   final ConfiguracionApp config;
+  final VoidCallback? onNavegacionLista;
 
-  const PantallaSplash({super.key, required this.config});
+  const PantallaSplash({super.key, required this.config, this.onNavegacionLista});
 
   @override
   State<PantallaSplash> createState() => _PantallaSplashState();
@@ -67,6 +68,8 @@ class _PantallaSplashState extends State<PantallaSplash> {
         ),
       );
     }
+    final onLista = widget.onNavegacionLista;
+    WidgetsBinding.instance.addPostFrameCallback((_) => onLista?.call());
   }
 
   @override

@@ -1,32 +1,13 @@
 {
   "project_info": {
-    "project_number": "1023847313810",
-    "project_id": "club-generico",
-    "storage_bucket": "club-generico.firebasestorage.app"
+    "project_number": "22406792089",
+    "project_id": "tu-sede-app",
+    "storage_bucket": "tu-sede-app.firebasestorage.app"
   },
   "client": [
     {
       "client_info": {
-        "mobilesdk_app_id": "1:1023847313810:android:d765df0bd9de9967f0d14b",
-        "android_client_info": {
-          "package_name": "com.example.clubes_app_base"
-        }
-      },
-      "oauth_client": [],
-      "api_key": [
-        {
-          "current_key": "AIzaSyCthWeLhAygdV8rdyCiMkXADcHLqZTDdoI"
-        }
-      ],
-      "services": {
-        "appinvite_service": {
-          "other_platform_oauth_client": []
-        }
-      }
-    },
-    {
-      "client_info": {
-        "mobilesdk_app_id": "1:1023847313810:android:3b337cf3cdf5907df0d14b",
+        "mobilesdk_app_id": "1:22406792089:android:5fb86e6f1ba37e1bca0908",
         "android_client_info": {
           "package_name": "com.martinguemesfutbol.app"
         }
@@ -34,7 +15,7 @@
       "oauth_client": [],
       "api_key": [
         {
-          "current_key": "AIzaSyCthWeLhAygdV8rdyCiMkXADcHLqZTDdoI"
+          "current_key": "AIzaSyCY2GcpvdPQ6qf5OXJce-4sI20toRaRvVM"
         }
       ],
       "services": {
@@ -45,7 +26,7 @@
     },
     {
       "client_info": {
-        "mobilesdk_app_id": "1:1023847313810:android:9b7a5ab1e41bdd44f0d14b",
+        "mobilesdk_app_id": "1:22406792089:android:facb1d93fbe48e58ca0908",
         "android_client_info": {
           "package_name": "com.prosdodigital.generico"
         }
@@ -53,7 +34,7 @@
       "oauth_client": [],
       "api_key": [
         {
-          "current_key": "AIzaSyCthWeLhAygdV8rdyCiMkXADcHLqZTDdoI"
+          "current_key": "AIzaSyCY2GcpvdPQ6qf5OXJce-4sI20toRaRvVM"
         }
       ],
       "services": {

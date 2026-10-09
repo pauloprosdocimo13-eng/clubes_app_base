@@ -9,6 +9,16 @@ import '../firebase_options_guemes.dart' as guemes;
 import '../firebase_options_laloma.dart' as laloma;
 
 class RegistroFlavors {
+  /// Evita compilar un entrypoint Dart de un club con el APK de otro.
+  static void validarFlavorAndroid(String sabor, String? flavorAndroid) {
+    if (!saboresValidos.contains(sabor) || flavorAndroid != sabor) {
+      throw StateError(
+        'El entrypoint $sabor requiere --flavor $sabor '
+        '(flavor Android recibido: $flavorAndroid).',
+      );
+    }
+  }
+
   static const saboresValidos = [
     'guemes',
     'fatima',
@@ -131,10 +141,9 @@ class RegistroFlavors {
   // FIREBASE LEGACY
   // ============================================================
   //
-  // Esto NO cambia todavía.
-  //
-  // Cada aplicación sigue utilizando su Firebase actual
-  // como instancia DEFAULT.
+  // Android generico usa TuSede Central como DEFAULT para recibir FCM
+  // del backend central. Los demás flavors mantienen su proyecto Legacy;
+  // generico Web mantiene su configuración anterior.
 
   static FirebaseOptions firebaseOptionsDe(
     String sabor,

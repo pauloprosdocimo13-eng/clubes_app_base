@@ -1,6 +1,7 @@
 import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
-import 'package:flutter/foundation.dart' show kIsWeb;
+import 'package:flutter/foundation.dart' show kIsWeb, defaultTargetPlatform;
+import 'package:flutter/services.dart' show appFlavor;
 import 'package:flutter/material.dart';
 
 import 'configuracion/configuracion_app.dart';
@@ -11,31 +12,28 @@ import 'pantallas/pantalla_noticias.dart';
 import 'servicios/servicio_notificaciones_topics.dart';
 import 'tusede/servicios/contexto_club.dart';
 import 'tusede/servicios/firestore_tusede.dart';
+import 'tusede/servicios/servicio_datos_club.dart';
 import 'tusede/servicios/servicio_firebase_tusede.dart';
 
-final GlobalKey<NavigatorState> navigatorKey =
-    GlobalKey<NavigatorState>();
+final GlobalKey<NavigatorState> navigatorKey = GlobalKey<NavigatorState>();
 
 @pragma('vm:entry-point')
-Future<void> firebaseMessagingBackgroundHandler(
-  RemoteMessage message,
-) async {
-  final sabor = const String.fromEnvironment(
-    'FLAVOR',
-    defaultValue: 'guemes',
-  );
+Future<void> firebaseMessagingBackgroundHandler(RemoteMessage message) async {
+  // El isolate no conserva el sabor del isolate principal. Android/iOS
+  // recuperan aquí la configuración nativa incluida en este APK/app.
+  await Firebase.initializeApp();
 
-  await Firebase.initializeApp(
-    options: RegistroFlavors.firebaseOptionsDe(sabor),
-  );
-
-  debugPrint(
-    'Notificación en 2do plano: ${message.messageId}',
-  );
+  debugPrint('Notificación en 2do plano: ${message.messageId}');
 }
 
 Future<void> bootstrapApp(String sabor) async {
   WidgetsFlutterBinding.ensureInitialized();
+
+  if (!kIsWeb && defaultTargetPlatform == TargetPlatform.android) {
+    RegistroFlavors.validarFlavorAndroid(sabor, appFlavor);
+  }
+  _navegacionLista = false;
+  _notificacionPendiente = null;
 
   final config = RegistroFlavors.configDe(sabor);
 
@@ -43,7 +41,8 @@ Future<void> bootstrapApp(String sabor) async {
   // FIREBASE ACTUAL DEL CLUB
   // ============================================================
   //
-  // Sigue siendo la instancia DEFAULT.
+  // Cada APK tiene su Firebase DEFAULT: Horizonte Android usa Central;
+  // Güemes mantiene su proyecto Legacy.
   //
   // Güemes continúa utilizando exactamente su Firebase actual
   // para socios, cuotas, movimientos, noticias, etc.
@@ -77,9 +76,7 @@ Future<void> bootstrapApp(String sabor) async {
   // NOTIFICACIONES DEL CLUB
   // ============================================================
 
-  FirebaseMessaging.onBackgroundMessage(
-    firebaseMessagingBackgroundHandler,
-  );
+  FirebaseMessaging.onBackgroundMessage(firebaseMessagingBackgroundHandler);
 
   await _iniciarNotificaciones(config);
 
@@ -87,28 +84,29 @@ Future<void> bootstrapApp(String sabor) async {
     MiAplicacion(
       config: config,
       navigatorKey: navigatorKey,
+      onNavegacionLista: () {
+        _navegacionLista = true;
+        final pendiente = _notificacionPendiente;
+        _notificacionPendiente = null;
+        if (pendiente != null) _manejarRedireccion(pendiente, config);
+      },
     ),
   );
 }
 
 Future<void> _inicializarTuSedeCentral() async {
   try {
-    final inicializado =
-        await ServicioFirebaseTuSede.inicializar();
+    final inicializado = await ServicioFirebaseTuSede.inicializar();
 
     if (!inicializado) {
-      debugPrint(
-        'TuSede Central no se inició en esta plataforma.',
-      );
+      debugPrint('TuSede Central no se inició en esta plataforma.');
 
       return;
     }
 
-    final club = await FirestoreTuSede
-        .cargarClubActual()
-        .timeout(
-          const Duration(seconds: 10),
-        );
+    final club = await FirestoreTuSede.cargarClubActual().timeout(
+      const Duration(seconds: 10),
+    );
 
     if (club == null) {
       debugPrint(
@@ -119,74 +117,54 @@ Future<void> _inicializarTuSedeCentral() async {
       return;
     }
 
-    debugPrint(
-      '===============================================',
-    );
+    debugPrint('===============================================');
 
-    debugPrint(
-      'TUSEDE CENTRAL CONECTADO CORRECTAMENTE',
-    );
+    debugPrint('TUSEDE CENTRAL CONECTADO CORRECTAMENTE');
 
-    debugPrint(
-      'Club: ${club.nombre}',
-    );
+    debugPrint('Club: ${club.nombre}');
 
-    debugPrint(
-      'Club ID: ${club.id}',
-    );
+    debugPrint('Club ID: ${club.id}');
 
-    debugPrint(
-      'Activo: ${club.activo}',
-    );
+    debugPrint('Activo: ${club.activo}');
 
-    debugPrint(
-      'Nombre corto: ${ContextoClub.nombreCorto}',
-    );
+    debugPrint('Nombre corto: ${ContextoClub.nombreCorto}');
 
-    debugPrint(
-      'Color primario: ${ContextoClub.colorPrimarioHex}',
-    );
+    debugPrint('Color primario: ${ContextoClub.colorPrimarioHex}');
 
-    debugPrint(
-      'Color secundario: ${ContextoClub.colorSecundarioHex}',
-    );
+    debugPrint('Color secundario: ${ContextoClub.colorSecundarioHex}');
 
-    debugPrint(
-      'Lema: ${ContextoClub.lema}',
-    );
+    debugPrint('Lema: ${ContextoClub.lema}');
 
-    debugPrint(
-      'Version config: ${ContextoClub.versionConfiguracion}',
-    );
+    debugPrint('Version config: ${ContextoClub.versionConfiguracion}');
 
-    debugPrint(
-      'Modulos activos: ${ContextoClub.modulosActivos.join(', ')}',
-    );
+    debugPrint('Modulos activos: ${ContextoClub.modulosActivos.join(', ')}');
 
-    debugPrint(
-      'Proyecto central: tu-sede-app',
-    );
+    debugPrint('Proyecto central: tu-sede-app');
 
-    debugPrint(
-      '===============================================',
-    );
+    debugPrint('===============================================');
   } on FirebaseException catch (e) {
     debugPrint(
       'Error Firebase TuSede Central: '
       '${e.code} - ${e.message}',
     );
   } catch (e) {
-    debugPrint(
-      'Error conectando con TuSede Central: $e',
-    );
+    debugPrint('Error conectando con TuSede Central: $e');
   }
 }
 
-Future<void> _iniciarNotificaciones(
-  ConfiguracionApp config,
-) async {
+Future<void> _iniciarNotificaciones(ConfiguracionApp config) async {
   try {
     final messaging = FirebaseMessaging.instance;
+
+    FirebaseMessaging.onMessageOpenedApp.listen((message) {
+      _manejarRedireccion(message, config);
+    });
+
+    final initialMessage = await messaging.getInitialMessage();
+
+    if (initialMessage != null) {
+      _manejarRedireccion(initialMessage, config);
+    }
 
     final settings = await messaging.requestPermission(
       alert: true,
@@ -194,80 +172,45 @@ Future<void> _iniciarNotificaciones(
       sound: true,
     );
 
-    if (settings.authorizationStatus !=
-            AuthorizationStatus.authorized &&
-        settings.authorizationStatus !=
-            AuthorizationStatus.provisional) {
+    if (settings.authorizationStatus != AuthorizationStatus.authorized &&
+        settings.authorizationStatus != AuthorizationStatus.provisional) {
       return;
     }
 
     if (!kIsWeb) {
-      final topicGeneral =
-          ServicioNotificacionesTopics.topicGeneral(
-        config,
-      );
+      final topicGeneral = ServicioNotificacionesTopics.topicGeneral(config);
 
-      final topicPartidos =
-          ServicioNotificacionesTopics.topicPartidos(
-        config,
-      );
+      final topicPartidos = ServicioNotificacionesTopics.topicPartidos(config);
 
-      await messaging.subscribeToTopic(
-        topicGeneral,
-      );
+      await messaging.subscribeToTopic(topicGeneral);
 
-      await messaging.subscribeToTopic(
-        topicPartidos,
-      );
+      await messaging.subscribeToTopic(topicPartidos);
 
+      debugPrint('Suscrito a $topicGeneral y $topicPartidos');
+    }
+
+    FirebaseMessaging.onMessage.listen((message) {
       debugPrint(
-        'Suscrito a $topicGeneral y $topicPartidos',
+        'Mensaje en primer plano: '
+        '${message.notification?.title}',
       );
-    }
-
-    FirebaseMessaging.onMessageOpenedApp.listen(
-      (message) {
-        _manejarRedireccion(
-          message,
-          config,
-        );
-      },
-    );
-
-    final initialMessage =
-        await messaging.getInitialMessage();
-
-    if (initialMessage != null) {
-      Future.delayed(
-        const Duration(milliseconds: 1500),
-        () {
-          _manejarRedireccion(
-            initialMessage,
-            config,
-          );
-        },
-      );
-    }
-
-    FirebaseMessaging.onMessage.listen(
-      (message) {
-        debugPrint(
-          'Mensaje en primer plano: '
-          '${message.notification?.title}',
-        );
-      },
-    );
+    });
   } catch (e) {
-    debugPrint(
-      'Error en notificaciones: $e',
-    );
+    debugPrint('Error en notificaciones: $e');
   }
 }
 
-void _manejarRedireccion(
-  RemoteMessage message,
-  ConfiguracionApp config,
-) {
+bool _navegacionLista = false;
+RemoteMessage? _notificacionPendiente;
+
+void _manejarRedireccion(RemoteMessage message, ConfiguracionApp config) {
+  if (!_navegacionLista) {
+    _notificacionPendiente = message;
+    return;
+  }
+  final clubMensaje = (message.data['club_id'] ?? message.data['clubId'])
+      ?.toString();
+  if (clubMensaje != null && clubMensaje != config.clubIdTuSede) return;
   final tipo = message.data['tipo'];
 
   final nav = navigatorKey.currentState;
@@ -279,17 +222,24 @@ void _manejarRedireccion(
   if (tipo == 'noticia') {
     nav.push(
       MaterialPageRoute(
-        builder: (_) => PantallaNoticias(
-          config: config,
+        builder: (_) => Scaffold(
+          appBar: AppBar(title: const Text('Noticias')),
+          body: PantallaNoticias(config: config),
         ),
       ),
     );
   } else if (tipo == 'aviso') {
     nav.push(
       MaterialPageRoute(
-        builder: (_) => PantallaAvisos(
-          config: config,
-          deporteId: 'general',
+        builder: (_) => Scaffold(
+          appBar: AppBar(title: const Text('Avisos')),
+          body: PantallaAvisos(
+            config: config,
+            deporteId: message.data['deporte_id']?.toString() ?? 'general',
+            avisoId: ServicioDatosClub.usaTuSedeCentral
+                ? null
+                : message.data['id']?.toString(),
+          ),
         ),
       ),
     );

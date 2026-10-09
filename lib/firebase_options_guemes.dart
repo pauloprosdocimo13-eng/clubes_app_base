@@ -51,7 +51,7 @@ class DefaultFirebaseOptions {
 
   static const FirebaseOptions android = FirebaseOptions(
     apiKey: 'AIzaSyAvV_LrwQmthHh7uTIuGr74ieTCcqLleBc',
-    appId: '1:209153364414:android:0b4a5cac4ccd0673d129ef',
+    appId: '1:209153364414:android:be49070caf61d4ddd129ef',
     messagingSenderId: '209153364414',
     projectId: 'club-guemes-2',
     storageBucket: 'club-guemes-2.firebasestorage.app',

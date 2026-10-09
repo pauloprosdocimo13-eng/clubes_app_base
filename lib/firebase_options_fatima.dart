@@ -51,7 +51,7 @@ class DefaultFirebaseOptions {
 
   static const FirebaseOptions android = FirebaseOptions(
     apiKey: 'AIzaSyAQkHgV0AcZMDUR9byUi5Ae6OFpGh9GYYw',
-    appId: '1:1030139180435:android:6b51c7e3b6cb1da752a466',
+    appId: '1:1030139180435:android:541831ed832321c252a466',
     messagingSenderId: '1030139180435',
     projectId: 'club-fatima',
     storageBucket: 'club-fatima.firebasestorage.app',
