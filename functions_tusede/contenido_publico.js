@@ -157,6 +157,36 @@ function listaTexto(valor) {
       .slice(0, 100);
 }
 
+// Documentos públicos del arranque. Lista cerrada de campos para evitar
+// exponer datos operativos, credenciales o información de socios.
+function sanitizarConfiguracionArranque(documento, data = {}) {
+  const items = Array.isArray(data.items) ? data.items : [];
+  if (documento === "actividades") {
+    return {items: items.filter((item) => item && typeof item === "object")
+        .map((item) => ({
+          nombre: texto(item.nombre), horarios: texto(item.horarios),
+          arancel: texto(item.arancel), icono: texto(item.icono),
+          color: texto(item.color), es_futbol: item.es_futbol === true,
+        })).filter((item) => item.nombre).slice(0, 100)};
+  }
+  if (documento === "contacto") {
+    return {items: items.filter((item) => item && typeof item === "object")
+        .map((item) => ({
+          titulo: texto(item.titulo), subtitulo: texto(item.subtitulo),
+          url: texto(item.url), icono: texto(item.icono), color: texto(item.color),
+        })).filter((item) => item.titulo).slice(0, 100)};
+  }
+  if (documento === "versiones") {
+    return {minima_android: texto(data.minima_android),
+      url_playstore: texto(data.url_playstore)};
+  }
+  if (documento === "aviso_entrada") {
+    return {activo: data.activo === true, titulo: texto(data.titulo),
+      mensaje: texto(data.mensaje), imagen_url: texto(data.imagen_url)};
+  }
+  return null;
+}
+
 // ============================================================
 // NOTICIAS
 // ============================================================
@@ -942,6 +972,44 @@ exports.contenidoPublico = functions
             );
 
           try {
+            if (accion === "arranque") {
+              const documento = texto(body?.documento);
+              if (!["actividades", "contacto", "versiones", "aviso_entrada",
+                "publicidad"].includes(documento)) {
+                responder(res, 400, {ok: false, mensaje: "Documento no permitido."});
+                return;
+              }
+              const clubRef = await obtenerClubHabilitado(clubId);
+              if (!clubRef) {
+                responder(res, 404, {ok: false, mensaje: "El club no está disponible."});
+                return;
+              }
+              let datos;
+              if (documento === "publicidad") {
+                const [clubSnap, generalSnap] = await Promise.all([
+                  clubRef.get(), clubRef.collection("configuracion").doc("general").get(),
+                ]);
+                const modulos = sanitizarModulosActivos(
+                    generalSnap.data()?.modulos_activos, clubSnap.data()?.modulos,
+                );
+                let items = [];
+                if (modulos.publicidad) {
+                  const snap = await clubRef.collection("publicidad")
+                      .where("activo", "==", true).orderBy("orden").limit(100).get();
+                  items = snap.docs.map((doc) => {
+                    const data = doc.data() || {};
+                    return {nombre: texto(data.nombre), imagen_url: texto(data.imagen_url),
+                      link: texto(data.link)};
+                  });
+                }
+                datos = {items};
+              } else {
+                const snap = await clubRef.collection("configuracion").doc(documento).get();
+                datos = sanitizarConfiguracionArranque(documento, snap.data() || {});
+              }
+              responder(res, 200, {ok: true, clubId, datos});
+              return;
+            }
             // ================================================
             // CONFIGURACIÓN PÚBLICA DEL CLUB
             // ================================================

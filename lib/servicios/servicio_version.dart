@@ -1,4 +1,4 @@
-import 'package:cloud_firestore/cloud_firestore.dart';
+import '../tusede/servicios/servicio_configuracion_publica.dart';
 import 'package:flutter/material.dart';
 import 'package:package_info_plus/package_info_plus.dart';
 import 'package:url_launcher/url_launcher.dart';
@@ -19,14 +19,13 @@ class ServicioVersion {
 
   static Future<bool> requiereActualizacion() async {
     try {
-      final doc = await FirebaseFirestore.instance
-          .collection('configuracion')
-          .doc('versiones')
-          .get();
+      final data = await ServicioConfiguracionPublica().cargarDocumento(
+        'versiones',
+      );
 
-      if (!doc.exists || doc.data() == null) return false;
+      if (data.isEmpty) return false;
 
-      final versionMinima = doc.data()!['minima_android']?.toString() ?? '1.0.0';
+      final versionMinima = data['minima_android']?.toString() ?? '1.0.0';
       final packageInfo = await PackageInfo.fromPlatform();
       return esVersionMenor(packageInfo.version, versionMinima);
     } catch (e) {
@@ -37,11 +36,10 @@ class ServicioVersion {
 
   static Future<String> urlPlayStore() async {
     try {
-      final doc = await FirebaseFirestore.instance
-          .collection('configuracion')
-          .doc('versiones')
-          .get();
-      return doc.data()?['url_playstore']?.toString() ?? '';
+      final data = await ServicioConfiguracionPublica().cargarDocumento(
+        'versiones',
+      );
+      return data['url_playstore']?.toString() ?? '';
     } catch (_) {
       return '';
     }
@@ -49,15 +47,14 @@ class ServicioVersion {
 
   static Future<void> mostrarBloqueoSiCorresponde(BuildContext context) async {
     try {
-      final doc = await FirebaseFirestore.instance
-          .collection('configuracion')
-          .doc('versiones')
-          .get();
+      final data = await ServicioConfiguracionPublica().cargarDocumento(
+        'versiones',
+      );
 
-      if (!doc.exists || doc.data() == null) return;
+      if (data.isEmpty) return;
 
-      final versionMinima = doc.data()!['minima_android']?.toString() ?? '1.0.0';
-      final urlPlayStore = doc.data()!['url_playstore']?.toString() ?? '';
+      final versionMinima = data['minima_android']?.toString() ?? '1.0.0';
+      final urlPlayStore = data['url_playstore']?.toString() ?? '';
       final packageInfo = await PackageInfo.fromPlatform();
 
       if (!esVersionMenor(packageInfo.version, versionMinima)) return;
@@ -69,7 +66,9 @@ class ServicioVersion {
         builder: (ctx) => PopScope(
           canPop: false,
           child: AlertDialog(
-            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(20),
+            ),
             title: const Row(
               children: [
                 Icon(Icons.system_update, color: Colors.blue, size: 30),
@@ -90,12 +89,17 @@ class ServicioVersion {
                     backgroundColor: Colors.blue[700],
                     foregroundColor: Colors.white,
                     padding: const EdgeInsets.symmetric(vertical: 15),
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(10),
+                    ),
                   ),
                   onPressed: () async {
                     if (urlPlayStore.isNotEmpty) {
                       final uri = Uri.parse(urlPlayStore);
-                      await launchUrl(uri, mode: LaunchMode.externalApplication);
+                      await launchUrl(
+                        uri,
+                        mode: LaunchMode.externalApplication,
+                      );
                     }
                   },
                   child: const Text(

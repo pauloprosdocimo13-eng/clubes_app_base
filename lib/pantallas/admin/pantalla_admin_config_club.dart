@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import '../../configuracion/configuracion_app.dart';
 import '../../servicios/servicio_actividades.dart';
+import '../../tusede/servicios/servicio_datos_club.dart';
 
 class PantallaAdminConfigClub extends StatefulWidget {
   final ConfiguracionApp config;
@@ -9,7 +10,8 @@ class PantallaAdminConfigClub extends StatefulWidget {
   const PantallaAdminConfigClub({super.key, required this.config});
 
   @override
-  State<PantallaAdminConfigClub> createState() => _PantallaAdminConfigClubState();
+  State<PantallaAdminConfigClub> createState() =>
+      _PantallaAdminConfigClubState();
 }
 
 class _PantallaAdminConfigClubState extends State<PantallaAdminConfigClub>
@@ -38,17 +40,21 @@ class _PantallaAdminConfigClubState extends State<PantallaAdminConfigClub>
   Future<void> _cargarDatos() async {
     setState(() => _cargando = true);
     try {
-      final docGeneral = await FirebaseFirestore.instance
-          .collection('configuracion')
-          .doc('general')
-          .get();
+      final docGeneral = await ServicioDatosClub.configuracionDoc(
+        'general',
+      ).get();
 
       if (docGeneral.exists && docGeneral.data() != null) {
-        _multiActividad = docGeneral.data()!['activar_multi_actividad'] ?? false;
+        _multiActividad =
+            docGeneral.data()!['activar_multi_actividad'] ?? false;
       }
 
-      _actividades = await ServicioActividades.cargarActividades();
-      _contactos = await ServicioActividades.cargarContactos();
+      _actividades = await ServicioActividades.cargarActividades(
+        administracion: true,
+      );
+      _contactos = await ServicioActividades.cargarContactos(
+        administracion: true,
+      );
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -63,13 +69,10 @@ class _PantallaAdminConfigClubState extends State<PantallaAdminConfigClub>
   Future<void> _guardarTodo() async {
     setState(() => _guardando = true);
     try {
-      await FirebaseFirestore.instance.collection('configuracion').doc('general').set(
-        {
-          'activar_multi_actividad': _multiActividad,
-          'prefijo_notificaciones': widget.config.prefijoColeccion,
-        },
-        SetOptions(merge: true),
-      );
+      await ServicioDatosClub.configuracionDoc('general').set({
+        'activar_multi_actividad': _multiActividad,
+        'prefijo_notificaciones': widget.config.prefijoColeccion,
+      }, SetOptions(merge: true));
       await ServicioActividades.guardarActividades(_actividades);
       await ServicioActividades.guardarContactos(_contactos);
 
@@ -84,7 +87,10 @@ class _PantallaAdminConfigClubState extends State<PantallaAdminConfigClub>
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Error al guardar: $e'), backgroundColor: Colors.red),
+          SnackBar(
+            content: Text('Error al guardar: $e'),
+            backgroundColor: Colors.red,
+          ),
         );
       }
     } finally {
@@ -104,7 +110,9 @@ class _PantallaAdminConfigClubState extends State<PantallaAdminConfigClub>
       context: context,
       builder: (ctx) => StatefulBuilder(
         builder: (ctx, setDialog) => AlertDialog(
-          title: Text(actividad == null ? 'Nueva actividad' : 'Editar actividad'),
+          title: Text(
+            actividad == null ? 'Nueva actividad' : 'Editar actividad',
+          ),
           content: SingleChildScrollView(
             child: Column(
               mainAxisSize: MainAxisSize.min,
@@ -124,7 +132,7 @@ class _PantallaAdminConfigClubState extends State<PantallaAdminConfigClub>
                 ),
                 const SizedBox(height: 10),
                 DropdownButtonFormField<String>(
-                  value: iconoSel,
+                  initialValue: iconoSel,
                   decoration: const InputDecoration(labelText: 'Icono'),
                   items: ServicioActividades.nombresIconosDisponibles()
                       .map((i) => DropdownMenuItem(value: i, child: Text(i)))
@@ -132,7 +140,9 @@ class _PantallaAdminConfigClubState extends State<PantallaAdminConfigClub>
                   onChanged: (v) => setDialog(() => iconoSel = v ?? iconoSel),
                 ),
                 TextField(
-                  decoration: const InputDecoration(labelText: 'Color (#RRGGBB)'),
+                  decoration: const InputDecoration(
+                    labelText: 'Color (#RRGGBB)',
+                  ),
                   controller: TextEditingController(text: colorSel),
                   onChanged: (v) => colorSel = v,
                 ),
@@ -145,7 +155,10 @@ class _PantallaAdminConfigClubState extends State<PantallaAdminConfigClub>
             ),
           ),
           actions: [
-            TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Cancelar')),
+            TextButton(
+              onPressed: () => Navigator.pop(ctx),
+              child: const Text('Cancelar'),
+            ),
             ElevatedButton(
               onPressed: () {
                 final nueva = ActividadClub(
@@ -175,7 +188,9 @@ class _PantallaAdminConfigClubState extends State<PantallaAdminConfigClub>
 
   void _editarContacto({ContactoClub? contacto, int? index}) {
     final tituloCtrl = TextEditingController(text: contacto?.titulo ?? '');
-    final subtituloCtrl = TextEditingController(text: contacto?.subtitulo ?? '');
+    final subtituloCtrl = TextEditingController(
+      text: contacto?.subtitulo ?? '',
+    );
     final urlCtrl = TextEditingController(text: contacto?.url ?? '');
     var iconoSel = contacto?.icono ?? 'link';
 
@@ -187,11 +202,20 @@ class _PantallaAdminConfigClubState extends State<PantallaAdminConfigClub>
           content: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              TextField(controller: tituloCtrl, decoration: const InputDecoration(labelText: 'Título')),
-              TextField(controller: subtituloCtrl, decoration: const InputDecoration(labelText: 'Subtítulo')),
-              TextField(controller: urlCtrl, decoration: const InputDecoration(labelText: 'URL / Link')),
+              TextField(
+                controller: tituloCtrl,
+                decoration: const InputDecoration(labelText: 'Título'),
+              ),
+              TextField(
+                controller: subtituloCtrl,
+                decoration: const InputDecoration(labelText: 'Subtítulo'),
+              ),
+              TextField(
+                controller: urlCtrl,
+                decoration: const InputDecoration(labelText: 'URL / Link'),
+              ),
               DropdownButtonFormField<String>(
-                value: iconoSel,
+                initialValue: iconoSel,
                 decoration: const InputDecoration(labelText: 'Icono'),
                 items: ServicioActividades.nombresIconosDisponibles()
                     .map((i) => DropdownMenuItem(value: i, child: Text(i)))
@@ -201,7 +225,10 @@ class _PantallaAdminConfigClubState extends State<PantallaAdminConfigClub>
             ],
           ),
           actions: [
-            TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Cancelar')),
+            TextButton(
+              onPressed: () => Navigator.pop(ctx),
+              child: const Text('Cancelar'),
+            ),
             ElevatedButton(
               onPressed: () {
                 final nuevo = ContactoClub(
@@ -251,7 +278,10 @@ class _PantallaAdminConfigClubState extends State<PantallaAdminConfigClub>
               child: SizedBox(
                 width: 22,
                 height: 22,
-                child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+                child: CircularProgressIndicator(
+                  strokeWidth: 2,
+                  color: Colors.white,
+                ),
               ),
             )
           else
@@ -264,7 +294,9 @@ class _PantallaAdminConfigClubState extends State<PantallaAdminConfigClub>
               children: [
                 SwitchListTile(
                   title: const Text('Portal multi-actividad'),
-                  subtitle: const Text('Muestra el portal institucional al iniciar'),
+                  subtitle: const Text(
+                    'Muestra el portal institucional al iniciar',
+                  ),
                   value: _multiActividad,
                   onChanged: (v) => setState(() => _multiActividad = v),
                 ),
@@ -272,10 +304,7 @@ class _PantallaAdminConfigClubState extends State<PantallaAdminConfigClub>
                 Expanded(
                   child: TabBarView(
                     controller: _tabs,
-                    children: [
-                      _listaActividades(),
-                      _listaContactos(),
-                    ],
+                    children: [_listaActividades(), _listaContactos()],
                   ),
                 ),
               ],
@@ -303,7 +332,7 @@ class _PantallaAdminConfigClubState extends State<PantallaAdminConfigClub>
         return Card(
           child: ListTile(
             leading: CircleAvatar(
-              backgroundColor: act.color.withOpacity(0.15),
+              backgroundColor: act.color.withValues(alpha: 0.15),
               child: Icon(act.iconData, color: act.color),
             ),
             title: Text(act.nombre),
@@ -314,7 +343,8 @@ class _PantallaAdminConfigClubState extends State<PantallaAdminConfigClub>
               children: [
                 IconButton(
                   icon: const Icon(Icons.edit),
-                  onPressed: () => _editarActividad(actividad: act, index: index),
+                  onPressed: () =>
+                      _editarActividad(actividad: act, index: index),
                 ),
                 IconButton(
                   icon: const Icon(Icons.delete, color: Colors.red),

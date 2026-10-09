@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../tusede/servicios/servicio_datos_club.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import '../configuracion/configuracion_app.dart';
 import 'pantalla_admin_formulario_publicidad.dart';
@@ -15,10 +16,13 @@ class PantallaAdminPublicidad extends StatelessWidget {
         title: const Text("¿Borrar sponsor?"),
         content: const Text("Esto eliminará el banner permanentemente."),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(ctx), child: const Text("Cancelar")),
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text("Cancelar"),
+          ),
           TextButton(
             onPressed: () {
-              FirebaseFirestore.instance.collection('publicidad').doc(id).delete();
+              ServicioDatosClub.publicidad.doc(id).delete();
               Navigator.pop(ctx);
             },
             child: const Text("Borrar", style: TextStyle(color: Colors.red)),
@@ -43,18 +47,18 @@ class PantallaAdminPublicidad extends StatelessWidget {
           Navigator.push(
             context,
             MaterialPageRoute(
-              builder: (context) => PantallaAdminFormularioPublicidad(config: config),
+              builder: (context) =>
+                  PantallaAdminFormularioPublicidad(config: config),
             ),
           );
         },
       ),
       body: StreamBuilder<QuerySnapshot>(
-        stream: FirebaseFirestore.instance
-            .collection('publicidad')
-            .orderBy('orden')
-            .snapshots(),
+        stream: ServicioDatosClub.publicidad.orderBy('orden').snapshots(),
         builder: (context, snapshot) {
-          if (!snapshot.hasData) return const Center(child: CircularProgressIndicator());
+          if (!snapshot.hasData) {
+            return const Center(child: CircularProgressIndicator());
+          }
 
           final docs = snapshot.data!.docs;
 
@@ -84,13 +88,29 @@ class PantallaAdminPublicidad extends StatelessWidget {
                       color: Colors.grey[300],
                       borderRadius: BorderRadius.circular(5),
                       image: imagenUrl.isNotEmpty
-                          ? DecorationImage(image: NetworkImage(imagenUrl), fit: BoxFit.cover)
+                          ? DecorationImage(
+                              image: NetworkImage(imagenUrl),
+                              fit: BoxFit.cover,
+                            )
                           : null,
                     ),
                     child: imagenUrl.isEmpty ? const Icon(Icons.image) : null,
                   ),
-                  title: Text(data['nombre'] ?? 'Sin nombre', style: TextStyle(fontWeight: FontWeight.bold, color: activo ? Colors.black : Colors.grey)),
-                  subtitle: Text(activo ? "ACTIVO - Orden: ${data['orden']}" : "INACTIVO - Orden: ${data['orden']}", style: TextStyle(color: activo ? Colors.green : Colors.grey)),
+                  title: Text(
+                    data['nombre'] ?? 'Sin nombre',
+                    style: TextStyle(
+                      fontWeight: FontWeight.bold,
+                      color: activo ? Colors.black : Colors.grey,
+                    ),
+                  ),
+                  subtitle: Text(
+                    activo
+                        ? "ACTIVO - Orden: ${data['orden']}"
+                        : "INACTIVO - Orden: ${data['orden']}",
+                    style: TextStyle(
+                      color: activo ? Colors.green : Colors.grey,
+                    ),
+                  ),
                   trailing: Row(
                     mainAxisSize: MainAxisSize.min,
                     children: [
@@ -100,10 +120,11 @@ class PantallaAdminPublicidad extends StatelessWidget {
                           Navigator.push(
                             context,
                             MaterialPageRoute(
-                              builder: (context) => PantallaAdminFormularioPublicidad(
-                                config: config,
-                                publicidadId: id,
-                              ),
+                              builder: (context) =>
+                                  PantallaAdminFormularioPublicidad(
+                                    config: config,
+                                    publicidadId: id,
+                                  ),
                             ),
                           );
                         },

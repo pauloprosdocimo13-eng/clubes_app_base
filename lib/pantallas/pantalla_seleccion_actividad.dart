@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:url_launcher/url_launcher.dart';
-import 'package:cloud_firestore/cloud_firestore.dart';
+import '../tusede/servicios/servicio_contenido_publico.dart';
+import '../tusede/servicios/servicio_configuracion_publica.dart';
+import '../tusede/servicios/servicio_datos_club.dart';
 import '../configuracion/configuracion_app.dart';
 import '../tusede/servicios/contexto_club.dart';
 import '../servicios/servicio_actividades.dart';
@@ -21,10 +23,12 @@ class PantallaSeleccionActividad extends StatefulWidget {
   const PantallaSeleccionActividad({super.key, required this.config});
 
   @override
-  State<PantallaSeleccionActividad> createState() => _PantallaSeleccionActividadState();
+  State<PantallaSeleccionActividad> createState() =>
+      _PantallaSeleccionActividadState();
 }
 
-class _PantallaSeleccionActividadState extends State<PantallaSeleccionActividad> {
+class _PantallaSeleccionActividadState
+    extends State<PantallaSeleccionActividad> {
   List<ActividadClub> _actividades = [];
   List<ContactoClub> _contactos = [];
   bool _cargandoPortal = true;
@@ -48,18 +52,23 @@ class _PantallaSeleccionActividadState extends State<PantallaSeleccionActividad>
       // 1. Cargamos actividades y contactos
       final actividades = await ServicioActividades.cargarActividades();
       final contactos = await ServicioActividades.cargarContactos();
-      
+
       // 2. Verificamos si la publicidad está activa en Firebase
-      bool publicidadActiva = true;
+      bool publicidadActiva = !ServicioDatosClub.usaTuSedeCentral;
       try {
-        final docConfig = await FirebaseFirestore.instance.collection('configuracion').doc('general').get();
-        if (docConfig.exists && docConfig.data() != null) {
-          final data = docConfig.data() as Map<String, dynamic>;
-          final modulos = data['modulos_activos'] as Map<String, dynamic>? ?? {};
+        if (ServicioDatosClub.usaTuSedeCentral) {
+          final datos = await ServicioContenidoPublico.cargarConfiguracion();
+          publicidadActiva = datos.moduloActivo('publicidad');
+        } else {
+          final data = await ServicioConfiguracionPublica().cargarDocumento(
+            'general',
+          );
+          final modulos =
+              data['modulos_activos'] as Map<String, dynamic>? ?? {};
           publicidadActiva = modulos['publicidad'] ?? true;
         }
       } catch (e) {
-        print("Error leyendo config de publicidad: $e");
+        debugPrint("Error leyendo config de publicidad: $e");
       }
 
       if (mounted) {
@@ -78,7 +87,12 @@ class _PantallaSeleccionActividadState extends State<PantallaSeleccionActividad>
   // --- NAVEGACIÓN Y FUNCIONES ---
 
   void _irAFutbol(BuildContext context) {
-    Navigator.push(context, MaterialPageRoute(builder: (context) => PantallaSeleccion(config: widget.config)));
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => PantallaSeleccion(config: widget.config),
+      ),
+    );
   }
 
   void _irANoticias(BuildContext context) {
@@ -98,11 +112,21 @@ class _PantallaSeleccionActividadState extends State<PantallaSeleccionActividad>
   }
 
   void _irAReservas(BuildContext context) {
-    Navigator.push(context, MaterialPageRoute(builder: (context) => PantallaReservas(config: widget.config)));
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => PantallaReservas(config: widget.config),
+      ),
+    );
   }
 
   void _irAAccesoSocios(BuildContext context) {
-    Navigator.push(context, MaterialPageRoute(builder: (context) => PantallaAccesoSocio(config: widget.config)));
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => PantallaAccesoSocio(config: widget.config),
+      ),
+    );
   }
 
   Future<void> _abrirLink(BuildContext context, String urlString) async {
@@ -143,7 +167,10 @@ class _PantallaSeleccionActividadState extends State<PantallaSeleccionActividad>
                 child: Container(
                   width: 50,
                   height: 5,
-                  decoration: BoxDecoration(color: Colors.grey[300], borderRadius: BorderRadius.circular(10)),
+                  decoration: BoxDecoration(
+                    color: Colors.grey[300],
+                    borderRadius: BorderRadius.circular(10),
+                  ),
                 ),
               ),
               const SizedBox(height: 20),
@@ -151,22 +178,46 @@ class _PantallaSeleccionActividadState extends State<PantallaSeleccionActividad>
                 children: [
                   Container(
                     padding: const EdgeInsets.all(12),
-                    decoration: BoxDecoration(color: actividad.color.withOpacity(0.1), shape: BoxShape.circle),
-                    child: Icon(actividad.iconData, color: actividad.color, size: 30),
+                    decoration: BoxDecoration(
+                      color: actividad.color.withValues(alpha: 0.1),
+                      shape: BoxShape.circle,
+                    ),
+                    child: Icon(
+                      actividad.iconData,
+                      color: actividad.color,
+                      size: 30,
+                    ),
                   ),
                   const SizedBox(width: 15),
                   Expanded(
                     child: Text(
                       actividad.nombre.toUpperCase(),
-                      style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold, color: Colors.grey[800]),
+                      style: TextStyle(
+                        fontSize: 22,
+                        fontWeight: FontWeight.bold,
+                        color: Colors.grey[800],
+                      ),
                     ),
                   ),
                 ],
               ),
               const SizedBox(height: 25),
-              _FilaInfoInfo(icono: Icons.calendar_month, titulo: 'Días y Horarios', valor: actividad.horarios, colorIcono: Colors.blue),
-              const Padding(padding: EdgeInsets.symmetric(vertical: 10), child: Divider()),
-              _FilaInfoInfo(icono: Icons.payments, titulo: 'Arancel', valor: actividad.arancel, colorIcono: Colors.green),
+              _FilaInfoInfo(
+                icono: Icons.calendar_month,
+                titulo: 'Días y Horarios',
+                valor: actividad.horarios,
+                colorIcono: Colors.blue,
+              ),
+              const Padding(
+                padding: EdgeInsets.symmetric(vertical: 10),
+                child: Divider(),
+              ),
+              _FilaInfoInfo(
+                icono: Icons.payments,
+                titulo: 'Arancel',
+                valor: actividad.arancel,
+                colorIcono: Colors.green,
+              ),
               const SizedBox(height: 30),
               if (actividad.esFutbol)
                 SizedBox(
@@ -176,13 +227,21 @@ class _PantallaSeleccionActividadState extends State<PantallaSeleccionActividad>
                     style: ElevatedButton.styleFrom(
                       backgroundColor: ContextoClub.colorPrimario,
                       foregroundColor: Colors.white,
-                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(15)),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(15),
+                      ),
                     ),
                     onPressed: () {
                       Navigator.pop(context);
                       _irAFutbol(context);
                     },
-                    child: const Text('INGRESAR A LA SECCIÓN', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+                    child: const Text(
+                      'INGRESAR A LA SECCIÓN',
+                      style: TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
                   ),
                 ),
               const SizedBox(height: 10),
@@ -202,29 +261,47 @@ class _PantallaSeleccionActividadState extends State<PantallaSeleccionActividad>
           padding: const EdgeInsets.all(25),
           decoration: const BoxDecoration(
             color: Colors.white,
-            borderRadius: BorderRadius.only(topLeft: Radius.circular(30), topRight: Radius.circular(30)),
+            borderRadius: BorderRadius.only(
+              topLeft: Radius.circular(30),
+              topRight: Radius.circular(30),
+            ),
           ),
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
               Center(
-                child: Container(width: 50, height: 5, decoration: BoxDecoration(color: Colors.grey[300], borderRadius: BorderRadius.circular(10))),
+                child: Container(
+                  width: 50,
+                  height: 5,
+                  decoration: BoxDecoration(
+                    color: Colors.grey[300],
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                ),
               ),
               const SizedBox(height: 20),
-              const Text('Contacto y Redes', style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
+              const Text(
+                'Contacto y Redes',
+                style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
+              ),
               const SizedBox(height: 25),
-              ..._contactos.map((c) => Column(
-                    children: [
-                      ListTile(
-                        leading: CircleAvatar(backgroundColor: c.color, child: Icon(c.iconData, color: Colors.white)),
-                        title: Text(c.titulo),
-                        subtitle: Text(c.subtitulo),
-                        trailing: const Icon(Icons.arrow_forward_ios, size: 16),
-                        onTap: () => _abrirLink(context, c.url),
+              ..._contactos.map(
+                (c) => Column(
+                  children: [
+                    ListTile(
+                      leading: CircleAvatar(
+                        backgroundColor: c.color,
+                        child: Icon(c.iconData, color: Colors.white),
                       ),
-                      const Divider(),
-                    ],
-                  )),
+                      title: Text(c.titulo),
+                      subtitle: Text(c.subtitulo),
+                      trailing: const Icon(Icons.arrow_forward_ios, size: 16),
+                      onTap: () => _abrirLink(context, c.url),
+                    ),
+                    const Divider(),
+                  ],
+                ),
+              ),
               const SizedBox(height: 20),
             ],
           ),
@@ -260,7 +337,12 @@ class _PantallaSeleccionActividadState extends State<PantallaSeleccionActividad>
           Stack(
             children: [
               Container(
-                padding: const EdgeInsets.only(top: 60, bottom: 30, left: 20, right: 20),
+                padding: const EdgeInsets.only(
+                  top: 60,
+                  bottom: 30,
+                  left: 20,
+                  right: 20,
+                ),
                 width: double.infinity,
                 decoration: BoxDecoration(
                   gradient: LinearGradient(
@@ -279,7 +361,11 @@ class _PantallaSeleccionActividadState extends State<PantallaSeleccionActividad>
                     bottomRight: Radius.circular(40),
                   ),
                   boxShadow: [
-                    BoxShadow(color: colorPrimario.withOpacity(0.4), blurRadius: 15, offset: const Offset(0, 10)),
+                    BoxShadow(
+                      color: colorPrimario.withValues(alpha: 0.4),
+                      blurRadius: 15,
+                      offset: const Offset(0, 10),
+                    ),
                   ],
                 ),
                 child: Column(
@@ -301,11 +387,19 @@ class _PantallaSeleccionActividadState extends State<PantallaSeleccionActividad>
                     Text(
                       nombreClub.toUpperCase(),
                       textAlign: TextAlign.center,
-                      style: const TextStyle(color: Colors.white, fontSize: 22, fontWeight: FontWeight.bold, letterSpacing: 1.0),
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontSize: 22,
+                        fontWeight: FontWeight.bold,
+                        letterSpacing: 1.0,
+                      ),
                     ),
                     const SizedBox(height: 5),
                     Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 10,
+                        vertical: 5,
+                      ),
                       decoration: BoxDecoration(
                         color: Color.alphaBlend(
                           Colors.white.withAlpha(35),
@@ -350,7 +444,8 @@ class _PantallaSeleccionActividadState extends State<PantallaSeleccionActividad>
                     Navigator.push(
                       context,
                       MaterialPageRoute(
-                        builder: (context) => PantallaLoginAdmin(config: widget.config),
+                        builder: (context) =>
+                            PantallaLoginAdmin(config: widget.config),
                       ),
                     );
                   },
@@ -364,13 +459,16 @@ class _PantallaSeleccionActividadState extends State<PantallaSeleccionActividad>
             child: ListView(
               padding: EdgeInsets.zero,
               children: [
-                
                 // --- SECCIÓN: BANNER PUBLICIDAD AL TOPE ---
                 if (!_cargandoPortal && _mostrarPublicidad)
                   Container(
                     width: double.infinity,
                     height: 180,
-                    padding: const EdgeInsets.only(top: 20, left: 10, right: 10),
+                    padding: const EdgeInsets.only(
+                      top: 20,
+                      left: 10,
+                      right: 10,
+                    ),
                     child: const BannerPublicidad(),
                   ),
 
@@ -382,22 +480,43 @@ class _PantallaSeleccionActividadState extends State<PantallaSeleccionActividad>
                       // --- SECCIÓN: NOVEDADES ---
                       const Padding(
                         padding: EdgeInsets.only(left: 5, bottom: 10),
-                        child: Text("Novedades", style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Colors.black54)),
+                        child: Text(
+                          "Novedades",
+                          style: TextStyle(
+                            fontSize: 16,
+                            fontWeight: FontWeight.bold,
+                            color: Colors.black54,
+                          ),
+                        ),
                       ),
-                      _TarjetaNoticias(colorPrimario: colorPrimario, alPresionar: () => _irANoticias(context)),
+                      _TarjetaNoticias(
+                        colorPrimario: colorPrimario,
+                        alPresionar: () => _irANoticias(context),
+                      ),
                       const SizedBox(height: 25),
 
                       // --- SECCIÓN: ACTIVIDADES DEL CLUB ---
                       const Padding(
                         padding: EdgeInsets.only(left: 5, bottom: 15),
-                        child: Text("Actividades del Club", style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Colors.black54)),
+                        child: Text(
+                          "Actividades del Club",
+                          style: TextStyle(
+                            fontSize: 16,
+                            fontWeight: FontWeight.bold,
+                            color: Colors.black54,
+                          ),
+                        ),
                       ),
                       GridView.builder(
                         shrinkWrap: true,
                         physics: const NeverScrollableScrollPhysics(),
-                        gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-                          crossAxisCount: 2, crossAxisSpacing: 15, mainAxisSpacing: 15, childAspectRatio: 1.1,
-                        ),
+                        gridDelegate:
+                            const SliverGridDelegateWithFixedCrossAxisCount(
+                              crossAxisCount: 2,
+                              crossAxisSpacing: 15,
+                              mainAxisSpacing: 15,
+                              childAspectRatio: 1.1,
+                            ),
                         itemCount: _actividades.length,
                         itemBuilder: (context, index) {
                           final act = _actividades[index];
@@ -405,7 +524,8 @@ class _PantallaSeleccionActividadState extends State<PantallaSeleccionActividad>
                             nombre: act.nombre,
                             icono: act.iconData,
                             colorPrincipal: act.color,
-                            alPresionar: () => _mostrarInfoActividad(context, act),
+                            alPresionar: () =>
+                                _mostrarInfoActividad(context, act),
                           );
                         },
                       ),
@@ -420,13 +540,21 @@ class _PantallaSeleccionActividadState extends State<PantallaSeleccionActividad>
                   padding: const EdgeInsets.all(25),
                   decoration: BoxDecoration(
                     color: Colors.grey[900],
-                    borderRadius: const BorderRadius.only(topLeft: Radius.circular(30), topRight: Radius.circular(30)),
+                    borderRadius: const BorderRadius.only(
+                      topLeft: Radius.circular(30),
+                      topRight: Radius.circular(30),
+                    ),
                   ),
                   child: Column(
                     children: [
                       const Text(
                         "SERVICIOS AL SOCIO",
-                        style: TextStyle(color: Colors.white54, fontSize: 12, letterSpacing: 2, fontWeight: FontWeight.bold),
+                        style: TextStyle(
+                          color: Colors.white54,
+                          fontSize: 12,
+                          letterSpacing: 2,
+                          fontWeight: FontWeight.bold,
+                        ),
                       ),
                       const SizedBox(height: 20),
 
@@ -435,7 +563,9 @@ class _PantallaSeleccionActividadState extends State<PantallaSeleccionActividad>
                           backgroundColor: Colors.white,
                           foregroundColor: Colors.teal[800],
                           padding: const EdgeInsets.symmetric(vertical: 15),
-                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(15)),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(15),
+                          ),
                           minimumSize: const Size(double.infinity, 55),
                         ),
                         onPressed: () => _irAReservas(context),
@@ -444,7 +574,13 @@ class _PantallaSeleccionActividadState extends State<PantallaSeleccionActividad>
                           children: [
                             Icon(Icons.calendar_month),
                             SizedBox(width: 10),
-                            Text("ALQUILER DE CANCHAS / SALÓN", style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold)),
+                            Text(
+                              "ALQUILER DE CANCHAS / SALÓN",
+                              style: TextStyle(
+                                fontSize: 14,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
                           ],
                         ),
                       ),
@@ -455,7 +591,9 @@ class _PantallaSeleccionActividadState extends State<PantallaSeleccionActividad>
                           backgroundColor: Colors.green[700],
                           foregroundColor: Colors.white,
                           padding: const EdgeInsets.symmetric(vertical: 15),
-                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(15)),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(15),
+                          ),
                           minimumSize: const Size(double.infinity, 55),
                         ),
                         onPressed: () => _irAAccesoSocios(context),
@@ -464,7 +602,13 @@ class _PantallaSeleccionActividadState extends State<PantallaSeleccionActividad>
                           children: [
                             Icon(Icons.badge),
                             SizedBox(width: 10),
-                            Text("CARNET DIGITAL DE SOCIO", style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold)),
+                            Text(
+                              "CARNET DIGITAL DE SOCIO",
+                              style: TextStyle(
+                                fontSize: 14,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
                           ],
                         ),
                       ),
@@ -486,7 +630,13 @@ class _PantallaSeleccionActividadState extends State<PantallaSeleccionActividad>
                           minimumSize: const Size(double.infinity, 55),
                         ),
                         icon: const Icon(Icons.contact_support_outlined),
-                        label: const Text("CONTACTO Y REDES", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 15)),
+                        label: const Text(
+                          "CONTACTO Y REDES",
+                          style: TextStyle(
+                            fontWeight: FontWeight.bold,
+                            fontSize: 15,
+                          ),
+                        ),
                         onPressed: () => _mostrarPanelContacto(context),
                       ),
                       const SizedBox(height: 20),
@@ -510,7 +660,12 @@ class _FilaInfoInfo extends StatelessWidget {
   final String valor;
   final Color colorIcono;
 
-  const _FilaInfoInfo({required this.icono, required this.titulo, required this.valor, required this.colorIcono});
+  const _FilaInfoInfo({
+    required this.icono,
+    required this.titulo,
+    required this.valor,
+    required this.colorIcono,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -523,9 +678,23 @@ class _FilaInfoInfo extends StatelessWidget {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text(titulo, style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Colors.grey[500])),
+              Text(
+                titulo,
+                style: TextStyle(
+                  fontSize: 12,
+                  fontWeight: FontWeight.bold,
+                  color: Colors.grey[500],
+                ),
+              ),
               const SizedBox(height: 4),
-              Text(valor, style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w600, color: Colors.black87)),
+              Text(
+                valor,
+                style: const TextStyle(
+                  fontSize: 15,
+                  fontWeight: FontWeight.w600,
+                  color: Colors.black87,
+                ),
+              ),
             ],
           ),
         ),
@@ -566,17 +735,34 @@ class _TarjetaNoticias extends StatelessWidget {
             children: [
               Container(
                 padding: const EdgeInsets.all(12),
-                decoration: BoxDecoration(color: Colors.white24, borderRadius: BorderRadius.circular(12)),
-                child: const Icon(Icons.newspaper, color: Colors.white, size: 35),
+                decoration: BoxDecoration(
+                  color: Colors.white24,
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: const Icon(
+                  Icons.newspaper,
+                  color: Colors.white,
+                  size: 35,
+                ),
               ),
               const SizedBox(width: 15),
               const Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text("Noticias del Club", style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.white)),
+                    Text(
+                      "Noticias del Club",
+                      style: TextStyle(
+                        fontSize: 18,
+                        fontWeight: FontWeight.bold,
+                        color: Colors.white,
+                      ),
+                    ),
                     SizedBox(height: 5),
-                    Text("Enterate de las últimas novedades y eventos de la institución.", style: TextStyle(fontSize: 12, color: Colors.white70)),
+                    Text(
+                      "Enterate de las últimas novedades y eventos de la institución.",
+                      style: TextStyle(fontSize: 12, color: Colors.white70),
+                    ),
                   ],
                 ),
               ),
@@ -594,7 +780,12 @@ class _TarjetaIgualitaria extends StatelessWidget {
   final Color colorPrincipal;
   final VoidCallback alPresionar;
 
-  const _TarjetaIgualitaria({required this.nombre, required this.icono, required this.colorPrincipal, required this.alPresionar});
+  const _TarjetaIgualitaria({
+    required this.nombre,
+    required this.icono,
+    required this.colorPrincipal,
+    required this.alPresionar,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -609,7 +800,7 @@ class _TarjetaIgualitaria extends StatelessWidget {
           decoration: BoxDecoration(
             borderRadius: BorderRadius.circular(15),
             gradient: LinearGradient(
-              colors: [Colors.white, colorPrincipal.withOpacity(0.05)],
+              colors: [Colors.white, colorPrincipal.withValues(alpha: 0.05)],
               begin: Alignment.topCenter,
               end: Alignment.bottomCenter,
             ),
@@ -619,7 +810,10 @@ class _TarjetaIgualitaria extends StatelessWidget {
             children: [
               Container(
                 padding: const EdgeInsets.all(12),
-                decoration: BoxDecoration(color: colorPrincipal.withOpacity(0.15), shape: BoxShape.circle),
+                decoration: BoxDecoration(
+                  color: colorPrincipal.withValues(alpha: 0.15),
+                  shape: BoxShape.circle,
+                ),
                 child: Icon(icono, color: colorPrincipal, size: 32),
               ),
               const SizedBox(height: 12),
@@ -630,7 +824,12 @@ class _TarjetaIgualitaria extends StatelessWidget {
                   textAlign: TextAlign.center,
                   maxLines: 2,
                   overflow: TextOverflow.ellipsis,
-                  style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: Colors.grey[800], height: 1.2),
+                  style: TextStyle(
+                    fontSize: 13,
+                    fontWeight: FontWeight.bold,
+                    color: Colors.grey[800],
+                    height: 1.2,
+                  ),
                 ),
               ),
             ],

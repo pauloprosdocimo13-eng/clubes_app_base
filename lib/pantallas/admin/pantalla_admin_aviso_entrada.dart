@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../../tusede/servicios/servicio_datos_club.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import '../../configuracion/configuracion_app.dart';
 import '../../widgets/input_imagen.dart'; // <--- IMPORTANTE: Reutilizamos tu widget
@@ -9,13 +10,14 @@ class PantallaAdminAvisoEntrada extends StatefulWidget {
   const PantallaAdminAvisoEntrada({super.key, required this.config});
 
   @override
-  State<PantallaAdminAvisoEntrada> createState() => _PantallaAdminAvisoEntradaState();
+  State<PantallaAdminAvisoEntrada> createState() =>
+      _PantallaAdminAvisoEntradaState();
 }
 
 class _PantallaAdminAvisoEntradaState extends State<PantallaAdminAvisoEntrada> {
   final _tituloController = TextEditingController();
   final _mensajeController = TextEditingController();
-  final _imagenController = TextEditingController(); 
+  final _imagenController = TextEditingController();
 
   bool _activo = false;
   bool _cargando = true;
@@ -28,7 +30,9 @@ class _PantallaAdminAvisoEntradaState extends State<PantallaAdminAvisoEntrada> {
 
   Future<void> _cargarDatos() async {
     try {
-      final doc = await FirebaseFirestore.instance.collection('configuracion').doc('aviso_entrada').get();
+      final doc = await ServicioDatosClub.configuracionDoc(
+        'aviso_entrada',
+      ).get();
       if (doc.exists) {
         final data = doc.data()!;
         _tituloController.text = data['titulo'] ?? '';
@@ -37,7 +41,7 @@ class _PantallaAdminAvisoEntradaState extends State<PantallaAdminAvisoEntrada> {
         _activo = data['activo'] ?? false;
       }
     } catch (e) {
-      print("Error cargando aviso: $e");
+      debugPrint("Error cargando aviso: $e");
     }
 
     if (mounted) setState(() => _cargando = false);
@@ -46,7 +50,7 @@ class _PantallaAdminAvisoEntradaState extends State<PantallaAdminAvisoEntrada> {
   Future<void> _guardar() async {
     setState(() => _cargando = true);
     try {
-      await FirebaseFirestore.instance.collection('configuracion').doc('aviso_entrada').set({
+      await ServicioDatosClub.configuracionDoc('aviso_entrada').set({
         'titulo': _tituloController.text.trim(),
         'mensaje': _mensajeController.text.trim(),
         'imagen_url': _imagenController.text.trim(),
@@ -55,11 +59,17 @@ class _PantallaAdminAvisoEntradaState extends State<PantallaAdminAvisoEntrada> {
       });
 
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Configuración guardada exitosamente")));
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text("Configuración guardada exitosamente")),
+        );
         Navigator.pop(context);
       }
     } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Error al guardar")));
+      if (mounted) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(const SnackBar(content: Text("Error al guardar")));
+      }
     } finally {
       if (mounted) setState(() => _cargando = false);
     }
@@ -83,15 +93,20 @@ class _PantallaAdminAvisoEntradaState extends State<PantallaAdminAvisoEntrada> {
                   // SWITCH ON/OFF
                   SwitchListTile(
                     title: const Text("Activar Aviso al Entrar"),
-                    subtitle: const Text("Si está activo, se mostrará una vez cada vez que el usuario abra la app."),
+                    subtitle: const Text(
+                      "Si está activo, se mostrará una vez cada vez que el usuario abra la app.",
+                    ),
                     value: _activo,
-                    activeColor: widget.config.colorPrimario,
+                    activeThumbColor: widget.config.colorPrimario,
                     onChanged: (val) => setState(() => _activo = val),
                   ),
                   const Divider(),
                   const SizedBox(height: 10),
 
-                  const Text("Imagen del Aviso (Opcional)", style: TextStyle(fontWeight: FontWeight.bold)),
+                  const Text(
+                    "Imagen del Aviso (Opcional)",
+                    style: TextStyle(fontWeight: FontWeight.bold),
+                  ),
                   const SizedBox(height: 10),
 
                   // --- ZONA DE IMAGEN CON OPCIÓN DE BORRAR ---
@@ -106,7 +121,7 @@ class _PantallaAdminAvisoEntradaState extends State<PantallaAdminAvisoEntrada> {
                       });
                     },
                   ),
-                  
+
                   // BOTÓN PARA QUITAR IMAGEN (Solo si hay una cargada)
                   if (_imagenController.text.isNotEmpty)
                     Center(
@@ -116,12 +131,18 @@ class _PantallaAdminAvisoEntradaState extends State<PantallaAdminAvisoEntrada> {
                             _imagenController.clear(); // Limpiamos el texto
                           });
                         },
-                        icon: const Icon(Icons.delete_outline, color: Colors.red),
-                        label: const Text("Quitar Imagen y dejar vacío", style: TextStyle(color: Colors.red)),
+                        icon: const Icon(
+                          Icons.delete_outline,
+                          color: Colors.red,
+                        ),
+                        label: const Text(
+                          "Quitar Imagen y dejar vacío",
+                          style: TextStyle(color: Colors.red),
+                        ),
                       ),
                     ),
-                  // -------------------------------------------
 
+                  // -------------------------------------------
                   const SizedBox(height: 20),
 
                   TextField(
@@ -156,7 +177,10 @@ class _PantallaAdminAvisoEntradaState extends State<PantallaAdminAvisoEntrada> {
                     ),
                     onPressed: _guardar,
                     icon: const Icon(Icons.save),
-                    label: const Text("GUARDAR CONFIGURACIÓN", style: TextStyle(fontWeight: FontWeight.bold)),
+                    label: const Text(
+                      "GUARDAR CONFIGURACIÓN",
+                      style: TextStyle(fontWeight: FontWeight.bold),
+                    ),
                   ),
                 ],
               ),

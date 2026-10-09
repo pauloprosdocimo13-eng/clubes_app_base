@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'dart:async';
+import '../tusede/servicios/servicio_contenido_publico.dart';
+import '../tusede/servicios/servicio_datos_club.dart';
 
 class BannerPublicidad extends StatefulWidget {
   const BannerPublicidad({super.key});
@@ -13,11 +15,22 @@ class BannerPublicidad extends StatefulWidget {
 class _BannerPublicidadState extends State<BannerPublicidad> {
   final PageController _pageController = PageController();
   Timer? _timer;
-  List<DocumentSnapshot> _sponsors = [];
+  List<Map<String, dynamic>> _sponsors = [];
+  late final Stream<List<Map<String, dynamic>>> _stream;
 
   @override
   void initState() {
     super.initState();
+    _stream = ServicioDatosClub.usaTuSedeCentral
+        ? ServicioContenidoPublico.cargarPublicidad().asStream()
+        : FirebaseFirestore.instance
+              .collection('publicidad')
+              .where('activo', isEqualTo: true)
+              .orderBy('orden')
+              .snapshots()
+              .map(
+                (snapshot) => snapshot.docs.map((doc) => doc.data()).toList(),
+              );
     _iniciarTimer();
   }
 
@@ -98,28 +111,24 @@ class _BannerPublicidadState extends State<BannerPublicidad> {
   Widget build(BuildContext context) {
     return SizedBox(
       height: 90,
-      child: StreamBuilder<QuerySnapshot>(
-        stream: FirebaseFirestore.instance
-            .collection('publicidad')
-            .where('activo', isEqualTo: true)
-            .orderBy('orden')
-            .snapshots(),
+      child: StreamBuilder<List<Map<String, dynamic>>>(
+        stream: _stream,
         builder: (context, snapshot) {
           if (snapshot.hasError) {
             return const SizedBox.shrink();
           }
 
-          if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
+          if (!snapshot.hasData || snapshot.data!.isEmpty) {
             return const SizedBox.shrink();
           }
 
-          _sponsors = snapshot.data!.docs;
+          _sponsors = snapshot.data!;
 
           return PageView.builder(
             controller: _pageController,
             itemCount: _sponsors.length,
             itemBuilder: (context, index) {
-              final data = _sponsors[index].data() as Map<String, dynamic>;
+              final data = _sponsors[index];
               final String imagenUrl = data['imagen_url'] ?? '';
               final String link = data['link'] ?? '';
 
@@ -134,7 +143,7 @@ class _BannerPublicidadState extends State<BannerPublicidad> {
                     borderRadius: BorderRadius.circular(10),
                     boxShadow: [
                       BoxShadow(
-                        color: Colors.black.withOpacity(0.2),
+                        color: Colors.black.withValues(alpha: 0.2),
                         blurRadius: 4,
                         offset: const Offset(0, 2),
                       ),

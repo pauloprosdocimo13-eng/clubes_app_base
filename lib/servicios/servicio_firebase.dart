@@ -1,8 +1,10 @@
+import 'package:flutter/foundation.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import '../tusede/servicios/servicio_configuracion_publica.dart';
 
 class ServicioFirebase {
   // Instancia única de la base de datos
-  final FirebaseFirestore _db = FirebaseFirestore.instance;
+  FirebaseFirestore get _db => FirebaseFirestore.instance;
 
   // =========================================================================
   // --- MÉTODOS ORIGINALES ---
@@ -35,7 +37,7 @@ class ServicioFirebase {
         });
       }
     } catch (e) {
-      print("Error en obtenerPreciosCuotas: $e");
+      debugPrint("Error en obtenerPreciosCuotas: $e");
     }
     return precios;
   }
@@ -48,7 +50,7 @@ class ServicioFirebase {
         return doc.data() ?? {};
       }
     } catch (e) {
-      print("Error en obtenerConfigPagos: $e");
+      debugPrint("Error en obtenerConfigPagos: $e");
     }
     return {};
   }
@@ -59,16 +61,20 @@ class ServicioFirebase {
       final doc = await _db.collection('configuracion').doc('reservas').get();
       if (doc.exists) {
         final dataRes = doc.data() ?? {};
-        return dataRes['telefono_wsp'] ?? configPagos['telefono_wsp'] ?? '5491100000000';
+        return dataRes['telefono_wsp'] ??
+            configPagos['telefono_wsp'] ??
+            '5491100000000';
       }
     } catch (e) {
-      print("Error en obtenerTelefonoWsp: $e");
+      debugPrint("Error en obtenerTelefonoWsp: $e");
     }
     return configPagos['telefono_wsp'] ?? '5491100000000';
   }
 
   // 4. Obtener datos del grupo familiar vinculado por familia_id
-  Future<List<Map<String, dynamic>>> obtenerGrupoFamiliar(String familiaId) async {
+  Future<List<Map<String, dynamic>>> obtenerGrupoFamiliar(
+    String familiaId,
+  ) async {
     List<Map<String, dynamic>> familia = [];
     try {
       final query = await _db
@@ -79,7 +85,7 @@ class ServicioFirebase {
         familia.add(doc.data());
       }
     } catch (e) {
-      print("Error en obtenerGrupoFamiliar: $e");
+      debugPrint("Error en obtenerGrupoFamiliar: $e");
     }
     return familia;
   }
@@ -88,25 +94,7 @@ class ServicioFirebase {
   // --- NUEVO MÉTODO PROTEGIDO PARA EL SPLASH SCREEN ---
   // =========================================================================
 
-  // Consulta el modo de la app con un escudo anti-cuelgues (Timeout de 3 segundos)
-  Future<bool> consultarModoMultiActividad() async {
-    try {
-      // Le damos máximo 3 segundos a Firebase para responder. 
-      // Si la red anda mal o no hay internet, corta la espera automáticamente.
-      final doc = await _db
-          .collection('configuracion')
-          .doc('general')
-          .get()
-          .timeout(const Duration(seconds: 3));
-
-      if (doc.exists && doc.data() != null) {
-        return doc.data()!['activar_multi_actividad'] ?? false;
-      }
-    } catch (e) {
-      // Captura tanto errores de falta de conexión como el TimeoutException
-      print("Aviso: No se pudo consultar configuración en Splash (o excedió el tiempo): $e");
-    }
-    // Ante cualquier falla o lentitud extrema, entramos seguro por el camino por defecto
-    return false;
+  Future<bool> consultarModoMultiActividad() {
+    return ServicioConfiguracionPublica().consultarModoMultiActividad();
   }
 }

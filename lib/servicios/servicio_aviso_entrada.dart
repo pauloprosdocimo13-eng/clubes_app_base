@@ -1,4 +1,4 @@
-import 'package:cloud_firestore/cloud_firestore.dart';
+import '../tusede/servicios/servicio_configuracion_publica.dart';
 import 'package:flutter/material.dart';
 import '../configuracion/configuracion_app.dart';
 
@@ -26,14 +26,11 @@ class ServicioAvisoEntrada {
     if (_mostradoEnEstaSesion || _mostrando) return;
 
     try {
-      final doc = await FirebaseFirestore.instance
-          .collection('configuracion')
-          .doc('aviso_entrada')
-          .get();
+      final data = await ServicioConfiguracionPublica().cargarDocumento(
+        'aviso_entrada',
+      );
 
-      if (!doc.exists || doc.data() == null) return;
-
-      final data = doc.data()!;
+      if (data.isEmpty) return;
       final activo = data['activo'] ?? false;
       if (!activo) return;
 
@@ -110,7 +107,7 @@ class _DialogoAvisoEntrada extends StatelessWidget {
                         ),
                       );
                     },
-                    errorBuilder: (_, __, ___) => Container(
+                    errorBuilder: (_, _, _) => Container(
                       height: 100,
                       color: Colors.grey[200],
                       child: const Center(

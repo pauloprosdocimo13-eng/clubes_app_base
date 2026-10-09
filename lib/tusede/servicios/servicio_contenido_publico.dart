@@ -158,6 +158,27 @@ class ServicioContenidoPublico {
     );
   }
 
+  /// Lista cerrada de documentos públicos; nunca devuelve configuración privada.
+  static Future<Map<String, dynamic>> cargarConfiguracionArranque(
+    String documento,
+  ) async {
+    final respuesta = await _post({
+      'accion': 'arranque',
+      'clubId': ContextoClub.clubId,
+      'documento': documento,
+    });
+    final datos = respuesta['datos'];
+    if (datos is! Map) {
+      throw Exception('Configuración de arranque no válida.');
+    }
+    return Map<String, dynamic>.from(datos);
+  }
+
+  static Future<List<Map<String, dynamic>>> cargarPublicidad() async {
+    final datos = await cargarConfiguracionArranque('publicidad');
+    return _listaDesdeRespuesta(datos, 'items');
+  }
+
   // ============================================================
   // NOTICIAS
   // ============================================================

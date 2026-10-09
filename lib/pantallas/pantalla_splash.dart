@@ -1,10 +1,10 @@
 import 'package:flutter/material.dart';
 import '../configuracion/configuracion_app.dart';
 import '../tusede/servicios/contexto_club.dart';
-import '../servicios/servicio_firebase.dart';
+import '../tusede/servicios/servicio_configuracion_publica.dart';
 import '../widgets/logo_club_tusede.dart';
-import 'pantalla_seleccion.dart'; 
-import 'pantalla_seleccion_actividad.dart'; 
+import 'pantalla_seleccion.dart';
+import 'pantalla_seleccion_actividad.dart';
 
 class PantallaSplash extends StatefulWidget {
   final ConfiguracionApp config;
@@ -21,7 +21,7 @@ class _PantallaSplashState extends State<PantallaSplash> {
   @override
   void initState() {
     super.initState();
-    
+
     // 1. Iniciamos la animación visual (Estética)
     Future.delayed(const Duration(milliseconds: 500), () {
       if (mounted) {
@@ -42,7 +42,9 @@ class _PantallaSplashState extends State<PantallaSplash> {
     // y la consulta protegida con timeout a nuestro servicio.
     await Future.wait([
       Future.delayed(const Duration(seconds: 3)),
-      ServicioFirebase().consultarModoMultiActividad().then((resultado) {
+      ServicioConfiguracionPublica().consultarModoMultiActividad().then((
+        resultado,
+      ) {
         activarMultiActividad = resultado;
       }),
     ]);
@@ -52,12 +54,17 @@ class _PantallaSplashState extends State<PantallaSplash> {
     if (activarMultiActividad) {
       Navigator.pushReplacement(
         context,
-        MaterialPageRoute(builder: (context) => PantallaSeleccionActividad(config: widget.config)),
+        MaterialPageRoute(
+          builder: (context) =>
+              PantallaSeleccionActividad(config: widget.config),
+        ),
       );
     } else {
       Navigator.pushReplacement(
         context,
-        MaterialPageRoute(builder: (context) => PantallaSeleccion(config: widget.config)),
+        MaterialPageRoute(
+          builder: (context) => PantallaSeleccion(config: widget.config),
+        ),
       );
     }
   }
@@ -87,10 +94,7 @@ class _PantallaSplashState extends State<PantallaSplash> {
           gradient: LinearGradient(
             begin: Alignment.topCenter,
             end: Alignment.bottomCenter,
-            colors: [
-              colorPrimario,
-              colorFondoInferior,
-            ],
+            colors: [colorPrimario, colorFondoInferior],
           ),
         ),
         child: Column(
@@ -110,11 +114,11 @@ class _PantallaSplashState extends State<PantallaSplash> {
                       shape: BoxShape.circle,
                       boxShadow: [
                         BoxShadow(
-                          color: Colors.black.withOpacity(0.4),
+                          color: Colors.black.withValues(alpha: 0.4),
                           blurRadius: 20,
                           spreadRadius: 5,
                           offset: const Offset(0, 10),
-                        )
+                        ),
                       ],
                     ),
                     child: LogoClubTuSede(
@@ -125,7 +129,7 @@ class _PantallaSplashState extends State<PantallaSplash> {
                     ),
                   ),
                   const SizedBox(height: 35),
-                  
+
                   // Nombre del Club
                   Text(
                     nombreClub.toUpperCase(),
@@ -140,7 +144,7 @@ class _PantallaSplashState extends State<PantallaSplash> {
                           color: Colors.black54,
                           blurRadius: 6,
                           offset: Offset(0, 3),
-                        )
+                        ),
                       ],
                     ),
                   ),
@@ -175,7 +179,7 @@ class _PantallaSplashState extends State<PantallaSplash> {
               ),
             ),
             const SizedBox(height: 70),
-            
+
             // INDICADOR DE CARGA
             const CircularProgressIndicator(
               color: Colors.white,

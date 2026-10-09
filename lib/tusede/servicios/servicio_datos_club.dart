@@ -200,6 +200,14 @@ class ServicioDatosClub {
     return FirebaseFirestore.instance.collection('vencimientos');
   }
 
+  static CollectionReference<Map<String, dynamic>> get publicidad {
+    if (usaTuSedeCentral) {
+      validarAccesoOperativo();
+      return FirestoreTuSede.coleccion('publicidad');
+    }
+    return FirebaseFirestore.instance.collection('publicidad');
+  }
+
   static CollectionReference<Map<String, dynamic>> get configuracion {
     if (usaTuSedeCentral) {
       validarAccesoOperativo();

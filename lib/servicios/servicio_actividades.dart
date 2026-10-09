@@ -1,5 +1,7 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
+import '../tusede/servicios/servicio_configuracion_publica.dart';
+import '../tusede/servicios/servicio_datos_club.dart';
 
 class ActividadClub {
   final String nombre;
@@ -30,13 +32,13 @@ class ActividadClub {
   }
 
   Map<String, dynamic> toMap() => {
-        'nombre': nombre,
-        'horarios': horarios,
-        'arancel': arancel,
-        'icono': icono,
-        'color': colorHex,
-        'es_futbol': esFutbol,
-      };
+    'nombre': nombre,
+    'horarios': horarios,
+    'arancel': arancel,
+    'icono': icono,
+    'color': colorHex,
+    'es_futbol': esFutbol,
+  };
 
   Color get color {
     try {
@@ -76,12 +78,12 @@ class ContactoClub {
   }
 
   Map<String, dynamic> toMap() => {
-        'titulo': titulo,
-        'subtitulo': subtitulo,
-        'url': url,
-        'icono': icono,
-        'color': colorHex,
-      };
+    'titulo': titulo,
+    'subtitulo': subtitulo,
+    'url': url,
+    'icono': icono,
+    'color': colorHex,
+  };
 
   Color get color {
     try {
@@ -189,39 +191,46 @@ class ServicioActividades {
   }
 
   static List<String> nombresIconosDisponibles() => [
-        'sports_soccer',
-        'ice_skating',
-        'sports_martial_arts',
-        'speaker',
-        'fitness_center',
-        'self_improvement',
-        'sports_mma',
-        'palette',
-        'elderly',
-        'psychology',
-        'music_note',
-        'directions_run',
-        'local_florist',
-        'cut',
-        'phone',
-        'camera_alt',
-        'facebook',
-        'play_arrow',
-        'star',
-      ];
+    'sports_soccer',
+    'ice_skating',
+    'sports_martial_arts',
+    'speaker',
+    'fitness_center',
+    'self_improvement',
+    'sports_mma',
+    'palette',
+    'elderly',
+    'psychology',
+    'music_note',
+    'directions_run',
+    'local_florist',
+    'cut',
+    'phone',
+    'camera_alt',
+    'facebook',
+    'play_arrow',
+    'star',
+  ];
 
-  static Future<List<ActividadClub>> cargarActividades() async {
+  static Future<List<ActividadClub>> cargarActividades({
+    bool administracion = false,
+  }) async {
     try {
-      final doc = await FirebaseFirestore.instance
-          .collection('configuracion')
-          .doc('actividades')
-          .get();
+      final data = administracion
+          ? (await ServicioDatosClub.configuracionDoc(
+                  'actividades',
+                ).get()).data() ??
+                <String, dynamic>{}
+          : await ServicioConfiguracionPublica().cargarDocumento('actividades');
 
-      if (doc.exists && doc.data() != null) {
-        final items = doc.data()!['items'] as List<dynamic>? ?? [];
+      if (data.isNotEmpty) {
+        final items = data['items'] as List<dynamic>? ?? [];
         if (items.isNotEmpty) {
           return items
-              .map((e) => ActividadClub.fromMap(Map<String, dynamic>.from(e as Map)))
+              .map(
+                (e) =>
+                    ActividadClub.fromMap(Map<String, dynamic>.from(e as Map)),
+              )
               .where((a) => a.nombre.isNotEmpty)
               .toList();
         }
@@ -229,21 +238,30 @@ class ServicioActividades {
     } catch (e) {
       debugPrint('Error cargando actividades: $e');
     }
-    return actividadesPorDefecto;
+    return ServicioDatosClub.usaTuSedeCentral
+        ? <ActividadClub>[]
+        : actividadesPorDefecto;
   }
 
-  static Future<List<ContactoClub>> cargarContactos() async {
+  static Future<List<ContactoClub>> cargarContactos({
+    bool administracion = false,
+  }) async {
     try {
-      final doc = await FirebaseFirestore.instance
-          .collection('configuracion')
-          .doc('contacto')
-          .get();
+      final data = administracion
+          ? (await ServicioDatosClub.configuracionDoc(
+                  'contacto',
+                ).get()).data() ??
+                <String, dynamic>{}
+          : await ServicioConfiguracionPublica().cargarDocumento('contacto');
 
-      if (doc.exists && doc.data() != null) {
-        final items = doc.data()!['items'] as List<dynamic>? ?? [];
+      if (data.isNotEmpty) {
+        final items = data['items'] as List<dynamic>? ?? [];
         if (items.isNotEmpty) {
           return items
-              .map((e) => ContactoClub.fromMap(Map<String, dynamic>.from(e as Map)))
+              .map(
+                (e) =>
+                    ContactoClub.fromMap(Map<String, dynamic>.from(e as Map)),
+              )
               .where((c) => c.titulo.isNotEmpty)
               .toList();
         }
@@ -251,18 +269,22 @@ class ServicioActividades {
     } catch (e) {
       debugPrint('Error cargando contactos: $e');
     }
-    return contactosPorDefecto;
+    return ServicioDatosClub.usaTuSedeCentral
+        ? <ContactoClub>[]
+        : contactosPorDefecto;
   }
 
-  static Future<void> guardarActividades(List<ActividadClub> actividades) async {
-    await FirebaseFirestore.instance.collection('configuracion').doc('actividades').set({
+  static Future<void> guardarActividades(
+    List<ActividadClub> actividades,
+  ) async {
+    await ServicioDatosClub.configuracionDoc('actividades').set({
       'items': actividades.map((a) => a.toMap()).toList(),
       'actualizado_en': FieldValue.serverTimestamp(),
     });
   }
 
   static Future<void> guardarContactos(List<ContactoClub> contactos) async {
-    await FirebaseFirestore.instance.collection('configuracion').doc('contacto').set({
+    await ServicioDatosClub.configuracionDoc('contacto').set({
       'items': contactos.map((c) => c.toMap()).toList(),
       'actualizado_en': FieldValue.serverTimestamp(),
     });
