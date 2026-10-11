@@ -19,7 +19,8 @@ class ServicioDatosClub {
   static const Set<String> _clubesConDatosCentrales = <String>{'generico'};
 
   static bool get usaTuSedeCentral {
-    return _clubesConDatosCentrales.contains(ContextoClub.clubId);
+    return _clubesConDatosCentrales.contains(ContextoClub.clubId) ||
+        ContextoClub.clubActual.origenDatos == 'central';
   }
 
   static String get origenDescripcion {

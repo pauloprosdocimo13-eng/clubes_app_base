@@ -1,5 +1,6 @@
 class ClubTuSede {
   final String id;
+  final String origenDatos;
 
   final String nombre;
 
@@ -39,6 +40,7 @@ class ClubTuSede {
 
   const ClubTuSede({
     required this.id,
+    this.origenDatos = 'legacy',
     required this.nombre,
     required this.slug,
     required this.flavorLegacy,
@@ -50,60 +52,43 @@ class ClubTuSede {
     this.colorPrimarioHex = '',
     this.colorSecundarioHex = '',
     this.lema = '',
-    this.modulos =
-        const <String, bool>{},
+    this.modulos = const <String, bool>{},
   });
 
   // ============================================================
   // FIRESTORE -> MODELO
   // ============================================================
 
-  factory ClubTuSede.fromMap(
-    String id,
-    Map<String, dynamic> data,
-  ) {
+  factory ClubTuSede.fromMap(String id, Map<String, dynamic> data) {
     // ----------------------------------------------------------
     // IDENTIDAD
     // ----------------------------------------------------------
 
-    final identidadRaw =
-        data['identidad'];
+    final identidadRaw = data['identidad'];
 
-    Map<String, dynamic> identidad =
-        <String, dynamic>{};
+    Map<String, dynamic> identidad = <String, dynamic>{};
 
     if (identidadRaw is Map) {
-      identidad =
-          Map<String, dynamic>.from(
-        identidadRaw,
-      );
+      identidad = Map<String, dynamic>.from(identidadRaw);
     }
 
     // ----------------------------------------------------------
     // MODULOS
     // ----------------------------------------------------------
 
-    final modulosRaw =
-        data['modulos'];
+    final modulosRaw = data['modulos'];
 
-    final modulos =
-        <String, bool>{};
+    final modulos = <String, bool>{};
 
     if (modulosRaw is Map) {
-      for (final entry
-          in modulosRaw.entries) {
-        final clave =
-            entry.key
-                .toString()
-                .trim()
-                .toLowerCase();
+      for (final entry in modulosRaw.entries) {
+        final clave = entry.key.toString().trim().toLowerCase();
 
         if (clave.isEmpty) {
           continue;
         }
 
-        modulos[clave] =
-            entry.value == true;
+        modulos[clave] = entry.value == true;
       }
     }
 
@@ -113,91 +98,44 @@ class ClubTuSede {
 
     int version = 1;
 
-    final versionRaw =
-        data['versionConfiguracion'];
+    final versionRaw = data['versionConfiguracion'];
 
     if (versionRaw is int) {
       version = versionRaw;
     } else if (versionRaw is num) {
-      version =
-          versionRaw.toInt();
+      version = versionRaw.toInt();
     } else {
-      version =
-          int.tryParse(
-            versionRaw
-                    ?.toString() ??
-                '',
-          ) ??
-          1;
+      version = int.tryParse(versionRaw?.toString() ?? '') ?? 1;
     }
 
     return ClubTuSede(
       id: id,
 
-      nombre:
-          data['nombre']
-                  ?.toString()
-                  .trim() ??
-              '',
+      origenDatos: data['origenDatos']?.toString() ?? 'legacy',
+      nombre: data['nombre']?.toString().trim() ?? '',
 
-      slug:
-          data['slug']
-                  ?.toString()
-                  .trim()
-                  .toLowerCase() ??
-              id,
+      slug: data['slug']?.toString().trim().toLowerCase() ?? id,
 
       flavorLegacy:
-          data['flavor_legacy']
-                  ?.toString()
-                  .trim()
-                  .toLowerCase() ??
-              id,
+          data['flavor_legacy']?.toString().trim().toLowerCase() ?? id,
 
-      activo:
-          data['activo'] is bool
-              ? data['activo'] as bool
-              : true,
+      activo: data['activo'] is bool ? data['activo'] as bool : true,
 
-      tusedeBridgeActivo:
-          data['tusedeBridgeActivo'] ==
-              true,
+      tusedeBridgeActivo: data['tusedeBridgeActivo'] == true,
 
-      versionConfiguracion:
-          version,
+      versionConfiguracion: version,
 
-      nombreCorto:
-          identidad['nombreCorto']
-                  ?.toString()
-                  .trim() ??
-              '',
+      nombreCorto: identidad['nombreCorto']?.toString().trim() ?? '',
 
-      logoUrl:
-          identidad['logoUrl']
-                  ?.toString()
-                  .trim() ??
-              '',
+      logoUrl: identidad['logoUrl']?.toString().trim() ?? '',
 
-      colorPrimarioHex:
-          identidad['colorPrimario']
-                  ?.toString()
-                  .trim() ??
-              '',
+      colorPrimarioHex: identidad['colorPrimario']?.toString().trim() ?? '',
 
-      colorSecundarioHex:
-          identidad['colorSecundario']
-                  ?.toString()
-                  .trim() ??
-              '',
+      colorSecundarioHex: identidad['colorSecundario']?.toString().trim() ?? '',
 
-      lema:
-          identidad['lema']
-                  ?.toString()
-                  .trim() ??
-              '',
+      lema: identidad['lema']?.toString().trim() ?? '',
 
-      modulos:
-          modulos,
+      modulos: modulos,
     );
   }
 
@@ -207,31 +145,23 @@ class ClubTuSede {
 
   Map<String, dynamic> toMap() {
     return {
+      'origenDatos': origenDatos,
       'nombre': nombre,
       'slug': slug,
-      'flavor_legacy':
-          flavorLegacy,
+      'flavor_legacy': flavorLegacy,
       'activo': activo,
-      'tusedeBridgeActivo':
-          tusedeBridgeActivo,
-      'versionConfiguracion':
-          versionConfiguracion,
+      'tusedeBridgeActivo': tusedeBridgeActivo,
+      'versionConfiguracion': versionConfiguracion,
 
       'identidad': {
-        'nombreCorto':
-            nombreCorto,
-        'logoUrl':
-            logoUrl,
-        'colorPrimario':
-            colorPrimarioHex,
-        'colorSecundario':
-            colorSecundarioHex,
-        'lema':
-            lema,
+        'nombreCorto': nombreCorto,
+        'logoUrl': logoUrl,
+        'colorPrimario': colorPrimarioHex,
+        'colorSecundario': colorSecundarioHex,
+        'lema': lema,
       },
 
-      'modulos':
-          modulos,
+      'modulos': modulos,
     };
   }
 
@@ -239,31 +169,17 @@ class ClubTuSede {
   // MODULOS
   // ============================================================
 
-  bool moduloActivo(
-    String modulo, {
-    bool valorPorDefecto = false,
-  }) {
-    final clave =
-        modulo
-            .trim()
-            .toLowerCase();
+  bool moduloActivo(String modulo, {bool valorPorDefecto = false}) {
+    final clave = modulo.trim().toLowerCase();
 
-    return modulos[clave] ??
-        valorPorDefecto;
+    return modulos[clave] ?? valorPorDefecto;
   }
 
   List<String> get modulosActivos {
-    final resultado =
-        modulos.entries
-            .where(
-              (entry) =>
-                  entry.value,
-            )
-            .map(
-              (entry) =>
-                  entry.key,
-            )
-            .toList();
+    final resultado = modulos.entries
+        .where((entry) => entry.value)
+        .map((entry) => entry.key)
+        .toList();
 
     resultado.sort();
 
@@ -276,6 +192,7 @@ class ClubTuSede {
 
   ClubTuSede copyWith({
     String? id,
+    String? origenDatos,
     String? nombre,
     String? slug,
     String? flavorLegacy,
@@ -290,51 +207,32 @@ class ClubTuSede {
     Map<String, bool>? modulos,
   }) {
     return ClubTuSede(
-      id:
-          id ?? this.id,
+      id: id ?? this.id,
+      origenDatos: origenDatos ?? this.origenDatos,
 
-      nombre:
-          nombre ?? this.nombre,
+      nombre: nombre ?? this.nombre,
 
-      slug:
-          slug ?? this.slug,
+      slug: slug ?? this.slug,
 
-      flavorLegacy:
-          flavorLegacy ??
-          this.flavorLegacy,
+      flavorLegacy: flavorLegacy ?? this.flavorLegacy,
 
-      activo:
-          activo ?? this.activo,
+      activo: activo ?? this.activo,
 
-      tusedeBridgeActivo:
-          tusedeBridgeActivo ??
-          this.tusedeBridgeActivo,
+      tusedeBridgeActivo: tusedeBridgeActivo ?? this.tusedeBridgeActivo,
 
-      versionConfiguracion:
-          versionConfiguracion ??
-          this.versionConfiguracion,
+      versionConfiguracion: versionConfiguracion ?? this.versionConfiguracion,
 
-      nombreCorto:
-          nombreCorto ??
-          this.nombreCorto,
+      nombreCorto: nombreCorto ?? this.nombreCorto,
 
-      logoUrl:
-          logoUrl ??
-          this.logoUrl,
+      logoUrl: logoUrl ?? this.logoUrl,
 
-      colorPrimarioHex:
-          colorPrimarioHex ??
-          this.colorPrimarioHex,
+      colorPrimarioHex: colorPrimarioHex ?? this.colorPrimarioHex,
 
-      colorSecundarioHex:
-          colorSecundarioHex ??
-          this.colorSecundarioHex,
+      colorSecundarioHex: colorSecundarioHex ?? this.colorSecundarioHex,
 
-      lema:
-          lema ?? this.lema,
+      lema: lema ?? this.lema,
 
-      modulos:
-          modulos ?? this.modulos,
+      modulos: modulos ?? this.modulos,
     );
   }
 

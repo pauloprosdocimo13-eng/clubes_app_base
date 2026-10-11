@@ -37,6 +37,7 @@ root.collection = (name) => ref(name);
 const context = vm.createContext({
   exports: {}, console,
   require(name) {
+    if (name === './plataforma_validacion') return require('../functions_tusede/plataforma_validacion');
     if (name === 'firebase-functions/v1') return builder;
     if (name === 'firebase-admin/app') return {getApps: () => [{}]};
     if (name === 'firebase-admin/firestore') return {getFirestore: () => root};
@@ -65,7 +66,7 @@ test('rechaza documentos privados y clubes Legacy', async () => {
   assert.equal((await request('pagos')).status, 400);
   assert.equal(reads.length, 0);
   assert.equal((await request('versiones', 'guemes')).status, 404);
-  assert.equal(reads.length, 0);
+  assert.deepEqual(reads, ['clubes/guemes']);
 });
 test('club inactivo no expone configuración', async () => {
   active = false;

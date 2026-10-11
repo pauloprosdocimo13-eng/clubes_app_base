@@ -1,3 +1,4 @@
+const {esClubCentralActivo} = require("./plataforma_validacion");
 const functions = require("firebase-functions/v1");
 const {getApps, initializeApp} = require("firebase-admin/app");
 const {getAuth} = require("firebase-admin/auth");
@@ -14,9 +15,7 @@ const BUCKET_NAME = "tu-sede-app.firebasestorage.app";
 
 const db = getFirestore();
 
-const CLUBES_HABILITADOS = new Set([
-  "generico",
-]);
+
 
 const CARPETAS_HABILITADAS = new Set([
   "noticias",
@@ -166,16 +165,14 @@ async function autorizarAdministrador(req, clubId) {
 }
 
 async function validarClub(clubId) {
-  if (!CLUBES_HABILITADOS.has(clubId)) {
-    return false;
-  }
+  if (!/^[a-z0-9][a-z0-9_-]{1,39}$/.test(clubId)) return false;
 
   const snap = await db
       .collection("clubes")
       .doc(clubId)
       .get();
 
-  return snap.exists && snap.data()?.activo === true;
+  return snap.exists && esClubCentralActivo(clubId, snap.data());
 }
 
 exports.subirImagenTuSede = functions
@@ -216,7 +213,7 @@ exports.subirImagenTuSede = functions
       const tipo = extensionSegura(body?.extension);
 
       try {
-        if (!clubId || !CLUBES_HABILITADOS.has(clubId)) {
+        if (!clubId || !/^[a-z0-9][a-z0-9_-]{1,39}$/.test(clubId)) {
           responder(res, 404, {
             ok: false,
             mensaje:

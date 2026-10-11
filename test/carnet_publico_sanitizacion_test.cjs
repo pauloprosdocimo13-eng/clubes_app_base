@@ -13,6 +13,7 @@ const builder = {
 const context = vm.createContext({
   exports: {},
   require(name) {
+    if (name === './plataforma_validacion') return require('../functions_tusede/plataforma_validacion');
     if (name === 'firebase-functions/v1') return builder;
     if (name === 'firebase-admin/app') return {getApps: () => [{}]};
     if (name === 'firebase-admin/firestore') return {getFirestore: () => ({})};

@@ -623,3 +623,5 @@ Object.assign(module.exports, require("./contenido_publico"));
 // CORRECCION 4F-2I - Imagenes TuSede Central
 // ============================================================
 Object.assign(module.exports, require("./imagenes_tusede"));
+
+Object.assign(module.exports, require("./plataforma_tusede"));

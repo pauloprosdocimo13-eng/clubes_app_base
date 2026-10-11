@@ -1,3 +1,4 @@
+const {esClubCentralActivo} = require("./plataforma_validacion");
 const functions = require("firebase-functions/v1");
 const {getApps, initializeApp} = require("firebase-admin/app");
 const {
@@ -18,7 +19,7 @@ const REGION = "southamerica-east1";
 // MIGRACIÓN SEGURA:
 // por ahora SOLO Horizonte/generico puede usar este portal central.
 // Güemes sigue completamente en Legacy.
-const CLUBES_HABILITADOS = new Set(["generico"]);
+
 
 // Límites anti-fuerza-bruta.
 // No convierten un DNI en una credencial fuerte, pero evitan dejar
@@ -312,7 +313,7 @@ exports.buscarCarnetPublico = functions
       }
 
       // Seguridad de migración: todavía NO habilitamos Güemes.
-      if (!CLUBES_HABILITADOS.has(clubId)) {
+      if (!esClubCentralActivo(clubId, (await db.collection("clubes").doc(clubId).get()).data())) {
         responderJson(res, 404, {
           ok: false,
           mensaje: "No encontramos un socio con esos datos.",

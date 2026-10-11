@@ -1,3 +1,4 @@
+const {esClubCentralActivo} = require("./plataforma_validacion");
 const functions = require("firebase-functions/v1");
 const {getApps, initializeApp} = require("firebase-admin/app");
 const {getFirestore} = require("firebase-admin/firestore");
@@ -22,9 +23,7 @@ const REGION = "southamerica-east1";
 // desde este backend central todavía.
 // ============================================================
 
-const CLUBES_HABILITADOS = new Set([
-  "generico",
-]);
+
 
 // ============================================================
 // UTILIDADES
@@ -108,13 +107,7 @@ async function obtenerClubHabilitado(
     return null;
   }
 
-  if (
-    !CLUBES_HABILITADOS.has(
-        clubId,
-    )
-  ) {
-    return null;
-  }
+
 
   const ref = db
       .collection("clubes")
@@ -124,7 +117,7 @@ async function obtenerClubHabilitado(
 
   if (
     !snap.exists ||
-    snap.data()?.activo !== true
+    !esClubCentralActivo(clubId, snap.data())
   ) {
     return null;
   }
@@ -1912,17 +1905,7 @@ exports.notificarNuevaNoticiaTuSede =
                       .clubId,
               );
 
-            if (
-              !CLUBES_HABILITADOS
-                  .has(clubId)
-            ) {
-              console.log(
-                  "Push noticia omitido: " +
-                  `club no habilitado ${clubId}`,
-              );
 
-              return null;
-            }
 
             const data =
               snap.data() || {};
@@ -2042,17 +2025,7 @@ exports.notificarNuevoAvisoTuSede =
                       .clubId,
               );
 
-            if (
-              !CLUBES_HABILITADOS
-                  .has(clubId)
-            ) {
-              console.log(
-                  "Push aviso omitido: " +
-                  `club no habilitado ${clubId}`,
-              );
 
-              return null;
-            }
 
             const data =
               snap.data() || {};
