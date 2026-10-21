@@ -116,6 +116,37 @@ class _PantallaLoginAdminState extends State<PantallaLoginAdmin> {
     });
   }
 
+  Future<void> _recuperarClaveCentral() async {
+    if (_cargando) return;
+    final email = _emailController.text.trim();
+    if (email.isEmpty) {
+      _mostrarMensaje(
+        'Ingresá tu correo para solicitar el enlace.',
+        Colors.orange,
+      );
+      return;
+    }
+    setState(() => _cargando = true);
+    try {
+      await ServicioFirebaseTuSede.auth.sendPasswordResetEmail(email: email);
+      if (mounted) {
+        _mostrarMensaje(
+          'Si el correo corresponde a una cuenta, recibirás un enlace. Revisá también Spam.',
+          Colors.green,
+        );
+      }
+    } catch (_) {
+      if (mounted) {
+        _mostrarMensaje(
+          'No se pudo solicitar el enlace. Revisá el correo y reintentá más tarde.',
+          Colors.red,
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _cargando = false);
+    }
+  }
+
   Future<void> _login() async {
     final email = _emailController.text.trim();
     final password = _passwordController.text;
@@ -289,6 +320,11 @@ class _PantallaLoginAdminState extends State<PantallaLoginAdmin> {
                       : 'Acceso administrativo',
                   style: const TextStyle(color: Colors.grey, fontSize: 12),
                 ),
+                if (_usaCentral)
+                  TextButton(
+                    onPressed: _cargando ? null : _recuperarClaveCentral,
+                    child: const Text('Establecer o recuperar mi contraseña'),
+                  ),
                 const SizedBox(height: 30),
                 TextField(
                   controller: _emailController,

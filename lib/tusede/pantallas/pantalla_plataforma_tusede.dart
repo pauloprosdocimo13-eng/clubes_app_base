@@ -1,5 +1,7 @@
 import 'dart:convert';
 import 'pantalla_catalogo_tusede.dart';
+import 'pantalla_administradores_club.dart';
+import '../servicios/contexto_usuario_tusede.dart';
 import 'package:flutter/material.dart';
 import 'package:file_picker/file_picker.dart';
 import '../configuracion/modulos_tusede.dart';
@@ -64,6 +66,7 @@ class _PlataformaState extends State<PantallaPlataformaTuSede> {
         email: _email.text.trim(),
         password: _password.text,
       );
+      ContextoUsuarioTuSede.limpiar();
       _password.clear();
       if (mounted) await _cargar();
     } catch (_) {
@@ -80,6 +83,7 @@ class _PlataformaState extends State<PantallaPlataformaTuSede> {
 
   Future<void> _salir() async {
     await ServicioFirebaseTuSede.auth.signOut();
+    ContextoUsuarioTuSede.limpiar();
     if (mounted) {
       setState(() {
         _autorizado = false;
@@ -305,33 +309,60 @@ class _PlataformaState extends State<PantallaPlataformaTuSede> {
                         subtitle: Text(
                           '${club['id']} · ${club['estado'] ?? (club['activo'] == true ? 'Activo' : 'Inactivo')}${club['estado'] == 'borrador' ? ' · Tocar para editar' : ''}',
                         ),
-                        trailing: club['estado'] == 'borrador'
-                            ? Row(
-                                mainAxisSize: MainAxisSize.min,
-                                children: [
-                                  IconButton(
-                                    onPressed: _ocupado
-                                        ? null
-                                        : () => _logo(club),
-                                    icon: const Icon(Icons.add_photo_alternate),
-                                    tooltip: 'Subir logo',
-                                  ),
-                                  IconButton(
-                                    onPressed: _ocupado
-                                        ? null
-                                        : () => _activarClub(club),
-                                    icon: const Icon(Icons.publish),
-                                    tooltip: 'Activar club',
-                                  ),
-                                ],
-                              )
-                            : club['id'] == 'guemes'
-                            ? const Tooltip(
-                                message:
-                                    'Club Legacy: integración de acceso pendiente',
-                                child: Icon(Icons.info_outline),
-                              )
-                            : const Icon(Icons.chevron_right),
+                        trailing: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            if ((club['origenDatos'] == 'central' ||
+                                    club['id'] == 'generico') &&
+                                (club['estado'] == 'borrador' ||
+                                    club['activo'] == true))
+                              IconButton(
+                                tooltip: 'Administradores del club',
+                                icon: const Icon(Icons.manage_accounts),
+                                onPressed: _ocupado
+                                    ? null
+                                    : () => Navigator.of(context).push(
+                                        MaterialPageRoute<void>(
+                                          builder: (_) =>
+                                              PantallaAdministradoresClub(
+                                                clubId: club['id'].toString(),
+                                                nombreClub: club['nombre']
+                                                    .toString(),
+                                              ),
+                                        ),
+                                      ),
+                              ),
+                            club['estado'] == 'borrador'
+                                ? Row(
+                                    mainAxisSize: MainAxisSize.min,
+                                    children: [
+                                      IconButton(
+                                        onPressed: _ocupado
+                                            ? null
+                                            : () => _logo(club),
+                                        icon: const Icon(
+                                          Icons.add_photo_alternate,
+                                        ),
+                                        tooltip: 'Subir logo',
+                                      ),
+                                      IconButton(
+                                        onPressed: _ocupado
+                                            ? null
+                                            : () => _activarClub(club),
+                                        icon: const Icon(Icons.publish),
+                                        tooltip: 'Activar club',
+                                      ),
+                                    ],
+                                  )
+                                : club['id'] == 'guemes'
+                                ? const Tooltip(
+                                    message:
+                                        'Club Legacy: integración de acceso pendiente',
+                                    child: Icon(Icons.info_outline),
+                                  )
+                                : const Icon(Icons.chevron_right),
+                          ],
+                        ),
                       ),
                     ),
                   const SizedBox(height: 80),

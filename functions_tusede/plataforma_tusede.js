@@ -4,6 +4,7 @@ const {getAuth} = require("firebase-admin/auth");
 const {getFirestore, FieldValue} = require("firebase-admin/firestore");
 const {getStorage} = require("firebase-admin/storage");
 const {randomUUID} = require("node:crypto");
+const {ErrorAdministradores, asignarAdministrador, listarAdministradores} = require("./administradores_club");
 const {validarAlta, validarEdicion, validarActivacion, esClubCentralActivo} = require("./plataforma_validacion");
 exports.administrarPlataforma = onRequest({region: "southamerica-east1", cors: true, timeoutSeconds: 60}, async (req, res) => {
   res.set("Cache-Control", "no-store");
@@ -32,6 +33,22 @@ exports.administrarPlataforma = onRequest({region: "southamerica-east1", cors: t
   try {
     const perfil = await db.doc(`usuarios/${usuario.uid}`).get();
     if (!perfil.exists || perfil.data().activo !== true || perfil.data().rol !== "superadmin") return res.status(403).json({ok: false, mensaje: "Se requiere un superadmin activo de TuSede."});
+
+    if (body.accion === "listarAdministradores" || body.accion === "asignarAdministrador") {
+      try {
+        if (body.accion === "listarAdministradores") {
+          const administradores = await listarAdministradores({db, actorUid: usuario.uid, clubId: body.clubId});
+          return res.json({ok: true, administradores});
+        }
+        const administrador = await asignarAdministrador({db, auth: getAuth(), actorUid: usuario.uid,
+          datos: body, serverTimestamp: () => FieldValue.serverTimestamp()});
+        return res.json({ok: true, administrador});
+      } catch (e) {
+        if (e instanceof ErrorAdministradores) return res.status(e.status).json({ok: false, mensaje: e.message});
+        console.error("administradores_club", e.code || e.name);
+        return res.status(500).json({ok: false, mensaje: "No se pudo completar el alta. Reintentá con el mismo correo para recuperar una operación pendiente."});
+      }
+    }
 
     if (body.accion === "listar") {
       const clubes = await db.collection("clubes").orderBy("nombre").get();
