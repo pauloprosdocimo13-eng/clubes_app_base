@@ -21,10 +21,14 @@ function validarAlta(data) {
   return {nombre, slug: id, flavor_legacy: "generico", origenDatos: "central", estado: "borrador", activo: false, tusedeBridgeActivo: false, versionConfiguracion: 1, identidad, modulos: Object.fromEntries(MODULOS.map(m => [m, seleccion.includes(m)]))};
 }
 function validarEdicion(data, anterior) {
-  if (!anterior || anterior.estado !== "borrador" || anterior.origenDatos !== "central") {
-    throw new Error("Solo se permite editar los clubes centrales en borrador.");
+  if (!anterior || anterior.origenDatos !== "central" ||
+      !(anterior.estado === "borrador" || (anterior.estado === "activo" && anterior.activo === true))) {
+    throw new Error("Solo se permite editar clubes centrales en borrador o activos.");
   }
   const validado = validarAlta(data);
+  if (anterior.estado === "activo" && !Object.values(validado.modulos).includes(true)) {
+    throw new Error("Un club activo debe conservar al menos un módulo.");
+  }
   return {
     nombre: validado.nombre,
     identidad: {...(anterior.identidad || {}), ...validado.identidad, logoUrl: anterior.identidad?.logoUrl || ""},

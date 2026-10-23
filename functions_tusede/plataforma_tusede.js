@@ -3,6 +3,7 @@ const {onRequest} = require("firebase-functions/v2/https");
 const {getAuth} = require("firebase-admin/auth");
 const {getFirestore, FieldValue} = require("firebase-admin/firestore");
 const {getStorage} = require("firebase-admin/storage");
+const {crearServicioEliminacion, ErrorEliminacion} = require("./eliminacion_club");
 const {randomUUID} = require("node:crypto");
 const {ErrorAdministradores, asignarAdministrador, listarAdministradores} = require("./administradores_club");
 const {validarAlta, validarEdicion, validarActivacion, esClubCentralActivo} = require("./plataforma_validacion");
@@ -34,6 +35,26 @@ exports.administrarPlataforma = onRequest({region: "southamerica-east1", cors: t
     const perfil = await db.doc(`usuarios/${usuario.uid}`).get();
     if (!perfil.exists || perfil.data().activo !== true || perfil.data().rol !== "superadmin") return res.status(403).json({ok: false, mensaje: "Se requiere un superadmin activo de TuSede."});
 
+    if (["prepararEliminacion", "iniciarEliminacion", "continuarEliminacion"].includes(body.accion)) {
+      try {
+        if (process.env.GCLOUD_PROJECT !== 'tu-sede-app') {
+          return res.status(409).json({ok: false, mensaje: 'Eliminación habilitada únicamente en TuSede Central.'});
+        }
+        const servicio = crearServicioEliminacion({db, auth: getAuth(),
+          bucket: getStorage().bucket("tu-sede-app.firebasestorage.app")});
+        const resultado = body.accion === "prepararEliminacion"
+          ? await servicio.preparar(body.clubId, usuario.uid)
+          : body.accion === "iniciarEliminacion"
+            ? await servicio.iniciar(body.clubId, usuario.uid, body.confirmacion, body.token)
+            : await servicio.continuar(body.clubId, usuario.uid);
+        return res.json({ok: true, ...resultado});
+      } catch (e) {
+        if (e instanceof ErrorEliminacion) return res.status(e.status).json({ok: false, mensaje: e.message});
+        console.error("eliminacion_club", e.code || e.name);
+        return res.status(500).json({ok: false, mensaje: "No se pudo completar este paso. La eliminación puede estar en curso; actualizá y retomá desde este panel."});
+      }
+    }
+
     if (body.accion === "listarAdministradores" || body.accion === "asignarAdministrador") {
       try {
         if (body.accion === "listarAdministradores") {
@@ -60,13 +81,15 @@ exports.administrarPlataforma = onRequest({region: "southamerica-east1", cors: t
       const id = String(body.club.id).trim();
       const ref = db.doc(`clubes/${id}`);
       const creado = await db.runTransaction(async tx => {
-        const anterior = await tx.get(ref);
-        if (anterior.exists) return false;
+        const [anterior, eliminado] = await Promise.all([
+          tx.get(ref), tx.get(db.doc(`eliminaciones_club/${id}`)),
+        ]);
+        if (anterior.exists || eliminado.exists) return false;
         tx.create(ref, {...datos, creadoPor: usuario.uid, creadoEl: FieldValue.serverTimestamp()});
         tx.create(ref.collection("configuracion").doc("general"), {activar_multi_actividad: true, menu_deportes: []});
         return true;
       });
-      if (!creado) return res.status(409).json({ok: false, mensaje: "Ya existe un club con ese identificador."});
+      if (!creado) return res.status(409).json({ok: false, mensaje: "Ese identificador ya existe o pertenece a un club eliminado. Elegí uno nuevo."});
       return res.status(201).json({ok: true, id});
     }
     if (body.accion === "activar") {

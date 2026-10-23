@@ -22,6 +22,7 @@ class _PantallaAdminFormularioPublicidadState
     extends State<PantallaAdminFormularioPublicidad> {
   final _formKey = GlobalKey<FormState>();
   bool _cargando = false;
+  bool _subiendoImagen = false;
 
   final TextEditingController _nombreController = TextEditingController();
   final TextEditingController _linkController = TextEditingController();
@@ -38,6 +39,15 @@ class _PantallaAdminFormularioPublicidadState
     if (widget.publicidadId != null) {
       _cargarDatos();
     }
+  }
+
+  @override
+  void dispose() {
+    _nombreController.dispose();
+    _linkController.dispose();
+    _imagenController.dispose();
+    _ordenController.dispose();
+    super.dispose();
   }
 
   Future<void> _cargarDatos() async {
@@ -65,6 +75,7 @@ class _PantallaAdminFormularioPublicidadState
   }
 
   Future<void> _guardarPublicidad() async {
+    if (_cargando || _subiendoImagen) return;
     if (!_formKey.currentState!.validate()) return;
     setState(() => _cargando = true);
 
@@ -108,7 +119,7 @@ class _PantallaAdminFormularioPublicidadState
         actions: [
           IconButton(
             icon: const Icon(Icons.save),
-            onPressed: _guardarPublicidad,
+            onPressed: _cargando || _subiendoImagen ? null : _guardarPublicidad,
           ),
         ],
       ),
@@ -150,8 +161,13 @@ class _PantallaAdminFormularioPublicidadState
                   InputImagen(
                     urlInicial: _imagenController.text,
                     carpeta: 'publicidad',
+                    aislarPorClub: ServicioDatosClub.usaTuSedeCentral,
+                    onCargando: (valor) {
+                      if (mounted) setState(() => _subiendoImagen = valor);
+                    },
                     alSubirImagen: (url) {
-                      _imagenController.text = url;
+                      if (!mounted) return;
+                      setState(() => _imagenController.text = url);
                     },
                   ),
 
@@ -228,7 +244,9 @@ class _PantallaAdminFormularioPublicidadState
                       foregroundColor: Colors.white,
                       minimumSize: const Size(double.infinity, 50),
                     ),
-                    onPressed: _guardarPublicidad,
+                    onPressed: _cargando || _subiendoImagen
+                        ? null
+                        : _guardarPublicidad,
                     child: const Text("GUARDAR SPONSOR"),
                   ),
                 ],

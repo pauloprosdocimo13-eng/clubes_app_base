@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'tusede/diseno/identidad_tusede.dart';
 import 'tusede/servicios/servicio_firebase_tusede.dart';
 import 'tusede/pantallas/pantalla_catalogo_tusede.dart';
 
@@ -9,10 +10,7 @@ Future<void> main() async {
     MaterialApp(
       title: 'TuSede',
       debugShowCheckedModeBanner: false,
-      theme: ThemeData(
-        colorSchemeSeed: const Color(0xFF1565C0),
-        useMaterial3: true,
-      ),
+      theme: temaTuSede(),
       home: const PantallaCatalogoTuSede(),
     ),
   );

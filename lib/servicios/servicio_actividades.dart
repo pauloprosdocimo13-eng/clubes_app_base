@@ -177,6 +177,8 @@ class ServicioActividades {
         return Icons.local_florist;
       case 'cut':
         return Icons.cut;
+      case 'link':
+        return Icons.link;
       case 'phone':
         return Icons.phone;
       case 'camera_alt':
@@ -205,6 +207,7 @@ class ServicioActividades {
     'directions_run',
     'local_florist',
     'cut',
+    'link',
     'phone',
     'camera_alt',
     'facebook',

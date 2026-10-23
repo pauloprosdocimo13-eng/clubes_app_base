@@ -1,4 +1,8 @@
+import '../diseno/identidad_tusede.dart';
+import '../diseno/tarjeta_gestion_tusede.dart';
 import 'dart:convert';
+import 'pantalla_eliminar_club.dart';
+import 'paleta_color_club.dart';
 import 'pantalla_catalogo_tusede.dart';
 import 'pantalla_administradores_club.dart';
 import '../servicios/contexto_usuario_tusede.dart';
@@ -140,6 +144,18 @@ class _PlataformaState extends State<PantallaPlataformaTuSede> {
     }
   }
 
+  Future<void> _eliminarClub(Map<String, dynamic> club) async {
+    await Navigator.of(context).push(
+      MaterialPageRoute<void>(
+        builder: (_) => PantallaEliminarClub(
+          clubId: club['id'].toString(),
+          nombre: club['nombre'].toString(),
+        ),
+      ),
+    );
+    if (mounted) await _cargar();
+  }
+
   Future<void> _editarClub(Map<String, dynamic> club) async {
     await Navigator.of(
       context,
@@ -190,12 +206,58 @@ class _PlataformaState extends State<PantallaPlataformaTuSede> {
     }
   }
 
+  Widget _tarjetaClub(Map<String, dynamic> club) {
+    final central = club['origenDatos'] == 'central';
+    final borrador = club['estado'] == 'borrador';
+    final activo = club['activo'] == true;
+    return TarjetaGestionTuSede(
+      club: club,
+      ocupado: _ocupado,
+      onAbrir: borrador
+          ? () => _editarClub(club)
+          : activo && (central || club['id'] == 'generico')
+          ? () => Navigator.of(context).push(
+              MaterialPageRoute<void>(
+                builder: (_) => PantallaEspacioClub(club: club),
+              ),
+            )
+          : null,
+      onEditar: central && (borrador || (club['estado'] == 'activo' && activo))
+          ? () => _editarClub(club)
+          : null,
+      onAdministradores:
+          (central || club['id'] == 'generico') && (borrador || activo)
+          ? () => Navigator.of(context).push(
+              MaterialPageRoute<void>(
+                builder: (_) => PantallaAdministradoresClub(
+                  clubId: club['id'].toString(),
+                  nombreClub: club['nombre'].toString(),
+                ),
+              ),
+            )
+          : null,
+      onLogo: borrador ? () => _logo(club) : null,
+      onActivar: borrador ? () => _activarClub(club) : null,
+      onEliminar:
+          central &&
+              ![
+                'guemes',
+                'fatima',
+                'laloma',
+                'generico',
+                'tusede',
+              ].contains(club['id'])
+          ? () => _eliminarClub(club)
+          : null,
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final conectado = ServicioFirebaseTuSede.auth.currentUser != null;
     return Scaffold(
       appBar: AppBar(
-        title: const Text('TuSede'),
+        title: const MarcaTuSede(),
         actions: [
           if (conectado)
             IconButton(
@@ -219,11 +281,32 @@ class _PlataformaState extends State<PantallaPlataformaTuSede> {
             child: ListView(
               padding: const EdgeInsets.all(24),
               children: [
-                Text(
-                  _autorizado
-                      ? 'Administración de clubes'
-                      : 'Administración TuSede',
-                  style: Theme.of(context).textTheme.headlineSmall,
+                CabeceraTuSede(
+                  etiqueta: _autorizado
+                      ? 'TuSede / Administración'
+                      : 'Acceso a la plataforma',
+                  titulo: _autorizado
+                      ? 'Un lugar para\ntodos tus clubes.'
+                      : 'Hagamos crecer\ntu comunidad.',
+                  descripcion: _autorizado
+                      ? 'Creá, personalizá y acompañá a cada club desde acá.'
+                      : 'Ingresá con tu cuenta de superadmin para gestionar TuSede.',
+                  pie: _autorizado
+                      ? Wrap(
+                          spacing: 8,
+                          runSpacing: 8,
+                          children: [
+                            EtiquetaTuSede(
+                              '${_clubes.length} ${_clubes.length == 1 ? 'club' : 'clubes'}',
+                              oscura: true,
+                            ),
+                            EtiquetaTuSede(
+                              '${_clubes.where((c) => c['estado'] == 'borrador').length} borradores',
+                              oscura: true,
+                            ),
+                          ],
+                        )
+                      : null,
                 ),
                 const SizedBox(height: 16),
                 if (_ocupado) const LinearProgressIndicator(),
@@ -236,20 +319,26 @@ class _PlataformaState extends State<PantallaPlataformaTuSede> {
                     ),
                   ),
                 if (!_autorizado && !conectado) ...[
+                  const SizedBox(height: 12),
                   TextField(
                     controller: _email,
                     keyboardType: TextInputType.emailAddress,
                     decoration: const InputDecoration(
                       labelText: 'Email superadmin',
+                      prefixIcon: Icon(Icons.mail_outline),
                     ),
                   ),
+                  const SizedBox(height: 16),
                   TextField(
                     controller: _password,
                     obscureText: true,
                     onSubmitted: (_) {
                       if (!_ocupado) _entrar();
                     },
-                    decoration: const InputDecoration(labelText: 'Contraseña'),
+                    decoration: const InputDecoration(
+                      labelText: 'Contraseña',
+                      prefixIcon: Icon(Icons.lock_outline),
+                    ),
                   ),
                   const SizedBox(height: 20),
                   FilledButton(
@@ -263,108 +352,15 @@ class _PlataformaState extends State<PantallaPlataformaTuSede> {
                     child: const Text('Actualizar listado'),
                   ),
                 if (_autorizado) ...[
-                  const Text(
-                    'Creá y personalizá un borrador. Al activarlo, aparecerá en el catálogo de TuSede.',
+                  Text(
+                    'Tus clubes',
+                    style: Theme.of(context).textTheme.headlineSmall,
                   ),
-                  const SizedBox(height: 16),
+                  const SizedBox(height: 6),
+                  const Text('Los borradores se publican cuando los activás.'),
+                  const SizedBox(height: 20),
                   if (_clubes.isEmpty) const Text('Todavía no hay clubes.'),
-                  for (final club in _clubes)
-                    Card(
-                      child: ListTile(
-                        leading:
-                            ((club['identidad'] as Map?)?['logoUrl'] ?? '')
-                                .toString()
-                                .isEmpty
-                            ? const Icon(Icons.groups)
-                            : Image.network(
-                                (club['identidad'] as Map)['logoUrl']
-                                    .toString(),
-                                width: 48,
-                                height: 48,
-                                webHtmlElementStrategy:
-                                    WebHtmlElementStrategy.fallback,
-                                errorBuilder: (_, error, stack) => const Tooltip(
-                                  message:
-                                      'El logo está guardado, pero no se pudo cargar la imagen.',
-                                  child: Icon(
-                                    Icons.broken_image_outlined,
-                                    color: Colors.red,
-                                  ),
-                                ),
-                              ),
-                        onTap: club['estado'] == 'borrador' && !_ocupado
-                            ? () => _editarClub(club)
-                            : club['activo'] == true &&
-                                  (club['origenDatos'] == 'central' ||
-                                      club['id'] == 'generico') &&
-                                  !_ocupado
-                            ? () => Navigator.of(context).push(
-                                MaterialPageRoute<void>(
-                                  builder: (_) =>
-                                      PantallaEspacioClub(club: club),
-                                ),
-                              )
-                            : null,
-                        title: Text(club['nombre'].toString()),
-                        subtitle: Text(
-                          '${club['id']} · ${club['estado'] ?? (club['activo'] == true ? 'Activo' : 'Inactivo')}${club['estado'] == 'borrador' ? ' · Tocar para editar' : ''}',
-                        ),
-                        trailing: Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            if ((club['origenDatos'] == 'central' ||
-                                    club['id'] == 'generico') &&
-                                (club['estado'] == 'borrador' ||
-                                    club['activo'] == true))
-                              IconButton(
-                                tooltip: 'Administradores del club',
-                                icon: const Icon(Icons.manage_accounts),
-                                onPressed: _ocupado
-                                    ? null
-                                    : () => Navigator.of(context).push(
-                                        MaterialPageRoute<void>(
-                                          builder: (_) =>
-                                              PantallaAdministradoresClub(
-                                                clubId: club['id'].toString(),
-                                                nombreClub: club['nombre']
-                                                    .toString(),
-                                              ),
-                                        ),
-                                      ),
-                              ),
-                            club['estado'] == 'borrador'
-                                ? Row(
-                                    mainAxisSize: MainAxisSize.min,
-                                    children: [
-                                      IconButton(
-                                        onPressed: _ocupado
-                                            ? null
-                                            : () => _logo(club),
-                                        icon: const Icon(
-                                          Icons.add_photo_alternate,
-                                        ),
-                                        tooltip: 'Subir logo',
-                                      ),
-                                      IconButton(
-                                        onPressed: _ocupado
-                                            ? null
-                                            : () => _activarClub(club),
-                                        icon: const Icon(Icons.publish),
-                                        tooltip: 'Activar club',
-                                      ),
-                                    ],
-                                  )
-                                : club['id'] == 'guemes'
-                                ? const Tooltip(
-                                    message:
-                                        'Club Legacy: integración de acceso pendiente',
-                                    child: Icon(Icons.info_outline),
-                                  )
-                                : const Icon(Icons.chevron_right),
-                          ],
-                        ),
-                      ),
-                    ),
+                  for (final club in _clubes) _tarjetaClub(club),
                   const SizedBox(height: 80),
                 ],
               ],
@@ -458,6 +454,24 @@ class _AltaClubState extends State<_AltaClub> {
     final texto = _campos[key]!.text.trim();
     if (!RegExp(r'^#[0-9a-fA-F]{6}$').hasMatch(texto)) return fallback;
     return Color(int.parse('FF${texto.substring(1)}', radix: 16));
+  }
+
+  Future<void> _elegirColor(String key) async {
+    if (_ocupado) return;
+    final color = await elegirColorClub(
+      context,
+      _colorVista(
+        key,
+        key == 'colorPrimario'
+            ? const Color(0xFF1565C0)
+            : const Color(0xFFFFC107),
+      ),
+    );
+    if (!mounted || color == null) return;
+    setState(() {
+      _campos[key]!.text =
+          '#${(color.toARGB32() & 0xFFFFFF).toRadixString(16).padLeft(6, '0').toUpperCase()}';
+    });
   }
 
   Widget _vistaPrevia() {
@@ -560,43 +574,81 @@ class _AltaClubState extends State<_AltaClub> {
             children: [
               if (_error != null)
                 Text(_error!, style: const TextStyle(color: Colors.red)),
+              Text(
+                'La identidad de tu club',
+                style: Theme.of(context).textTheme.headlineSmall,
+              ),
+              const SizedBox(height: 8),
+              const Text('Elegí cómo se presenta tu comunidad en TuSede.'),
+              const SizedBox(height: 24),
               for (final campo in _campos.entries)
-                TextFormField(
-                  controller: campo.value,
-                  enabled:
-                      !_ocupado && (campo.key != 'id' || widget.club == null),
-                  onChanged: (_) => setState(() {}),
-                  decoration: InputDecoration(
-                    labelText: {
-                      'id': 'Identificador único (ej. club-san-martin)',
-                      'nombre': 'Nombre del club',
-                      'nombreCorto': 'Nombre corto',
-                      'lema': 'Lema',
-                      'colorPrimario': 'Color principal (#RRGGBB)',
-                      'colorSecundario': 'Color secundario (#RRGGBB)',
-                    }[campo.key],
+                Padding(
+                  padding: const EdgeInsets.only(bottom: 16),
+                  child: TextFormField(
+                    controller: campo.value,
+                    readOnly: campo.key.startsWith('color'),
+                    onTap: campo.key.startsWith('color')
+                        ? () => _elegirColor(campo.key)
+                        : null,
+                    enabled:
+                        !_ocupado && (campo.key != 'id' || widget.club == null),
+                    onChanged: (_) => setState(() {}),
+                    decoration: InputDecoration(
+                      prefixIcon: campo.key.startsWith('color')
+                          ? Icon(
+                              Icons.circle,
+                              color: _colorVista(campo.key, Colors.grey),
+                            )
+                          : null,
+                      suffixIcon: campo.key.startsWith('color')
+                          ? IconButton(
+                              tooltip: 'Elegir color',
+                              onPressed: _ocupado
+                                  ? null
+                                  : () => _elegirColor(campo.key),
+                              icon: const Icon(Icons.palette_outlined),
+                            )
+                          : null,
+                      helperText: campo.key.startsWith('color')
+                          ? 'Tocá para abrir la paleta'
+                          : null,
+                      labelText: {
+                        'id': 'Identificador único (ej. club-san-martin)',
+                        'nombre': 'Nombre del club',
+                        'nombreCorto': 'Nombre corto',
+                        'lema': 'Lema',
+                        'colorPrimario': 'Color principal',
+                        'colorSecundario': 'Color secundario',
+                      }[campo.key],
+                    ),
+                    validator: (valor) {
+                      final texto = (valor ?? '').trim();
+                      if (campo.key == 'id' &&
+                          !RegExp(
+                            r'^[a-z0-9][a-z0-9_-]{1,39}$',
+                          ).hasMatch(texto)) {
+                        return 'Usá entre 2 y 40 letras minúsculas, números o guiones.';
+                      }
+                      if (campo.key == 'nombre' &&
+                          (texto.length < 2 || texto.length > 100)) {
+                        return 'Ingresá un nombre de entre 2 y 100 caracteres.';
+                      }
+                      if (campo.key.startsWith('color') &&
+                          !RegExp(r'^#[0-9a-fA-F]{6}$').hasMatch(texto)) {
+                        return 'Ingresá un color con formato #RRGGBB.';
+                      }
+                      return null;
+                    },
                   ),
-                  validator: (valor) {
-                    final texto = (valor ?? '').trim();
-                    if (campo.key == 'id' &&
-                        !RegExp(
-                          r'^[a-z0-9][a-z0-9_-]{1,39}$',
-                        ).hasMatch(texto)) {
-                      return 'Usá entre 2 y 40 letras minúsculas, números o guiones.';
-                    }
-                    if (campo.key == 'nombre' &&
-                        (texto.length < 2 || texto.length > 100)) {
-                      return 'Ingresá un nombre de entre 2 y 100 caracteres.';
-                    }
-                    if (campo.key.startsWith('color') &&
-                        !RegExp(r'^#[0-9a-fA-F]{6}$').hasMatch(texto)) {
-                      return 'Ingresá un color con formato #RRGGBB.';
-                    }
-                    return null;
-                  },
                 ),
               const SizedBox(height: 24),
-              const Text('Módulos del club'),
+              Text(
+                'Módulos del club',
+                style: Theme.of(context).textTheme.titleLarge,
+              ),
+              const Text(
+                'Activá o desactivá módulos. Desactivarlos no borra los datos cargados.',
+              ),
               Wrap(
                 spacing: 8,
                 children: [

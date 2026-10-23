@@ -23,7 +23,7 @@ test('Edición conserva logo y solo devuelve campos editables', () => {
   assert.equal(cambios.identidad.logoUrl, anterior.identidad.logoUrl);
   assert.deepEqual(Object.keys(cambios).sort(), ['identidad', 'modulos', 'nombre']);
 });
-test('Edición rechaza clubes activos, Legacy y datos inválidos', () => {
+test('Edición rechaza estado activo inconsistente, Legacy y datos inválidos', () => {
   const anterior = validarAlta(alta);
   assert.throws(() => validarEdicion(alta, {...anterior, estado: 'activo'}));
   assert.throws(() => validarEdicion(alta, {...anterior, origenDatos: 'legacy'}));
@@ -48,4 +48,22 @@ test('Activación exige borrador central, logo y módulos', () => {
   assert.throws(() => validarActivacion(alta.id, {...listo, modulos: {}}));
   assert.throws(() => validarActivacion(alta.id, {...listo, estado: 'activo'}));
   assert.throws(() => validarActivacion('guemes', listo));
+});
+
+
+test('Edición de activo permite cambiar módulos sin alterar estado, logo ni origen', () => {
+  const anterior = {...validarAlta(alta), estado: 'activo', activo: true};
+  anterior.identidad.logoUrl = 'https://example.com/logo.png';
+  const snapshot = JSON.stringify(anterior);
+  const cambios = validarEdicion({...alta, modulos: ['jugadores', 'partidos'], activo: false, rol: 'superadmin'}, anterior);
+  assert.equal(cambios.modulos.socios, false);
+  assert.equal(cambios.modulos.jugadores, true);
+  assert.equal(cambios.modulos.partidos, true);
+  assert.equal(cambios.identidad.logoUrl, anterior.identidad.logoUrl);
+  assert.deepEqual(Object.keys(cambios).sort(), ['identidad', 'modulos', 'nombre']);
+  assert.equal(JSON.stringify(anterior), snapshot);
+  assert.throws(() => validarEdicion({...alta, modulos: []}, anterior));
+  assert.throws(() => validarEdicion({...alta, modulos: ['inventado']}, anterior));
+  assert.throws(() => validarEdicion(alta, {...anterior, estado: 'suspendido'}));
+  assert.throws(() => validarEdicion(alta, {...anterior, origenDatos: 'legacy'}));
 });

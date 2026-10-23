@@ -4,6 +4,9 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_core/firebase_core.dart';
 
 import '../../configuracion/configuracion_app.dart';
+import '../../tusede/servicios/servicio_datos_club.dart';
+import '../../tusede/servicios/contexto_club.dart';
+import '../../tusede/pantallas/pantalla_administradores_club.dart';
 import '../../tusede/pantallas/pantalla_inventario_admins_tusede.dart';
 import '../../tusede/servicios/contexto_usuario_tusede.dart';
 import '../../tusede/servicios/servicio_sesion_tusede.dart';
@@ -23,12 +26,38 @@ class _PantallaAdminUsuariosState extends State<PantallaAdminUsuarios> {
   bool _creandoUsuario = false;
 
   bool _esSuperAdminTuSede = false;
+  bool _verificandoCentral = true;
+  String? _errorCentral;
 
   @override
   void initState() {
     super.initState();
 
-    _verificarAccesoTuSede();
+    if (ServicioDatosClub.usaTuSedeCentral) {
+      _verificarCentral();
+    } else {
+      _verificarAccesoTuSede();
+    }
+  }
+
+  Future<void> _verificarCentral() async {
+    setState(() {
+      _verificandoCentral = true;
+      _errorCentral = null;
+    });
+    try {
+      final usuario = await ServicioSesionTuSede.restaurarSesion();
+      if (!mounted) return;
+      setState(() {
+        _esSuperAdminTuSede = usuario?.esSuperAdmin == true;
+      });
+    } catch (_) {
+      if (mounted) {
+        setState(() => _errorCentral = 'No se pudo verificar tu sesión.');
+      }
+    } finally {
+      if (mounted) setState(() => _verificandoCentral = false);
+    }
   }
 
   // ============================================================
@@ -358,6 +387,43 @@ class _PantallaAdminUsuariosState extends State<PantallaAdminUsuarios> {
 
   @override
   Widget build(BuildContext context) {
+    if (ServicioDatosClub.usaTuSedeCentral) {
+      if (!_verificandoCentral &&
+          _errorCentral == null &&
+          _esSuperAdminTuSede) {
+        return PantallaAdministradoresClub(
+          clubId: ContextoClub.clubId,
+          nombreClub: ContextoClub.nombreClub,
+        );
+      }
+      return Scaffold(
+        appBar: AppBar(title: const Text('Gestión de Usuarios')),
+        body: _verificandoCentral
+            ? const Center(child: CircularProgressIndicator())
+            : Center(
+                child: Padding(
+                  padding: const EdgeInsets.all(24),
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      const Icon(Icons.manage_accounts, size: 48),
+                      const SizedBox(height: 16),
+                      Text(
+                        _errorCentral ??
+                            'La asignación de administradores de este club se realiza desde Administración TuSede, con una cuenta superadmin.\n\nLa creación de usuarios con otros roles desde el club todavía no está disponible.',
+                        textAlign: TextAlign.center,
+                      ),
+                      if (_errorCentral != null)
+                        TextButton(
+                          onPressed: _verificarCentral,
+                          child: const Text('Reintentar'),
+                        ),
+                    ],
+                  ),
+                ),
+              ),
+      );
+    }
     return Scaffold(
       appBar: AppBar(
         title: const Text('Gestión de Usuarios'),

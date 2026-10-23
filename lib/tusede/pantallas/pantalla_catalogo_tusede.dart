@@ -1,6 +1,9 @@
 import 'package:flutter/material.dart';
+import '../diseno/identidad_tusede.dart';
 import '../../configuracion/configuracion_app.dart';
 import '../../pantallas/pantalla_seleccion_actividad.dart';
+import '../../pantallas/pantalla_seleccion.dart';
+import '../servicios/servicio_contenido_publico.dart';
 import '../modelos/club_tusede.dart';
 import '../servicios/contexto_club.dart';
 import '../servicios/servicio_control_tusede.dart';
@@ -26,7 +29,7 @@ class _CatalogoState extends State<PantallaCatalogoTuSede> {
   @override
   Widget build(BuildContext context) => Scaffold(
     appBar: AppBar(
-      title: const Text('TuSede'),
+      title: const MarcaTuSede(),
       actions: [
         IconButton(
           tooltip: 'Administración TuSede',
@@ -63,42 +66,12 @@ class _CatalogoState extends State<PantallaCatalogoTuSede> {
           );
         }
         final clubes = (snap.data!['clubes'] as List).cast<Map>();
-        return Center(
-          child: ConstrainedBox(
-            constraints: const BoxConstraints(maxWidth: 800),
-            child: ListView(
-              padding: const EdgeInsets.all(24),
-              children: [
-                Text(
-                  'Elegí tu club',
-                  style: Theme.of(context).textTheme.headlineMedium,
-                ),
-                const SizedBox(height: 16),
-                if (clubes.isEmpty)
-                  const Text('Todavía no hay clubes publicados.'),
-                for (final c in clubes)
-                  Card(
-                    child: ListTile(
-                      title: Text(c['nombre'].toString()),
-                      subtitle: Text(
-                        (c['identidad'] as Map?)?['lema']?.toString() ?? '',
-                      ),
-                      leading: _LogoCatalogo(
-                        url:
-                            (c['identidad'] as Map?)?['logoUrl']?.toString() ??
-                            '',
-                      ),
-                      trailing: const Icon(Icons.chevron_right),
-                      onTap: () => Navigator.of(context).push(
-                        MaterialPageRoute<void>(
-                          builder: (_) => PantallaEspacioClub(
-                            club: Map<String, dynamic>.from(c),
-                          ),
-                        ),
-                      ),
-                    ),
-                  ),
-              ],
+        return VistaCatalogoTuSede(
+          clubes: clubes,
+          onAbrir: (club) => Navigator.of(context).push(
+            MaterialPageRoute<void>(
+              builder: (_) =>
+                  PantallaEspacioClub(club: Map<String, dynamic>.from(club)),
             ),
           ),
         );
@@ -107,20 +80,168 @@ class _CatalogoState extends State<PantallaCatalogoTuSede> {
   );
 }
 
-class _LogoCatalogo extends StatelessWidget {
-  final String url;
-  const _LogoCatalogo({required this.url});
+class VistaCatalogoTuSede extends StatelessWidget {
+  final List<Map> clubes;
+  final ValueChanged<Map> onAbrir;
+  const VistaCatalogoTuSede({
+    super.key,
+    required this.clubes,
+    required this.onAbrir,
+  });
+
   @override
-  Widget build(BuildContext context) => url.isEmpty
-      ? const Icon(Icons.groups)
-      : Image.network(
-          url,
-          width: 48,
-          height: 48,
-          webHtmlElementStrategy: WebHtmlElementStrategy.fallback,
-          errorBuilder: (_, error, stack) =>
-              const Icon(Icons.broken_image_outlined),
-        );
+  Widget build(BuildContext context) => Center(
+    child: ConstrainedBox(
+      constraints: const BoxConstraints(maxWidth: 1080),
+      child: ListView(
+        padding: const EdgeInsets.fromLTRB(20, 18, 20, 32),
+        children: [
+          const CabeceraTuSede(
+            etiqueta: 'El punto de encuentro',
+            titulo: 'Tu club.\nSiempre cerca.',
+            descripcion:
+                'Toda la vida de tu club, en un solo lugar.\nNoticias, actividades y mucho más.',
+            pie: Wrap(
+              spacing: 8,
+              runSpacing: 8,
+              children: [
+                EtiquetaTuSede('Comunidad', oscura: true),
+                EtiquetaTuSede('Deporte', oscura: true),
+                EtiquetaTuSede('Tu gente', oscura: true),
+              ],
+            ),
+          ),
+          const SizedBox(height: 32),
+          Row(
+            children: [
+              Expanded(
+                child: Text(
+                  'Elegí tu club',
+                  style: Theme.of(context).textTheme.headlineSmall,
+                ),
+              ),
+              EtiquetaTuSede(
+                '${clubes.length} ${clubes.length == 1 ? 'club' : 'clubes'}',
+              ),
+            ],
+          ),
+          const SizedBox(height: 6),
+          const Text('Entrá y descubrí todo lo que está pasando.'),
+          const SizedBox(height: 20),
+          if (clubes.isEmpty)
+            const Card(
+              child: Padding(
+                padding: EdgeInsets.all(28),
+                child: Text(
+                  'Todavía no hay clubes publicados. Volvé pronto para encontrar el tuyo.',
+                ),
+              ),
+            ),
+          LayoutBuilder(
+            builder: (context, constraints) {
+              final ancho = constraints.maxWidth >= 720
+                  ? (constraints.maxWidth - 16) / 2
+                  : constraints.maxWidth;
+              return Wrap(
+                spacing: 16,
+                runSpacing: 4,
+                children: [
+                  for (final club in clubes)
+                    SizedBox(
+                      width: ancho,
+                      child: TarjetaCatalogoTuSede(
+                        club: club,
+                        onTap: () => onAbrir(club),
+                      ),
+                    ),
+                ],
+              );
+            },
+          ),
+          const SizedBox(height: 30),
+          const Center(
+            child: Text(
+              'Hecho para clubes. Pensado para vos.',
+              style: TextStyle(fontSize: 12, color: Color(0xFFA5BDB7)),
+            ),
+          ),
+        ],
+      ),
+    ),
+  );
+}
+
+class TarjetaCatalogoTuSede extends StatelessWidget {
+  final Map club;
+  final VoidCallback onTap;
+  const TarjetaCatalogoTuSede({
+    super.key,
+    required this.club,
+    required this.onTap,
+  });
+  @override
+  Widget build(BuildContext context) {
+    final identidad = club['identidad'] as Map? ?? {};
+    final lema = identidad['lema']?.toString().trim() ?? '';
+    return Card(
+      clipBehavior: Clip.antiAlias,
+      child: InkWell(
+        onTap: onTap,
+        child: Padding(
+          padding: const EdgeInsets.all(22),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  EscudoTuSede(url: identidad['logoUrl']?.toString() ?? ''),
+                  const SizedBox(width: 16),
+                  Expanded(
+                    child: Padding(
+                      padding: const EdgeInsets.only(top: 5),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            club['nombre'].toString(),
+                            style: Theme.of(context).textTheme.titleLarge,
+                          ),
+                          const SizedBox(height: 5),
+                          Text(lema.isEmpty ? 'Tu comunidad te espera' : lema),
+                        ],
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 20),
+              const Divider(height: 1),
+              const SizedBox(height: 16),
+              const Row(
+                children: [
+                  Expanded(
+                    child: Text(
+                      'Conocé el club',
+                      style: TextStyle(
+                        color: mentaTuSede,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                  ),
+                  Icon(
+                    Icons.arrow_forward_rounded,
+                    color: mentaTuSede,
+                    size: 20,
+                  ),
+                ],
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
 }
 
 class PantallaEspacioClub extends StatefulWidget {
@@ -132,6 +253,7 @@ class PantallaEspacioClub extends StatefulWidget {
 
 class _EspacioState extends State<PantallaEspacioClub> {
   late ConfiguracionApp _config;
+  late Future<bool> _arranque;
   final _navigator = GlobalKey<NavigatorState>();
   @override
   void initState() {
@@ -153,6 +275,9 @@ class _EspacioState extends State<PantallaEspacioClub> {
     ConfiguracionApp.actual = _config;
     ContextoClub.cambiarClub(club);
     ServicioControlTuSede.invalidarCache();
+    _arranque = ServicioContenidoPublico.cargarConfiguracion().then(
+      (config) => config.activarMultiActividad,
+    );
   }
 
   Color _color(String hex, Color fallback) =>
@@ -183,7 +308,37 @@ class _EspacioState extends State<PantallaEspacioClub> {
       body: Navigator(
         key: _navigator,
         onGenerateRoute: (_) => MaterialPageRoute<void>(
-          builder: (_) => PantallaSeleccionActividad(config: _config),
+          builder: (_) => FutureBuilder<bool>(
+            future: _arranque,
+            builder: (context, snapshot) {
+              if (snapshot.connectionState != ConnectionState.done) {
+                return const Center(child: CircularProgressIndicator());
+              }
+              if (snapshot.hasError || !snapshot.hasData) {
+                return Center(
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      const Text('No se pudo cargar el inicio del club.'),
+                      TextButton(
+                        onPressed: () => setState(() {
+                          _arranque =
+                              ServicioContenidoPublico.cargarConfiguracion()
+                                  .then(
+                                    (config) => config.activarMultiActividad,
+                                  );
+                        }),
+                        child: const Text('Reintentar'),
+                      ),
+                    ],
+                  ),
+                );
+              }
+              return snapshot.data!
+                  ? PantallaSeleccionActividad(config: _config)
+                  : PantallaSeleccion(config: _config);
+            },
+          ),
         ),
       ),
     ),

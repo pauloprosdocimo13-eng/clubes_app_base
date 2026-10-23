@@ -21,6 +21,7 @@ class _PantallaAdminAvisoEntradaState extends State<PantallaAdminAvisoEntrada> {
 
   bool _activo = false;
   bool _cargando = true;
+  bool _subiendoImagen = false;
 
   @override
   void initState() {
@@ -28,11 +29,20 @@ class _PantallaAdminAvisoEntradaState extends State<PantallaAdminAvisoEntrada> {
     _cargarDatos();
   }
 
+  @override
+  void dispose() {
+    _tituloController.dispose();
+    _mensajeController.dispose();
+    _imagenController.dispose();
+    super.dispose();
+  }
+
   Future<void> _cargarDatos() async {
     try {
       final doc = await ServicioDatosClub.configuracionDoc(
         'aviso_entrada',
       ).get();
+      if (!mounted) return;
       if (doc.exists) {
         final data = doc.data()!;
         _tituloController.text = data['titulo'] ?? '';
@@ -48,6 +58,7 @@ class _PantallaAdminAvisoEntradaState extends State<PantallaAdminAvisoEntrada> {
   }
 
   Future<void> _guardar() async {
+    if (_cargando || _subiendoImagen) return;
     setState(() => _cargando = true);
     try {
       await ServicioDatosClub.configuracionDoc('aviso_entrada').set({
@@ -114,8 +125,15 @@ class _PantallaAdminAvisoEntradaState extends State<PantallaAdminAvisoEntrada> {
                     // TRUCO: Usamos ValueKey para forzar que el widget se "reinicie" si el texto cambia (ej: al borrar)
                     key: ValueKey(_imagenController.text),
                     urlInicial: _imagenController.text,
-                    carpeta: 'avisos_popup',
+                    carpeta: ServicioDatosClub.usaTuSedeCentral
+                        ? 'publicidad'
+                        : 'avisos_popup',
+                    aislarPorClub: ServicioDatosClub.usaTuSedeCentral,
+                    onCargando: (valor) {
+                      if (mounted) setState(() => _subiendoImagen = valor);
+                    },
                     alSubirImagen: (url) {
+                      if (!mounted) return;
                       setState(() {
                         _imagenController.text = url;
                       });
@@ -175,7 +193,7 @@ class _PantallaAdminAvisoEntradaState extends State<PantallaAdminAvisoEntrada> {
                       foregroundColor: Colors.white,
                       minimumSize: const Size(double.infinity, 50),
                     ),
-                    onPressed: _guardar,
+                    onPressed: _subiendoImagen ? null : _guardar,
                     icon: const Icon(Icons.save),
                     label: const Text(
                       "GUARDAR CONFIGURACIÓN",

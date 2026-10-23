@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="560" height="180" viewBox="0 0 560 180" role="img" aria-label="TuSede">
+  <rect x="20" y="22" width="136" height="136" rx="41" fill="#B7F6CC"/>
+  <g transform="translate(46.44 48.44) scale(3.778)" fill="none" stroke="#102D35" stroke-width="1.7">
+    <rect x="1" y="1" width="20" height="20" rx="4"/>
+    <path d="M1 11H21"/>
+    <circle cx="11" cy="11" r="4.18"/>
+  </g>
+  <text x="182" y="116" font-family="Arial, Helvetica, sans-serif" font-size="76" font-weight="700" letter-spacing="-3" fill="#F1F7F5">TuSede</text>
+</svg>

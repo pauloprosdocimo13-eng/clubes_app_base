@@ -65,7 +65,8 @@ service cloud.firestore {
         && migracionPropia(clubId).email == emailAuth()
         && migracionPropia(clubId).clubId == clubId
         && migracionPropia(clubId).autorizado == true
-        && migracionPropia(clubId).estado == 'preparado';
+        && migracionPropia(clubId).estado == 'preparado'
+        && !exists(/databases/$(database)/documents/eliminaciones_club/$(clubId));
     }
 
     match /roles/{rolId} {
@@ -141,7 +142,8 @@ service cloud.firestore {
       allow create, update, delete: if false;
 
       match /{document=**} {
-        allow read, write: if puedeAccederClub(clubId);
+        allow read, write: if puedeAccederClub(clubId)
+          && !exists(/databases/$(database)/documents/eliminaciones_club/$(clubId));
       }
     }
 

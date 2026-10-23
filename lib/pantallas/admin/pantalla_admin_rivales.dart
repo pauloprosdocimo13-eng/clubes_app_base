@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import '../../configuracion/configuracion_app.dart';
 import '../../widgets/input_imagen.dart';
+import '../../tusede/servicios/servicio_datos_club.dart';
 
 class PantallaAdminRivales extends StatefulWidget {
   final ConfiguracionApp config;
@@ -18,16 +19,15 @@ class PantallaAdminRivales extends StatefulWidget {
 }
 
 class _PantallaAdminRivalesState extends State<PantallaAdminRivales> {
-
   void _mostrarFormulario({String? id, Map<String, dynamic>? data}) {
     showModalBottomSheet(
       context: context,
       isScrollControlled: true, // Importante para que el teclado empuje
       builder: (context) => _FormularioRival(
-          config: widget.config,
-          deporteId: widget.deporteId,
-          id: id,
-          data: data
+        config: widget.config,
+        deporteId: widget.deporteId,
+        id: id,
+        data: data,
       ),
     );
   }
@@ -38,13 +38,25 @@ class _PantallaAdminRivalesState extends State<PantallaAdminRivales> {
       builder: (ctx) => AlertDialog(
         title: const Text("¿Borrar Club?"),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(ctx), child: const Text("CANCELAR")),
           TextButton(
-              onPressed: () {
-                FirebaseFirestore.instance.collection('rivales').doc(id).delete();
-                Navigator.pop(ctx);
-              },
-              child: const Text("BORRAR", style: TextStyle(color: Colors.red))
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text("CANCELAR"),
+          ),
+          TextButton(
+            onPressed: () async {
+              Navigator.pop(ctx);
+              try {
+                await ServicioDatosClub.rivales.doc(id).delete();
+              } catch (_) {
+                if (!mounted) return;
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(
+                    content: Text('No se pudo borrar el rival. Reintentá.'),
+                  ),
+                );
+              }
+            },
+            child: const Text("BORRAR", style: TextStyle(color: Colors.red)),
           ),
         ],
       ),
@@ -65,12 +77,20 @@ class _PantallaAdminRivalesState extends State<PantallaAdminRivales> {
         child: const Icon(Icons.add, color: Colors.white),
       ),
       body: StreamBuilder<QuerySnapshot>(
-        stream: FirebaseFirestore.instance
-            .collection('rivales')
+        stream: ServicioDatosClub.rivales
             .where('deporte_id', isEqualTo: widget.deporteId)
             .snapshots(),
         builder: (context, snapshot) {
-          if (!snapshot.hasData) return const Center(child: CircularProgressIndicator());
+          if (snapshot.hasError) {
+            return const Center(
+              child: Text(
+                'No se pudieron cargar los rivales. Volvé a entrar para reintentar.',
+              ),
+            );
+          }
+          if (!snapshot.hasData) {
+            return const Center(child: CircularProgressIndicator());
+          }
           final docs = snapshot.data!.docs;
 
           if (docs.isEmpty) {
@@ -89,18 +109,21 @@ class _PantallaAdminRivalesState extends State<PantallaAdminRivales> {
               return Card(
                 child: ListTile(
                   leading: const Icon(Icons.shield),
-                  title: Text(nombre, style: const TextStyle(fontWeight: FontWeight.bold)),
+                  title: Text(
+                    nombre,
+                    style: const TextStyle(fontWeight: FontWeight.bold),
+                  ),
                   subtitle: Text(direccion),
                   trailing: Row(
                     mainAxisSize: MainAxisSize.min,
                     children: [
                       IconButton(
-                          icon: const Icon(Icons.edit, color: Colors.blue),
-                          onPressed: () => _mostrarFormulario(id: id, data: data)
+                        icon: const Icon(Icons.edit, color: Colors.blue),
+                        onPressed: () => _mostrarFormulario(id: id, data: data),
                       ),
                       IconButton(
-                          icon: const Icon(Icons.delete, color: Colors.red),
-                          onPressed: () => _borrarRival(id)
+                        icon: const Icon(Icons.delete, color: Colors.red),
+                        onPressed: () => _borrarRival(id),
                       ),
                     ],
                   ),
@@ -125,7 +148,7 @@ class _FormularioRival extends StatefulWidget {
     required this.config,
     required this.deporteId,
     this.id,
-    this.data
+    this.data,
   });
 
   @override
@@ -139,6 +162,8 @@ class _FormularioRivalState extends State<_FormularioRival> {
   final _escudoCtrl = TextEditingController();
   bool _esTechado = false;
   bool _cargando = false;
+  bool _subiendoImagen = false;
+  String? _error;
 
   @override
   void initState() {
@@ -152,9 +177,21 @@ class _FormularioRivalState extends State<_FormularioRival> {
     }
   }
 
+  @override
+  void dispose() {
+    _nombreCtrl.dispose();
+    _direcCtrl.dispose();
+    _mapaCtrl.dispose();
+    _escudoCtrl.dispose();
+    super.dispose();
+  }
+
   Future<void> _guardar() async {
-    if (_nombreCtrl.text.isEmpty) return;
-    setState(() => _cargando = true);
+    if (_cargando || _subiendoImagen || _nombreCtrl.text.trim().isEmpty) return;
+    setState(() {
+      _cargando = true;
+      _error = null;
+    });
 
     final datos = {
       'deporte_id': widget.deporteId,
@@ -165,13 +202,23 @@ class _FormularioRivalState extends State<_FormularioRival> {
       'es_techado': _esTechado,
     };
 
-    if (widget.id == null) {
-      await FirebaseFirestore.instance.collection('rivales').add(datos);
-    } else {
-      await FirebaseFirestore.instance.collection('rivales').doc(widget.id).update(datos);
+    try {
+      if (widget.id == null) {
+        await ServicioDatosClub.rivales.add(datos);
+      } else {
+        await ServicioDatosClub.rivales.doc(widget.id).update(datos);
+      }
+      if (mounted) Navigator.pop(context);
+    } catch (_) {
+      if (mounted) {
+        setState(
+          () => _error =
+              'No se pudo guardar el rival. Revisá la conexión y reintentá.',
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _cargando = false);
     }
-
-    if (mounted) Navigator.pop(context);
   }
 
   @override
@@ -179,12 +226,15 @@ class _FormularioRivalState extends State<_FormularioRival> {
     // CORRECCIÓN CLAVE: Padding basado en viewInsets (Teclado) + Scroll
     return Padding(
       padding: EdgeInsets.only(
-        bottom: MediaQuery.of(context).viewInsets.bottom, // Levanta el form al salir el teclado
+        bottom: MediaQuery.of(
+          context,
+        ).viewInsets.bottom, // Levanta el form al salir el teclado
         left: 20,
         right: 20,
         top: 20,
       ),
-      child: SingleChildScrollView( // Permite scrollear si la pantalla es chica
+      child: SingleChildScrollView(
+        // Permite scrollear si la pantalla es chica
         child: Column(
           mainAxisSize: MainAxisSize.min, // Ocupa solo lo necesario
           children: [
@@ -200,15 +250,26 @@ class _FormularioRivalState extends State<_FormularioRival> {
                   height: 60,
                   color: Colors.grey[200],
                   child: _escudoCtrl.text.isNotEmpty
-                      ? Image.network(_escudoCtrl.text, errorBuilder: (c,o,s) => const Icon(Icons.error))
+                      ? Image.network(
+                          _escudoCtrl.text,
+                          errorBuilder: (c, o, s) => const Icon(Icons.error),
+                        )
                       : const Icon(Icons.shield),
                 ),
                 const SizedBox(width: 10),
                 Expanded(
                   child: InputImagen(
                     urlInicial: _escudoCtrl.text,
-                    carpeta: 'escudos_rivales',
-                    alSubirImagen: (url) => setState(() => _escudoCtrl.text = url),
+                    carpeta: ServicioDatosClub.usaTuSedeCentral
+                        ? 'logos'
+                        : 'escudos_rivales',
+                    aislarPorClub: ServicioDatosClub.usaTuSedeCentral,
+                    onCargando: (valor) {
+                      if (mounted) setState(() => _subiendoImagen = valor);
+                    },
+                    alSubirImagen: (url) {
+                      if (mounted) setState(() => _escudoCtrl.text = url);
+                    },
                   ),
                 ),
               ],
@@ -216,21 +277,27 @@ class _FormularioRivalState extends State<_FormularioRival> {
             const SizedBox(height: 10),
             TextField(
               controller: _nombreCtrl,
-              decoration: const InputDecoration(labelText: "Nombre del Club", border: OutlineInputBorder()),
+              decoration: const InputDecoration(
+                labelText: "Nombre del Club",
+                border: OutlineInputBorder(),
+              ),
             ),
             const SizedBox(height: 10),
             TextField(
               controller: _direcCtrl,
-              decoration: const InputDecoration(labelText: "Dirección escrita (Ej: Cavia 2, ...)", border: OutlineInputBorder()),
+              decoration: const InputDecoration(
+                labelText: "Dirección escrita (Ej: Cavia 2, ...)",
+                border: OutlineInputBorder(),
+              ),
             ),
             const SizedBox(height: 10),
             TextField(
               controller: _mapaCtrl,
               decoration: const InputDecoration(
-                  labelText: "Link de Google Maps (Opcional)",
-                  hintText: "Si lo dejas vacío, se usará la dirección escrita",
-                  border: OutlineInputBorder(),
-                  prefixIcon: Icon(Icons.map)
+                labelText: "Link de Google Maps (Opcional)",
+                hintText: "Si lo dejas vacío, se usará la dirección escrita",
+                border: OutlineInputBorder(),
+                prefixIcon: Icon(Icons.map),
               ),
             ),
             const SizedBox(height: 10),
@@ -239,6 +306,8 @@ class _FormularioRivalState extends State<_FormularioRival> {
               value: _esTechado,
               onChanged: (v) => setState(() => _esTechado = v),
             ),
+            if (_error != null)
+              Text(_error!, style: const TextStyle(color: Colors.red)),
             const SizedBox(height: 20),
             SizedBox(
               width: double.infinity,
@@ -248,8 +317,10 @@ class _FormularioRivalState extends State<_FormularioRival> {
                   foregroundColor: Colors.white,
                   padding: const EdgeInsets.symmetric(vertical: 15),
                 ),
-                onPressed: _cargando ? null : _guardar,
-                child: _cargando ? const CircularProgressIndicator(color: Colors.white) : const Text("GUARDAR"),
+                onPressed: _cargando || _subiendoImagen ? null : _guardar,
+                child: _cargando
+                    ? const CircularProgressIndicator(color: Colors.white)
+                    : const Text("GUARDAR"),
               ),
             ),
             const SizedBox(height: 20),

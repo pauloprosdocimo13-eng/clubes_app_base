@@ -50,7 +50,7 @@ class _PantallaSeleccionActividadState
 
     try {
       // 1. Cargamos actividades y contactos
-      final actividades = await ServicioActividades.cargarActividades();
+      final actividades = [...await ServicioActividades.cargarActividades()];
       final contactos = await ServicioActividades.cargarContactos();
 
       // 2. Verificamos si la publicidad está activa en Firebase
@@ -59,6 +59,21 @@ class _PantallaSeleccionActividadState
         if (ServicioDatosClub.usaTuSedeCentral) {
           final datos = await ServicioContenidoPublico.cargarConfiguracion();
           publicidadActiva = datos.moduloActivo('publicidad');
+          // Las tiras deportivas y las tarjetas institucionales son independientes.
+          // Mantener accesibles las tiras aunque aún no exista una tarjeta de fútbol.
+          if (datos.menuDeportes.isNotEmpty &&
+              !actividades.any((actividad) => actividad.esFutbol)) {
+            actividades.add(
+              const ActividadClub(
+                nombre: 'DEPORTES',
+                horarios: 'Planteles, partidos y resultados',
+                arancel: '',
+                icono: 'sports_soccer',
+                colorHex: '#1565C0',
+                esFutbol: true,
+              ),
+            );
+          }
         } else {
           final data = await ServicioConfiguracionPublica().cargarDocumento(
             'general',
@@ -419,9 +434,19 @@ class _PantallaSeleccionActividadState
                         ),
                         borderRadius: BorderRadius.circular(15),
                       ),
-                      child: const Text(
+                      child: Text(
                         "Portal Institucional",
-                        style: TextStyle(color: Colors.white, fontSize: 12),
+                        style: TextStyle(
+                          color:
+                              Color.alphaBlend(
+                                    Colors.white.withAlpha(35),
+                                    colorSecundario,
+                                  ).computeLuminance() >
+                                  0.45
+                              ? Colors.black
+                              : Colors.white,
+                          fontSize: 12,
+                        ),
                       ),
                     ),
                     if (lemaClub.isNotEmpty) ...[

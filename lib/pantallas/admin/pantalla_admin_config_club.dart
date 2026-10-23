@@ -134,9 +134,21 @@ class _PantallaAdminConfigClubState extends State<PantallaAdminConfigClub>
                 DropdownButtonFormField<String>(
                   initialValue: iconoSel,
                   decoration: const InputDecoration(labelText: 'Icono'),
-                  items: ServicioActividades.nombresIconosDisponibles()
-                      .map((i) => DropdownMenuItem(value: i, child: Text(i)))
-                      .toList(),
+                  items:
+                      {
+                            ...ServicioActividades.nombresIconosDisponibles(),
+                            iconoSel,
+                          }
+                          .map(
+                            (i) => DropdownMenuItem(
+                              value: i,
+                              child: Icon(
+                                ServicioActividades.iconoDesdeNombre(i),
+                                semanticLabel: i,
+                              ),
+                            ),
+                          )
+                          .toList(),
                   onChanged: (v) => setDialog(() => iconoSel = v ?? iconoSel),
                 ),
                 TextField(
@@ -217,9 +229,21 @@ class _PantallaAdminConfigClubState extends State<PantallaAdminConfigClub>
               DropdownButtonFormField<String>(
                 initialValue: iconoSel,
                 decoration: const InputDecoration(labelText: 'Icono'),
-                items: ServicioActividades.nombresIconosDisponibles()
-                    .map((i) => DropdownMenuItem(value: i, child: Text(i)))
-                    .toList(),
+                items:
+                    {
+                          ...ServicioActividades.nombresIconosDisponibles(),
+                          iconoSel,
+                        }
+                        .map(
+                          (i) => DropdownMenuItem(
+                            value: i,
+                            child: Icon(
+                              ServicioActividades.iconoDesdeNombre(i),
+                              semanticLabel: i,
+                            ),
+                          ),
+                        )
+                        .toList(),
                 onChanged: (v) => setDialog(() => iconoSel = v ?? iconoSel),
               ),
             ],
