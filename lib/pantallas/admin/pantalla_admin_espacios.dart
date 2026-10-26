@@ -189,6 +189,7 @@ class _FormularioEspacioState extends State<_FormularioEspacio> {
   final _precioCtrl = TextEditingController();
   final _fotoCtrl = TextEditingController();
   bool _cargando = false;
+  bool _subiendoImagen = false;
 
   @override
   void initState() {
@@ -202,6 +203,7 @@ class _FormularioEspacioState extends State<_FormularioEspacio> {
   }
 
   Future<void> _guardar() async {
+    if (_cargando || _subiendoImagen) return;
     setState(() => _cargando = true);
     final datos = {
       'titulo': _tituloCtrl.text.trim(),
@@ -227,7 +229,22 @@ class _FormularioEspacioState extends State<_FormularioEspacio> {
         children: [
           Text(widget.id == null ? "Nuevo Espacio" : "Editar Espacio", style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
           const SizedBox(height: 20),
-          InputImagen(urlInicial: _fotoCtrl.text, carpeta: 'espacios', alSubirImagen: (url) => _fotoCtrl.text = url),
+          InputImagen(
+            urlInicial: _fotoCtrl.text,
+            carpeta: 'espacios',
+            aislarPorClub: ServicioDatosClub.usaTuSedeCentral,
+            onCargando: (valor) {
+              if (mounted) setState(() => _subiendoImagen = valor);
+            },
+            alSubirImagen: (url) {
+              if (mounted) _fotoCtrl.text = url;
+            },
+          ),
+          if (_subiendoImagen)
+            const Padding(
+              padding: EdgeInsets.only(top: 8),
+              child: Text('Aguardá a que termine de subir la foto.'),
+            ),
           const SizedBox(height: 10),
           TextField(controller: _tituloCtrl, decoration: const InputDecoration(labelText: "Nombre (ej: Cancha 5)", border: OutlineInputBorder())),
           const SizedBox(height: 10),
@@ -235,7 +252,7 @@ class _FormularioEspacioState extends State<_FormularioEspacio> {
           const SizedBox(height: 10),
           TextField(controller: _precioCtrl, keyboardType: TextInputType.number, decoration: const InputDecoration(labelText: "Precio x Hora (aprox)", border: OutlineInputBorder(), prefixText: "\$ ")),
           const SizedBox(height: 20),
-          SizedBox(width: double.infinity, child: ElevatedButton(onPressed: _cargando ? null : _guardar, child: const Text("GUARDAR"))),
+          SizedBox(width: double.infinity, child: ElevatedButton(onPressed: _cargando || _subiendoImagen ? null : _guardar, child: const Text("GUARDAR"))),
           const SizedBox(height: 20),
         ],
       ),

@@ -40,6 +40,7 @@ class _PantallaAdminFormularioFamiliaState
   List<String> _actividadesTitular = [];
   List<Map<String, dynamic>> _hijos = [];
 
+  String? _errorConceptos;
   List<String> _conceptosDisponibles = [];
   Map<String, double> _preciosCache = {};
 
@@ -86,6 +87,7 @@ class _PantallaAdminFormularioFamiliaState
   }
 
   Future<void> _cargarPreciosYConceptos() async {
+    _errorConceptos = null;
     try {
       final doc = await ServicioDatosClub.precios.get();
       if (doc.exists) {
@@ -106,7 +108,9 @@ class _PantallaAdminFormularioFamiliaState
         _conceptosDisponibles.sort();
       }
     } catch (e) {
-      print("Error cargando precios: $e");
+      _errorConceptos =
+          'No pudimos cargar los conceptos del club. Volvé a abrir la familia para reintentar.';
+      debugPrint("Error cargando precios: $e");
     }
   }
 
@@ -208,6 +212,29 @@ class _PantallaAdminFormularioFamiliaState
   Future<List<String>?> _mostrarSelectorMultiple(
     List<String> seleccionadasPrevias,
   ) async {
+    if (_errorConceptos != null || _conceptosDisponibles.isEmpty) {
+      await showDialog<void>(
+        context: context,
+        builder: (context) => AlertDialog(
+          title: Text(
+            _errorConceptos != null
+                ? 'No se pudieron cargar los conceptos'
+                : 'Todavía no hay conceptos',
+          ),
+          content: Text(
+            _errorConceptos ??
+                'Las opciones se cargan desde Padrón Socios → Precios. Agregá y guardá allí los conceptos que quieras asignar, como Cuota Social o Fútbol. Después volvé a abrir esta familia. Las actividades deportivas no se agregan automáticamente a esta lista.',
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context),
+              child: const Text('ENTENDIDO'),
+            ),
+          ],
+        ),
+      );
+      return null;
+    }
     List<String> seleccionTemporal = List.from(seleccionadasPrevias);
 
     return await showDialog<List<String>>(
@@ -322,6 +349,7 @@ class _PantallaAdminFormularioFamiliaState
                     InputImagen(
                       urlInicial: fotoHijoCtrl.text,
                       carpeta: 'socios_hijos',
+                      aislarPorClub: ServicioDatosClub.usaTuSedeCentral,
                       nombreArchivo: dniCtrl.text
                           .trim(), // <-- LE PASAMOS EL DNI
                       onCargando: (estaSubiendo) {
@@ -1098,6 +1126,7 @@ class _PantallaAdminFormularioFamiliaState
                           InputImagen(
                             urlInicial: _fotoTitularCtrl.text,
                             carpeta: 'socios',
+                            aislarPorClub: ServicioDatosClub.usaTuSedeCentral,
                             nombreArchivo: _dniTitularCtrl.text
                                 .trim(), // <-- LE PASAMOS EL DNI
                             onCargando: (estaSubiendo) {
