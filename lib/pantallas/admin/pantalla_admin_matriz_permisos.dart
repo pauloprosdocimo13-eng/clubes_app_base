@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
-import 'package:cloud_firestore/cloud_firestore.dart';
-import '../../../configuracion/configuracion_app.dart';
-import '../../../configuracion/admin_permisos.dart';
+import '../../tusede/servicios/servicio_datos_club.dart';
+import '../../configuracion/configuracion_app.dart';
+import '../../configuracion/admin_permisos.dart';
 
 class PantallaAdminMatrizPermisos extends StatefulWidget {
   final ConfiguracionApp config;
@@ -19,6 +19,7 @@ class _PantallaAdminMatrizPermisosState
     'administracion',
     'deportes',
     'institucional',
+    if (ServicioDatosClub.usaTuSedeCentral) 'ingreso',
   ];
 
   // Lista exacta de todos los botones que existen en tu menú
@@ -40,17 +41,19 @@ class _PantallaAdminMatrizPermisosState
     'Subir Fotos',
     'Publicidad',
     'Configurar Tiras',
-    'Pizarra Táctica',
+    'Configuración Club',
+    if (!ServicioDatosClub.usaTuSedeCentral) 'Pizarra Táctica',
     'Consola en VIVO',
-    'Configurar Streaming',
-    'Gestión Prode',
-    'Votación Figura',
+    if (!ServicioDatosClub.usaTuSedeCentral) 'Configurar Streaming',
+    if (!ServicioDatosClub.usaTuSedeCentral) 'Gestión Prode',
+    if (!ServicioDatosClub.usaTuSedeCentral) 'Votación Figura',
     'Tienda Oficial',
     'Gestionar Rifas',
   ];
 
   Map<String, List<String>> _accesosActuales = {};
   bool _cargando = true;
+  String? _errorCarga;
 
   @override
   void initState() {
@@ -59,43 +62,63 @@ class _PantallaAdminMatrizPermisosState
   }
 
   Future<void> _cargarMatriz() async {
+    setState(() {
+      _cargando = true;
+      _errorCarga = null;
+    });
     try {
-      final doc = await FirebaseFirestore.instance
-          .collection('configuracion')
-          .doc('permisos_roles')
-          .get();
+      if (ServicioDatosClub.usaTuSedeCentral &&
+          await AdminPermisos.obtenerRol() != AdminPermisos.admin) {
+        throw Exception(
+          'Solo el administrador del club puede editar la matriz.',
+        );
+      }
+      _accesosActuales = {for (final rol in _roles) rol: <String>[]};
+      final doc = await ServicioDatosClub.configuracionDoc(
+        'permisos_roles',
+      ).get();
       if (doc.exists && doc.data() != null) {
         Map<String, dynamic> data = doc.data()!;
         data.forEach((rol, modulos) {
-          _accesosActuales[rol] = List<String>.from(modulos);
+          if (_roles.contains(rol) && modulos is List) {
+            _accesosActuales[rol] = modulos
+                .whereType<String>()
+                .where(_todosLosModulos.contains)
+                .toList();
+          }
         });
       } else {
         // Si nunca se configuró, iniciamos los arrays vacíos o con lo básico
         for (var rol in _roles) {
-          _accesosActuales[rol] = [];
+          _accesosActuales[rol] =
+              (ServicioDatosClub.usaTuSedeCentral
+                      ? (AdminPermisos.predeterminadosCentral[rol] ?? [])
+                      : <String>[])
+                  .where(_todosLosModulos.contains)
+                  .toList();
         }
       }
     } catch (e) {
-      print("Error: $e");
+      _errorCarga = 'No se pudo cargar la matriz: $e';
     } finally {
       if (mounted) setState(() => _cargando = false);
     }
   }
 
   Future<void> _guardarMatriz() async {
+    if (_cargando || _errorCarga != null) return;
     setState(() => _cargando = true);
     try {
-      await FirebaseFirestore.instance
-          .collection('configuracion')
-          .doc('permisos_roles')
-          .set(_accesosActuales);
+      await ServicioDatosClub.configuracionDoc(
+        'permisos_roles',
+      ).set(_accesosActuales);
       await AdminPermisos.inicializarMatriz(); // Recargamos en memoria inmediatamente
 
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
             content: Text(
-              "Permisos guardados correctamente. Los usuarios verán los cambios al reiniciar su app.",
+              "Permisos guardados correctamente. Los permisos se aplican en el servidor; volvé a entrar al panel para actualizar los botones.",
             ),
             backgroundColor: Colors.green,
           ),
@@ -121,7 +144,7 @@ class _PantallaAdminMatrizPermisosState
       ),
       backgroundColor: Colors.grey[100],
       floatingActionButton: FloatingActionButton.extended(
-        onPressed: _cargando ? null : _guardarMatriz,
+        onPressed: _cargando || _errorCarga != null ? null : _guardarMatriz,
         backgroundColor: Colors.green,
         foregroundColor: Colors.white,
         icon: const Icon(Icons.save),
@@ -129,6 +152,19 @@ class _PantallaAdminMatrizPermisosState
       ),
       body: _cargando
           ? const Center(child: CircularProgressIndicator())
+          : _errorCarga != null
+          ? Center(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(_errorCarga!),
+                  TextButton(
+                    onPressed: _cargarMatriz,
+                    child: const Text('Reintentar'),
+                  ),
+                ],
+              ),
+            )
           : ListView.builder(
               padding: const EdgeInsets.only(bottom: 80, top: 10),
               itemCount: _roles.length,

@@ -4,6 +4,7 @@ const {getAuth} = require("firebase-admin/auth");
 const {getFirestore, FieldValue} = require("firebase-admin/firestore");
 const {getStorage} = require("firebase-admin/storage");
 const {crearServicioEliminacion, ErrorEliminacion} = require("./eliminacion_club");
+const {gestionarEquipo, ErrorEquipo} = require("./equipo_club");
 const {randomUUID} = require("node:crypto");
 const {ErrorAdministradores, asignarAdministrador, listarAdministradores} = require("./administradores_club");
 const {validarAlta, validarEdicion, validarActivacion, esClubCentralActivo} = require("./plataforma_validacion");
@@ -32,6 +33,16 @@ exports.administrarPlataforma = onRequest({region: "southamerica-east1", cors: t
   } catch (_) { return res.status(401).json({ok: false, mensaje: "Iniciá sesión nuevamente."}); }
   const db = getFirestore();
   try {
+    if (['listarEquipo','crearEquipo','editarEquipo'].includes(body.accion)) {
+      try {
+        const resultado = await gestionarEquipo({db, auth: getAuth(), actorUid: usuario.uid, datos: body, timestamp: () => FieldValue.serverTimestamp()});
+        return res.json({ok: true, ...resultado});
+      } catch (e) {
+        if (e instanceof ErrorEquipo) return res.status(e.status).json({ok:false,mensaje:e.message});
+        console.error('equipo_club', e.code || e.name);
+        return res.status(500).json({ok:false,mensaje:'No se pudo completar la operación. Reintentá con el mismo correo si estabas creando una cuenta.'});
+      }
+    }
     const perfil = await db.doc(`usuarios/${usuario.uid}`).get();
     if (!perfil.exists || perfil.data().activo !== true || perfil.data().rol !== "superadmin") return res.status(403).json({ok: false, mensaje: "Se requiere un superadmin activo de TuSede."});
 

@@ -263,9 +263,7 @@ class ServicioDatosClub {
     if (data['activo'] != true) return false;
 
     final rol = (data['rol'] ?? '').toString();
-    const rolesAutorizados = <String>{'superadmin', 'admin', 'tesoreria'};
 
-    if (!rolesAutorizados.contains(rol)) return false;
     if (rol == 'superadmin') return true;
 
     final clubIdsRaw = data['clubIds'];
@@ -273,6 +271,10 @@ class ServicioDatosClub {
         ? clubIdsRaw.map((e) => e.toString()).toList()
         : <String>[];
 
-    return clubIds.contains(ContextoClub.clubId);
+    if (!clubIds.contains(ContextoClub.clubId)) return false;
+    if (['admin', 'admin_club'].contains(rol)) return true;
+    final matriz = (await configuracionDoc('permisos_roles').get()).data();
+    final accesos = matriz?[rol];
+    return accesos is List && accesos.contains('Caja y Finanzas');
   }
 }

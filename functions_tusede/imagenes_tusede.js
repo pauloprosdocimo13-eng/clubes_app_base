@@ -101,7 +101,7 @@ function tokenBearer(req) {
   return header.substring(7).trim();
 }
 
-async function autorizarAdministrador(req, clubId) {
+async function autorizarAdministrador(req, clubId, carpeta) {
   const token = tokenBearer(req);
 
   if (!token) {
@@ -146,9 +146,7 @@ async function autorizarAdministrador(req, clubId) {
     };
   }
 
-  if (rol !== "admin") {
-    return null;
-  }
+
 
   const clubIds = Array.isArray(usuario.clubIds) ?
     usuario.clubIds.map((item) => limpiarId(item)) :
@@ -158,6 +156,16 @@ async function autorizarAdministrador(req, clubId) {
     return null;
   }
 
+  if (!['admin', 'admin_club'].includes(rol)) {
+    const permisosCarpeta = {
+      noticias:['Publicar Noticia'], galeria:['Subir Fotos'], socios:['Padrón Socios'], socios_hijos:['Padrón Socios'],
+      jugadores:['Gestionar Plantel'], espacios:['Configurar Espacios'], productos:['Tienda Oficial'],
+      actividades:['Configuración Club'], logos:['Rivales y Ubicaciones'], publicidad:['Publicidad','Configurar Pop-up'],
+    };
+    const matriz = (await db.doc(`clubes/${clubId}/configuracion/permisos_roles`).get()).data() || {};
+    if (!['tesoreria','administracion','deportes','institucional','ingreso'].includes(rol) ||
+        !(permisosCarpeta[carpeta] || []).some(p => Array.isArray(matriz[rol]) && matriz[rol].includes(p))) return null;
+  }
   return {
     uid,
     rol,
@@ -255,7 +263,7 @@ exports.subirImagenTuSede = functions
         }
 
         const autorizado =
-          await autorizarAdministrador(req, clubId);
+          await autorizarAdministrador(req, clubId, carpeta);
 
         if (!autorizado) {
           responder(res, 403, {

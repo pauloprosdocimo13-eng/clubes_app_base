@@ -1,0 +1,10 @@
+{
+  "dependencies": {
+    "@firebase/rules-unit-testing": "^6.0.0",
+    "firebase": "^13.1.0"
+  },
+  "private": true,
+  "scripts": {
+    "test": "node equipo_rules_test.cjs"
+  }
+}

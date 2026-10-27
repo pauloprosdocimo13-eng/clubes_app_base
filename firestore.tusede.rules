@@ -46,6 +46,44 @@ service cloud.firestore {
         );
     }
 
+    function administraClub(clubId) {
+      return puedeAccederClub(clubId) && usuarioTuSede().rol in ['superadmin','admin','admin_club'];
+    }
+    function permiso(clubId, opciones) {
+      let ruta = /databases/$(database)/documents/clubes/$(clubId)/configuracion/permisos_roles;
+      return usuarioTuSede().rol in ['tesoreria','administracion','deportes','institucional','ingreso']
+        && exists(ruta) && get(ruta).data.get(usuarioTuSede().rol, []).hasAny(opciones);
+    }
+    function accesoColeccion(clubId, col, lectura) {
+      return (col in ['socios','auditoria_socios'] && (permiso(clubId,['Padrón Socios','Caja y Finanzas']) || (lectura && permiso(clubId,['Escanear Ingreso','Tomar Asistencia']))))
+        || (col in ['movimientos','movimientos_eliminados','pagos','vencimientos'] && permiso(clubId,['Caja y Finanzas']))
+        || (col == 'asistencias' && permiso(clubId,['Tomar Asistencia','Escanear Ingreso']))
+        || (col == 'jugadores' && permiso(clubId,['Gestionar Plantel']))
+        || (col in ['partidos','historial_partidos'] && permiso(clubId,['Gestionar Partidos','Consola en VIVO']))
+        || (col == 'partidos_en_vivo' && permiso(clubId,['Consola en VIVO']))
+        || (col == 'rivales' && permiso(clubId,['Rivales y Ubicaciones']))
+        || (col == 'avisos' && permiso(clubId,['Avisos Urgentes']))
+        || (col == 'noticias' && permiso(clubId,['Publicar Noticia']))
+        || (col == 'galeria' && permiso(clubId,['Subir Fotos']))
+        || (col == 'publicidad' && permiso(clubId,['Publicidad']))
+        || (col == 'espacios' && (permiso(clubId,['Configurar Espacios']) || (lectura && permiso(clubId,['Agenda / Reservas']))))
+        || (col == 'reservas' && permiso(clubId,['Agenda / Reservas']))
+        || (col == 'productos' && permiso(clubId,['Tienda Oficial']))
+        || (col == 'sorteos' && permiso(clubId,['Gestionar Rifas']))
+        || (col == 'actividades' && permiso(clubId,['Configuración Club']));
+    }
+    function accesoConfiguracion(clubId, doc, lectura) {
+      return (lectura && doc in ['permisos_roles','general','actividades','contacto'])
+        || (doc == 'general' && permiso(clubId,['Configurar Tiras','Configuración Club']))
+        || (doc in ['actividades','contacto'] && permiso(clubId,['Configuración Club']))
+        || (doc == 'precios' && (permiso(clubId,['Config. Precios']) || (lectura && permiso(clubId,['Padrón Socios','Caja y Finanzas','Tomar Asistencia']))))
+        || (doc == 'pagos' && permiso(clubId,['Configurar Pagos']))
+        || (doc == 'categorias_finanzas' && permiso(clubId,['Caja y Finanzas']))
+        || (doc == 'seguridad' && lectura && permiso(clubId,['Escanear Ingreso']))
+        || (doc == 'reservas' && permiso(clubId,['Agenda / Reservas','Configurar Espacios']))
+        || (doc == 'aviso_entrada' && permiso(clubId,['Configurar Pop-up']));
+    }
+
     function existeMigracionPropia(clubId) {
       return estaAutenticado()
         && request.auth.token.email != null
@@ -141,9 +179,15 @@ service cloud.firestore {
       allow list: if esSuperAdmin();
       allow create, update, delete: if false;
 
-      match /{document=**} {
-        allow read, write: if puedeAccederClub(clubId)
-          && !exists(/databases/$(database)/documents/eliminaciones_club/$(clubId));
+      match /{coleccion}/{documento}/{resto=**} {
+        allow read: if puedeAccederClub(clubId)
+          && !exists(/databases/$(database)/documents/eliminaciones_club/$(clubId))
+          && (administraClub(clubId) ||
+            (coleccion == 'configuracion' ? accesoConfiguracion(clubId, documento, true) : accesoColeccion(clubId, coleccion, true)));
+        allow write: if puedeAccederClub(clubId)
+          && !exists(/databases/$(database)/documents/eliminaciones_club/$(clubId))
+          && (administraClub(clubId) ||
+            (coleccion == 'configuracion' ? accesoConfiguracion(clubId, documento, false) : accesoColeccion(clubId, coleccion, false)));
       }
     }
 

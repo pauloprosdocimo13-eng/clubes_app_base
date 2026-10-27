@@ -2,7 +2,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/foundation.dart';
 
-import '../tusede/servicios/contexto_usuario_tusede.dart';
+import '../tusede/servicios/contexto_club.dart';
 import '../tusede/servicios/servicio_datos_club.dart';
 import '../tusede/servicios/servicio_sesion_tusede.dart';
 
@@ -13,7 +13,7 @@ class AdminPermisos {
   static const String deportes = 'deportes';
   static const String institucional = 'institucional';
 
-  static final Map<String, List<String>> _accesos = {
+  static const Map<String, List<String>> predeterminados = {
     tesoreria: [
       'Caja y Finanzas',
       'Padrón Socios',
@@ -41,6 +41,7 @@ class AdminPermisos {
       'Configurar Streaming',
       'Publicar Noticia',
     ],
+    'ingreso': ['Escanear Ingreso', 'Tomar Asistencia'],
     institucional: [
       'Publicar Noticia',
       'Votación Figura',
@@ -49,11 +50,44 @@ class AdminPermisos {
     ],
   };
 
+  static const Map<String, List<String>> predeterminadosCentral = {
+    tesoreria: ['Caja y Finanzas', 'Padrón Socios', 'Config. Precios'],
+    administracion: [
+      'Padrón Socios',
+      'Agenda / Reservas',
+      'Configurar Espacios',
+    ],
+    deportes: [
+      'Tomar Asistencia',
+      'Gestionar Partidos',
+      'Gestionar Plantel',
+      'Rivales y Ubicaciones',
+      'Avisos Urgentes',
+      'Consola en VIVO',
+    ],
+    institucional: [
+      'Publicar Noticia',
+      'Configurar Pop-up',
+      'Subir Fotos',
+      'Publicidad',
+    ],
+    'ingreso': ['Escanear Ingreso', 'Tomar Asistencia'],
+  };
+
+  static Map<String, List<String>> _accesos = {
+    for (final entrada in predeterminados.entries)
+      entrada.key: List.of(entrada.value),
+  };
+
   // ============================================================
   // MATRIZ DE PERMISOS
   // ============================================================
 
   static Future<void> inicializarMatriz() async {
+    final club = ContextoClub.clubId;
+    _accesos = ServicioDatosClub.usaTuSedeCentral
+        ? {}
+        : {for (final e in predeterminados.entries) e.key: List.of(e.value)};
     try {
       final doc = await ServicioDatosClub.configuracionDoc(
         'permisos_roles',
@@ -63,6 +97,7 @@ class AdminPermisos {
         return;
       }
 
+      if (ContextoClub.clubId != club) return;
       final data = doc.data()!;
 
       data.forEach((rol, modulos) {
@@ -92,9 +127,7 @@ class AdminPermisos {
 
   static Future<String> _obtenerRolCentral() async {
     try {
-      var usuario = ContextoUsuarioTuSede.usuarioActualNullable;
-
-      usuario ??= await ServicioSesionTuSede.restaurarSesion();
+      final usuario = await ServicioSesionTuSede.restaurarSesion();
 
       if (usuario == null) {
         return '';
