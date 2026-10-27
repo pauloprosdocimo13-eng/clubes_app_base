@@ -182,10 +182,12 @@ service cloud.firestore {
       match /{coleccion}/{documento}/{resto=**} {
         allow read: if puedeAccederClub(clubId)
           && !exists(/databases/$(database)/documents/eliminaciones_club/$(clubId))
+          && !exists(/databases/$(database)/documents/restauraciones_club/$(clubId))
           && (administraClub(clubId) ||
             (coleccion == 'configuracion' ? accesoConfiguracion(clubId, documento, true) : accesoColeccion(clubId, coleccion, true)));
         allow write: if puedeAccederClub(clubId)
           && !exists(/databases/$(database)/documents/eliminaciones_club/$(clubId))
+          && !exists(/databases/$(database)/documents/restauraciones_club/$(clubId))
           && (administraClub(clubId) ||
             (coleccion == 'configuracion' ? accesoConfiguracion(clubId, documento, false) : accesoColeccion(clubId, coleccion, false)));
       }

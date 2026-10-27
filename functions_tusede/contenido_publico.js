@@ -1455,6 +1455,34 @@ exports.contenidoPublico = functions
               return;
             }
 
+            // Rivales públicos: lista cerrada, limitada al club y deporte solicitados.
+            if (accion === "rivales") {
+              const deporteId = texto(body?.deporteId);
+              if (!deporteId || deporteId.length > 80) {
+                responder(res, 400, {ok:false, mensaje:"El deporte solicitado no es válido."});
+                return;
+              }
+              const clubRef = await obtenerClubHabilitado(clubId, "deportes");
+              if (!clubRef) {
+                responder(res, 404, {ok:false, mensaje:"Rivales no está disponible para este club."});
+                return;
+              }
+              const snap = await clubRef.collection("rivales")
+                  .where("deporte_id", "==", deporteId).limit(300).get();
+              const urlPublica = valor => {
+                const url = texto(valor);
+                return /^https?:\/\//i.test(url) ? url : "";
+              };
+              const rivales = snap.docs.map(doc => {
+                const d = doc.data();
+                return {id:doc.id, nombre:texto(d.nombre), direccion:texto(d.direccion),
+                  es_techado:d.es_techado === true, escudo_url:urlPublica(d.escudo_url),
+                  mapa_url:urlPublica(d.mapa_url)};
+              }).sort((a,b) => a.nombre.localeCompare(b.nombre,"es"));
+              responder(res, 200, {ok:true,clubId,deporteId,rivales});
+              return;
+            }
+
             // ================================================
             // PLANTELES PÚBLICOS
             // ================================================

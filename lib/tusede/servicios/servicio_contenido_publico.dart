@@ -244,6 +244,17 @@ class ServicioContenidoPublico {
   // PLANTELES PÚBLICOS
   // ============================================================
 
+  static Future<List<Map<String, dynamic>>> cargarRivales(
+    String deporteId,
+  ) async {
+    final respuesta = await _post({
+      'accion': 'rivales',
+      'clubId': ContextoClub.clubId,
+      'deporteId': deporteId,
+    });
+    return _listaDesdeRespuesta(respuesta, 'rivales');
+  }
+
   static Future<List<Map<String, dynamic>>> cargarJugadores(
     String deporteId,
   ) async {

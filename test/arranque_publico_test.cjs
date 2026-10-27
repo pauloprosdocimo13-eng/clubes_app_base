@@ -5,6 +5,7 @@ const vm = require('node:vm');
 const {test} = require('node:test');
 
 const reads = [];
+const filters = [];
 let active = true;
 let ads = false;
 const documents = {
@@ -17,10 +18,11 @@ function ref(location) {
   return {
     collection(name) { return ref(`${location}/${name}`); },
     doc(name) { return ref(`${location}/${name}`); },
-    where() { return this; }, orderBy() { return this; }, limit() { return this; },
+    where(...args) { filters.push(args); return this; }, orderBy() { return this; }, limit() { return this; },
     async get() {
       reads.push(location);
       if (location === 'clubes/generico') return {exists: true, data: () => ({activo: active})};
+      if (location.endsWith('/rivales')) return {docs:[{id:'uno',data:()=>({nombre:'Rival',direccion:'Calle 1',deporte_id:'baby',es_techado:true,escudo_url:'https://example.com/logo.png',mapa_url:'javascript:alert(1)',email:'privado',secreto:'privado'})}]};
       if (location.endsWith('/general')) return {data: () => ({modulos_activos: {publicidad: ads}})};
       if (location.endsWith('/publicidad')) return {docs: [{data: () => ({nombre: 'Sponsor', imagen_url: 'img', link: 'link', secreto: 'privado'})}]};
       return {data: () => documents[location.split('/').at(-1)]};
@@ -46,11 +48,11 @@ const context = vm.createContext({
   },
 });
 vm.runInContext(fs.readFileSync(path.join(__dirname, '../functions_tusede/contenido_publico.js'), 'utf8'), context);
-async function request(documento, clubId = 'generico') {
-  reads.length = 0;
+async function request(documento, clubId = 'generico', accion = 'arranque', deporteId = 'baby') {
+  reads.length = 0; filters.length = 0;
   let status; let body;
   const res = {set() {}, status(code) { status = code; return this; }, json(data) { body = JSON.parse(JSON.stringify(data)); }};
-  await context.exports.contenidoPublico({method: 'POST', body: {accion: 'arranque', documento, clubId}}, res);
+  await context.exports.contenidoPublico({method: 'POST', body: {accion, documento, clubId, deporteId}}, res);
   return {status, body};
 }
 test('documentos públicos omiten campos privados y consultan solo el club Central', async () => {
@@ -79,4 +81,21 @@ test('publicidad respeta módulo y omite campos privados', async () => {
   assert.ok(!reads.includes('clubes/generico/publicidad'));
   ads = true;
   assert.deepEqual((await request('publicidad')).body.datos.items, [{nombre: 'Sponsor', imagen_url: 'img', link: 'link'}]);
+});
+
+
+test('rivales públicos filtran club/deporte y solo exponen campos de presentación', async () => {
+  const {status,body} = await request(null,'generico','rivales');
+  assert.equal(status,200);
+  assert.deepEqual(reads,['clubes/generico','clubes/generico/rivales']);
+  assert.deepEqual(filters,[['deporte_id','==','baby']]);
+  assert.equal(body.rivales[0].nombre,'Rival');
+  assert.equal(body.rivales[0].mapa_url,'');
+  assert.ok(!JSON.stringify(body).includes('privado'));
+});
+test('rivales rechazan deporte inválido y clubes inactivos/Legacy', async () => {
+  assert.equal((await request(null,'generico','rivales','')).status,400);
+  assert.equal(reads.length,0);
+  active=false; assert.equal((await request(null,'generico','rivales')).status,404); active=true;
+  assert.equal((await request(null,'guemes','rivales')).status,404);
 });

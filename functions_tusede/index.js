@@ -625,3 +625,4 @@ Object.assign(module.exports, require("./contenido_publico"));
 Object.assign(module.exports, require("./imagenes_tusede"));
 
 Object.assign(module.exports, require("./plataforma_tusede"));
+Object.assign(module.exports, require("./respaldos_http"));

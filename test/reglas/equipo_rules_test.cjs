@@ -2,7 +2,7 @@ const {before,after,test} = require('node:test');
 const fs = require('node:fs');
 const path = require('node:path');
 const {initializeTestEnvironment,assertSucceeds,assertFails} = require('@firebase/rules-unit-testing');
-const {doc,setDoc,getDoc,collection,getDocs,updateDoc,setLogLevel} = require('firebase/firestore');
+const {doc,setDoc,getDoc,deleteDoc,collection,getDocs,updateDoc,setLogLevel} = require('firebase/firestore');
 setLogLevel('silent');
 if (!/^127\.0\.0\.1:8185$/.test(process.env.FIRESTORE_EMULATOR_HOST || '')) throw new Error('Solo ejecutar contra el emulador local 127.0.0.1:8185.');
 let env;
@@ -69,6 +69,21 @@ test('cambio de rol y suspensión se aplican con sesión existente',async()=>{
  await assertFails(getDocs(collection(d,'clubes/demo/jugadores')));
  await assertSucceeds(getDocs(collection(d,'clubes/demo/noticias')));
 });
+test('respaldos privados y recuperación bloqueada hasta finalizar',async()=>{
+ await env.withSecurityRulesDisabled(async ctx=>{
+  await setDoc(doc(ctx.firestore(),'respaldos_club/prueba'),{estado:'imagenes'});
+  await setDoc(doc(ctx.firestore(),'restauraciones_club/demo'),{operacion:'prueba'});
+ });
+ for(const uid of ['admin','super','entrada']) {
+  await assertFails(getDoc(doc(db(uid),'respaldos_club/prueba')));
+  await assertFails(setDoc(doc(db(uid),'restauraciones_club/demo'),{operacion:'otra'}));
+  await assertFails(setDoc(doc(db(uid),'clubes/demo/socios/nuevo'),{nombre:'No'}));
+  await assertFails(getDocs(collection(db(uid),'clubes/demo/socios')));
+ }
+ await env.withSecurityRulesDisabled(ctx=>deleteDoc(doc(ctx.firestore(),'restauraciones_club/demo')));
+ await assertSucceeds(getDocs(collection(db('super'),'clubes/demo/socios')));
+});
+
 test('eliminación bloquea incluso al administrador',async()=>{
  await env.withSecurityRulesDisabled(ctx=>setDoc(doc(ctx.firestore(),'eliminaciones_club/demo'),{estado:'usuarios'}));
  await assertFails(setDoc(doc(db('admin'),'clubes/demo/socios/nuevo'),{nombre:'No'}));

@@ -9,6 +9,7 @@ class TarjetaGestionTuSede extends StatelessWidget {
       onAdministradores,
       onLogo,
       onActivar,
+      onRespaldo,
       onEliminar;
   const TarjetaGestionTuSede({
     super.key,
@@ -19,6 +20,7 @@ class TarjetaGestionTuSede extends StatelessWidget {
     this.onAdministradores,
     this.onLogo,
     this.onActivar,
+    this.onRespaldo,
     this.onEliminar,
   });
 
@@ -79,12 +81,17 @@ class TarjetaGestionTuSede extends StatelessWidget {
                       ],
                     ),
                   ),
-                  if (onLogo != null || onActivar != null || onEliminar != null)
+                  if (onLogo != null ||
+                      onActivar != null ||
+                      onEliminar != null ||
+                      onRespaldo != null)
                     PopupMenuButton<String>(
                       tooltip: 'Más opciones del club',
                       enabled: !ocupado,
                       onSelected: (accion) {
                         switch (accion) {
+                          case 'respaldo':
+                            onRespaldo?.call();
                           case 'logo':
                             onLogo?.call();
                           case 'activar':
@@ -94,6 +101,11 @@ class TarjetaGestionTuSede extends StatelessWidget {
                         }
                       },
                       itemBuilder: (_) => [
+                        if (onRespaldo != null)
+                          const PopupMenuItem(
+                            value: 'respaldo',
+                            child: Text('Respaldar club'),
+                          ),
                         if (onLogo != null)
                           const PopupMenuItem(
                             value: 'logo',

@@ -1,3 +1,4 @@
+import 'pantalla_respaldos_club.dart';
 import '../diseno/identidad_tusede.dart';
 import '../diseno/tarjeta_gestion_tusede.dart';
 import 'dart:convert';
@@ -144,6 +145,15 @@ class _PlataformaState extends State<PantallaPlataformaTuSede> {
     }
   }
 
+  Future<void> _respaldos([String? clubId]) async {
+    await Navigator.of(context).push(
+      MaterialPageRoute<void>(
+        builder: (_) => PantallaRespaldosClub(clubes: _clubes, clubId: clubId),
+      ),
+    );
+    if (mounted) await _cargar();
+  }
+
   Future<void> _eliminarClub(Map<String, dynamic> club) async {
     await Navigator.of(context).push(
       MaterialPageRoute<void>(
@@ -236,6 +246,9 @@ class _PlataformaState extends State<PantallaPlataformaTuSede> {
               ),
             )
           : null,
+      onRespaldo: central && (borrador || activo)
+          ? () => _respaldos(club['id'].toString())
+          : null,
       onLogo: borrador ? () => _logo(club) : null,
       onActivar: borrador ? () => _activarClub(club) : null,
       onEliminar:
@@ -259,6 +272,12 @@ class _PlataformaState extends State<PantallaPlataformaTuSede> {
       appBar: AppBar(
         title: const MarcaTuSede(),
         actions: [
+          if (_autorizado)
+            IconButton(
+              tooltip: 'Respaldos',
+              onPressed: _ocupado ? null : () => _respaldos(),
+              icon: const Icon(Icons.backup_outlined),
+            ),
           if (conectado)
             IconButton(
               onPressed: _ocupado ? null : _salir,
