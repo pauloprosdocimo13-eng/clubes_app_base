@@ -19,6 +19,7 @@ void main() {
         'estado': 'borrador',
       };
       var abierto = false;
+      var accesos = 0;
       await tester.pumpWidget(
         MaterialApp(
           theme: temaTuSede(),
@@ -32,11 +33,19 @@ void main() {
             body: VistaCatalogoTuSede(
               clubes: [club],
               onAbrir: (_) => abierto = true,
+              onAgregarAcceso: (_) => accesos++,
             ),
           ),
         ),
       );
       await tester.pumpAndSettle();
+      expect(tester.takeException(), isNull);
+      await tester.scrollUntilVisible(find.text('Agregar al inicio'), 250);
+      await tester.ensureVisible(find.text('Agregar al inicio'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Agregar al inicio'));
+      expect(accesos, 1);
+      expect(abierto, isFalse);
       expect(tester.takeException(), isNull);
       await tester.scrollUntilVisible(find.text('Conocé el club'), 250);
       await tester.pumpAndSettle();

@@ -1,4 +1,7 @@
+import 'pantalla_acceso_club.dart';
+import '../servicios/servicio_accesos_club.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import '../diseno/identidad_tusede.dart';
 import '../../configuracion/configuracion_app.dart';
 import '../../pantallas/pantalla_seleccion_actividad.dart';
@@ -11,17 +14,60 @@ import '../servicios/servicio_plataforma_tusede.dart';
 import 'pantalla_plataforma_tusede.dart';
 
 class PantallaCatalogoTuSede extends StatefulWidget {
-  const PantallaCatalogoTuSede({super.key});
+  final String? clubInicial;
+  const PantallaCatalogoTuSede({super.key, this.clubInicial});
   @override
   State<PantallaCatalogoTuSede> createState() => _CatalogoState();
 }
 
 class _CatalogoState extends State<PantallaCatalogoTuSede> {
   late Future<Map<String, dynamic>> _clubes;
+  bool _accesoDisponible = false;
+  String? _agregandoClub;
+  Future<void> _agregarAcceso(Map club) async {
+    if (_agregandoClub != null) return;
+    setState(() => _agregandoClub = club['id'].toString());
+    try {
+      final mensaje = await ServicioAccesosClub.agregar(
+        Map<String, dynamic>.from(club),
+      );
+      if (mounted) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text(mensaje)));
+      }
+    } catch (_) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text(
+              'No se pudo solicitar el acceso directo. Volvé a intentarlo.',
+            ),
+          ),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _agregandoClub = null);
+    }
+  }
+
   @override
   void initState() {
     super.initState();
     _clubes = _cargar();
+    ServicioAccesosClub.disponible().then((value) {
+      if (mounted) setState(() => _accesoDisponible = value);
+    });
+    if (widget.clubInicial != null) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted) return;
+        Navigator.of(context).push(
+          MaterialPageRoute<void>(
+            builder: (_) => PantallaAccesoClub(clubId: widget.clubInicial!),
+          ),
+        );
+      });
+    }
   }
 
   Future<Map<String, dynamic>> _cargar() =>
@@ -68,6 +114,8 @@ class _CatalogoState extends State<PantallaCatalogoTuSede> {
         final clubes = (snap.data!['clubes'] as List).cast<Map>();
         return VistaCatalogoTuSede(
           clubes: clubes,
+          onAgregarAcceso: _accesoDisponible ? _agregarAcceso : null,
+          agregandoClub: _agregandoClub,
           onAbrir: (club) => Navigator.of(context).push(
             MaterialPageRoute<void>(
               builder: (_) =>
@@ -83,10 +131,14 @@ class _CatalogoState extends State<PantallaCatalogoTuSede> {
 class VistaCatalogoTuSede extends StatelessWidget {
   final List<Map> clubes;
   final ValueChanged<Map> onAbrir;
+  final ValueChanged<Map>? onAgregarAcceso;
+  final String? agregandoClub;
   const VistaCatalogoTuSede({
     super.key,
     required this.clubes,
     required this.onAbrir,
+    this.onAgregarAcceso,
+    this.agregandoClub,
   });
 
   @override
@@ -152,6 +204,11 @@ class VistaCatalogoTuSede extends StatelessWidget {
                       child: TarjetaCatalogoTuSede(
                         club: club,
                         onTap: () => onAbrir(club),
+                        onAgregarAcceso: onAgregarAcceso == null
+                            ? null
+                            : () => onAgregarAcceso!(club),
+                        accesoOcupado: agregandoClub != null,
+                        agregandoAcceso: agregandoClub == club['id'],
                       ),
                     ),
                 ],
@@ -174,10 +231,15 @@ class VistaCatalogoTuSede extends StatelessWidget {
 class TarjetaCatalogoTuSede extends StatelessWidget {
   final Map club;
   final VoidCallback onTap;
+  final VoidCallback? onAgregarAcceso;
+  final bool accesoOcupado, agregandoAcceso;
   const TarjetaCatalogoTuSede({
     super.key,
     required this.club,
     required this.onTap,
+    this.onAgregarAcceso,
+    this.accesoOcupado = false,
+    this.agregandoAcceso = false,
   });
   @override
   Widget build(BuildContext context) {
@@ -236,6 +298,32 @@ class TarjetaCatalogoTuSede extends StatelessWidget {
                   ),
                 ],
               ),
+              if (onAgregarAcceso != null) ...[
+                const SizedBox(height: 16),
+                SizedBox(
+                  width: double.infinity,
+                  child: OutlinedButton.icon(
+                    onPressed: accesoOcupado ? null : onAgregarAcceso,
+                    icon: const Icon(
+                      Icons.add_to_home_screen_rounded,
+                      size: 18,
+                    ),
+                    label: Text(
+                      agregandoAcceso
+                          ? 'Preparando acceso…'
+                          : 'Agregar al inicio',
+                    ),
+                    style: OutlinedButton.styleFrom(
+                      foregroundColor: mentaTuSede,
+                      minimumSize: const Size(0, 48),
+                      side: const BorderSide(color: Color(0xFF40635D)),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                    ),
+                  ),
+                ),
+              ],
             ],
           ),
         ),
@@ -255,9 +343,37 @@ class _EspacioState extends State<PantallaEspacioClub> {
   late ConfiguracionApp _config;
   late Future<bool> _arranque;
   final _navigator = GlobalKey<NavigatorState>();
+  bool _accesoDisponible = false;
+  bool _agregandoAcceso = false;
+  Future<void> _agregarAcceso() async {
+    if (_agregandoAcceso) return;
+    setState(() => _agregandoAcceso = true);
+    try {
+      final mensaje = await ServicioAccesosClub.agregar(widget.club);
+      if (mounted)
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text(mensaje)));
+    } catch (_) {
+      if (mounted)
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text(
+              'No se pudo solicitar el acceso directo. Volvé a intentarlo.',
+            ),
+          ),
+        );
+    } finally {
+      if (mounted) setState(() => _agregandoAcceso = false);
+    }
+  }
+
   @override
   void initState() {
     super.initState();
+    ServicioAccesosClub.disponible().then((value) {
+      if (mounted) setState(() => _accesoDisponible = value);
+    });
     final club = ClubTuSede.fromMap(widget.club['id'].toString(), {
       ...widget.club,
       'origenDatos': 'central',
@@ -296,50 +412,118 @@ class _EspacioState extends State<PantallaEspacioClub> {
     data: ThemeData(colorSchemeSeed: _config.colorPrimario, useMaterial3: true),
     child: Scaffold(
       appBar: AppBar(
-        title: const Text('TuSede'),
+        toolbarHeight: 48,
+        leadingWidth: 48,
+        titleSpacing: 0,
+        elevation: 0,
+        scrolledUnderElevation: 0,
+        backgroundColor: Color.alphaBlend(
+          const Color(0xB3000000),
+          _config.colorPrimario,
+        ),
+        foregroundColor: Colors.white,
+        surfaceTintColor: Colors.transparent,
+        systemOverlayStyle: SystemUiOverlayStyle.light,
+        title: Text(
+          _config.nombreApp,
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+          style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
+        ),
         actions: [
-          TextButton.icon(
-            icon: const Icon(Icons.swap_horiz),
-            label: const Text('Cambiar club'),
-            onPressed: () => Navigator.of(context).pop(),
-          ),
-        ],
-      ),
-      body: Navigator(
-        key: _navigator,
-        onGenerateRoute: (_) => MaterialPageRoute<void>(
-          builder: (_) => FutureBuilder<bool>(
-            future: _arranque,
-            builder: (context, snapshot) {
-              if (snapshot.connectionState != ConnectionState.done) {
-                return const Center(child: CircularProgressIndicator());
-              }
-              if (snapshot.hasError || !snapshot.hasData) {
-                return Center(
-                  child: Column(
-                    mainAxisSize: MainAxisSize.min,
+          PopupMenuButton<String>(
+            tooltip: 'Opciones del club',
+            color: Color.alphaBlend(
+              const Color(0xB3000000),
+              _config.colorPrimario,
+            ),
+            icon: const Icon(Icons.more_vert),
+            onSelected: (value) {
+              if (value == 'acceso') _agregarAcceso();
+              if (value == 'cambiar') Navigator.of(context).pop();
+            },
+            itemBuilder: (_) => [
+              if (_accesoDisponible)
+                PopupMenuItem<String>(
+                  value: 'acceso',
+                  enabled: !_agregandoAcceso,
+                  child: Row(
                     children: [
-                      const Text('No se pudo cargar el inicio del club.'),
-                      TextButton(
-                        onPressed: () => setState(() {
-                          _arranque =
-                              ServicioContenidoPublico.cargarConfiguracion()
-                                  .then(
-                                    (config) => config.activarMultiActividad,
-                                  );
-                        }),
-                        child: const Text('Reintentar'),
+                      const Icon(
+                        Icons.add_to_home_screen_rounded,
+                        color: Colors.white,
+                        size: 20,
+                      ),
+                      const SizedBox(width: 12),
+                      Text(
+                        _agregandoAcceso
+                            ? 'Preparando acceso…'
+                            : 'Agregar mi club al inicio',
+                        style: const TextStyle(color: Colors.white),
                       ),
                     ],
                   ),
-                );
-              }
-              return snapshot.data!
-                  ? PantallaSeleccionActividad(config: _config)
-                  : PantallaSeleccion(config: _config);
-            },
+                ),
+              const PopupMenuItem<String>(
+                value: 'cambiar',
+                child: Row(
+                  children: [
+                    Icon(
+                      Icons.swap_horiz_rounded,
+                      color: Colors.white,
+                      size: 20,
+                    ),
+                    SizedBox(width: 12),
+                    Text('Cambiar club', style: TextStyle(color: Colors.white)),
+                  ],
+                ),
+              ),
+            ],
           ),
-        ),
+        ],
+      ),
+      body: Column(
+        children: [
+          Expanded(
+            child: Navigator(
+              key: _navigator,
+              onGenerateRoute: (_) => MaterialPageRoute<void>(
+                builder: (_) => FutureBuilder<bool>(
+                  future: _arranque,
+                  builder: (context, snapshot) {
+                    if (snapshot.connectionState != ConnectionState.done) {
+                      return const Center(child: CircularProgressIndicator());
+                    }
+                    if (snapshot.hasError || !snapshot.hasData) {
+                      return Center(
+                        child: Column(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            const Text('No se pudo cargar el inicio del club.'),
+                            TextButton(
+                              onPressed: () => setState(() {
+                                _arranque =
+                                    ServicioContenidoPublico.cargarConfiguracion()
+                                        .then(
+                                          (config) =>
+                                              config.activarMultiActividad,
+                                        );
+                              }),
+                              child: const Text('Reintentar'),
+                            ),
+                          ],
+                        ),
+                      );
+                    }
+                    return snapshot.data!
+                        ? PantallaSeleccionActividad(config: _config)
+                        : PantallaSeleccion(config: _config);
+                  },
+                ),
+              ),
+            ),
+          ),
+        ],
       ),
     ),
   );
