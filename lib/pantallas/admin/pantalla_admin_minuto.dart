@@ -260,7 +260,9 @@ class _PantallaAdminMinutoState extends State<PantallaAdminMinuto> {
     if (data['inicio_tiempo'] != null &&
         (data['estado'] == '1T' || data['estado'] == '2T')) {
       Timestamp inicio = data['inicio_tiempo'];
-      Duration diferencia = ((data['minuto_pedido_en'] as Timestamp?)?.toDate() ?? DateTime.now()).difference(inicio.toDate());
+      Duration diferencia =
+          ((data['minuto_pedido_en'] as Timestamp?)?.toDate() ?? DateTime.now())
+              .difference(inicio.toDate());
       String minutos = diferencia.inMinutes.toString();
       String segundos = (diferencia.inSeconds % 60).toString().padLeft(2, '0');
       return "$minutos:$segundos";
@@ -372,9 +374,11 @@ class _PantallaAdminMinutoState extends State<PantallaAdminMinuto> {
         }
         if (reanudar) {
           final inicio = data['inicio_tiempo'] as Timestamp?;
-          if (inicio == null) throw StateError('No se encontró el inicio del tiempo.');
+          if (inicio == null)
+            throw StateError('No se encontró el inicio del tiempo.');
           final duracion = DateTime.now().difference(pausa!.toDate());
-          if (duracion.isNegative) throw StateError('Revisá la hora del dispositivo.');
+          if (duracion.isNegative)
+            throw StateError('Revisá la hora del dispositivo.');
           tx.update(ref, {
             'inicio_tiempo': Timestamp.fromDate(inicio.toDate().add(duracion)),
             'minuto_pedido_en': null,
@@ -399,7 +403,10 @@ class _PantallaAdminMinutoState extends State<PantallaAdminMinuto> {
         if (data!['estado'] != estadoEsperado) {
           throw StateError('El tiempo del partido cambió. Revisá la consola.');
         }
-        final cambios = <String, dynamic>{'estado': nuevoEstado, 'minuto_pedido_en': null};
+        final cambios = <String, dynamic>{
+          'estado': nuevoEstado,
+          'minuto_pedido_en': null,
+        };
         if (nuevoEstado == '2T') {
           cambios['inicio_tiempo'] = FieldValue.serverTimestamp();
         }
@@ -1081,70 +1088,112 @@ class _PantallaAdminMinutoState extends State<PantallaAdminMinuto> {
           child: Padding(
             padding: const EdgeInsets.all(20),
             child: Row(
-              mainAxisAlignment: MainAxisAlignment.spaceAround,
+              crossAxisAlignment: CrossAxisAlignment.center,
               children: [
-                Column(
-                  children: [
-                    Text(
-                      _nombreClubLocal,
-                      style: const TextStyle(color: Colors.white),
-                    ),
-                    Text(
-                      "$golesL",
-                      style: const TextStyle(
-                        color: Colors.white,
-                        fontSize: 40,
-                        fontWeight: FontWeight.bold,
-                      ),
-                    ),
-                  ],
-                ),
-                Column(
-                  children: [
-                    const Text("ESTADO", style: TextStyle(color: Colors.grey)),
-                    Text(
-                      data['minuto_pedido_en'] != null ? 'MINUTO\nPEDIDO' : estado,
-                      textAlign: TextAlign.center,
-                      style: TextStyle(
-                        color: Colors.yellow,
-                        fontSize: data['minuto_pedido_en'] != null ? 16 : 24,
-                        fontWeight: FontWeight.bold,
-                      ),
-                    ),
-                    if (estado == '1T' || estado == '2T')
-                      Container(
-                        margin: const EdgeInsets.only(top: 5),
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 10,
-                          vertical: 2,
-                        ),
-                        decoration: BoxDecoration(
-                          color: Colors.white12,
-                          borderRadius: BorderRadius.circular(5),
-                        ),
+                Expanded(
+                  flex: 3,
+                  child: Column(
+                    children: [
+                      Tooltip(
+                        message: _nombreClubLocal,
                         child: Text(
-                          _tiempoDisplay,
+                          _nombreClubLocal,
+                          textAlign: TextAlign.center,
+                          maxLines: 3,
+                          overflow: TextOverflow.ellipsis,
+                          style: const TextStyle(color: Colors.white),
+                        ),
+                      ),
+                      FittedBox(
+                        fit: BoxFit.scaleDown,
+                        child: Text(
+                          '$golesL',
                           style: const TextStyle(
                             color: Colors.white,
+                            fontSize: 40,
                             fontWeight: FontWeight.bold,
-                            fontSize: 16,
                           ),
                         ),
                       ),
-                  ],
+                    ],
+                  ),
                 ),
-                Column(
-                  children: [
-                    Text(rival, style: const TextStyle(color: Colors.white)),
-                    Text(
-                      "$golesV",
-                      style: const TextStyle(
-                        color: Colors.white,
-                        fontSize: 40,
-                        fontWeight: FontWeight.bold,
-                      ),
+                const SizedBox(width: 8),
+                Expanded(
+                  flex: 2,
+                  child: FittedBox(
+                    fit: BoxFit.scaleDown,
+                    child: Column(
+                      children: [
+                        const Text(
+                          'ESTADO',
+                          style: TextStyle(color: Colors.grey),
+                        ),
+                        Text(
+                          data['minuto_pedido_en'] != null
+                              ? 'MINUTO\nPEDIDO'
+                              : estado,
+                          textAlign: TextAlign.center,
+                          style: TextStyle(
+                            color: Colors.yellow,
+                            fontSize: data['minuto_pedido_en'] != null
+                                ? 16
+                                : 24,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                        if (estado == '1T' || estado == '2T')
+                          Container(
+                            margin: const EdgeInsets.only(top: 5),
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 10,
+                              vertical: 2,
+                            ),
+                            decoration: BoxDecoration(
+                              color: Colors.white12,
+                              borderRadius: BorderRadius.circular(5),
+                            ),
+                            child: Text(
+                              _tiempoDisplay,
+                              style: const TextStyle(
+                                color: Colors.white,
+                                fontWeight: FontWeight.bold,
+                                fontSize: 16,
+                              ),
+                            ),
+                          ),
+                      ],
                     ),
-                  ],
+                  ),
+                ),
+                const SizedBox(width: 8),
+                Expanded(
+                  flex: 3,
+                  child: Column(
+                    children: [
+                      Tooltip(
+                        message: rival,
+                        child: Text(
+                          rival,
+                          textAlign: TextAlign.center,
+                          maxLines: 3,
+                          overflow: TextOverflow.ellipsis,
+                          style: const TextStyle(color: Colors.white),
+                        ),
+                      ),
+                      FittedBox(
+                        fit: BoxFit.scaleDown,
+                        child: Text(
+                          '$golesV',
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontSize: 40,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
                 ),
               ],
             ),
@@ -1308,9 +1357,18 @@ class _PantallaAdminMinutoState extends State<PantallaAdminMinuto> {
           children: [
             if (estado == '1T' || estado == '2T')
               ElevatedButton.icon(
-                onPressed: () => _cambiarMinutoPedido(data['minuto_pedido_en'] != null),
-                icon: Icon(data['minuto_pedido_en'] != null ? Icons.play_arrow : Icons.pause),
-                label: Text(data['minuto_pedido_en'] != null ? 'Reanudar reloj' : 'Pedir minuto'),
+                onPressed: () =>
+                    _cambiarMinutoPedido(data['minuto_pedido_en'] != null),
+                icon: Icon(
+                  data['minuto_pedido_en'] != null
+                      ? Icons.play_arrow
+                      : Icons.pause,
+                ),
+                label: Text(
+                  data['minuto_pedido_en'] != null
+                      ? 'Reanudar reloj'
+                      : 'Pedir minuto',
+                ),
               ),
             if (estado == '1T')
               ElevatedButton(
