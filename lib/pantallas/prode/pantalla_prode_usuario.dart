@@ -1,3 +1,4 @@
+import '../../servicios/entretenimiento_publico_guemes.dart';
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -19,6 +20,7 @@ class _PantallaProdeUsuarioState extends State<PantallaProdeUsuario> {
   String? _fechaSeleccionadaId;
   bool _cargando = true;
   bool _enviando = false;
+  String? _errorCarga;
 
   final Map<String, Map<String, int>> _votosTemp = {};
   Map<String, dynamic>? _votosGuardados;
@@ -39,8 +41,11 @@ class _PantallaProdeUsuarioState extends State<PantallaProdeUsuario> {
           Random().nextInt(999).toString();
       await prefs.setString('prode_device_id', idGenerado);
     }
-    _deviceId = prefs.getString('prode_device_id');
+    _deviceId = EntretenimientoPublicoGuemes.aplica
+        ? await EntretenimientoPublicoGuemes.token()
+        : prefs.getString('prode_device_id');
 
+    if (!mounted) return;
     if (prefs.containsKey('prode_nombre_usuario')) {
       _nombreController.text = prefs.getString('prode_nombre_usuario')!;
     }
@@ -49,6 +54,11 @@ class _PantallaProdeUsuarioState extends State<PantallaProdeUsuario> {
   }
 
   Future<void> _buscarFechaActiva() async {
+    if (!mounted) return;
+    setState(() {
+      _cargando = true;
+      _errorCarga = null;
+    });
     try {
       // MODIFICACIÓN: Ya no filtramos solo por 'ABIERTA'.
       // Traemos la última siempre, para que puedan ver los puntos el finde.
@@ -58,6 +68,7 @@ class _PantallaProdeUsuarioState extends State<PantallaProdeUsuario> {
           .limit(1)
           .get();
 
+      if (!mounted) return;
       if (query.docs.isNotEmpty) {
         _fechaSeleccionadaId = query.docs.first.id;
         await _verificarVotoExistente();
@@ -65,14 +76,34 @@ class _PantallaProdeUsuarioState extends State<PantallaProdeUsuario> {
         setState(() => _cargando = false);
       }
     } catch (e) {
-      print("Error buscando fecha: $e");
-      setState(() => _cargando = false);
+      if (!mounted) return;
+      setState(() {
+        _cargando = false;
+        _errorCarga = 'No se pudo consultar tu pronóstico. Intentá nuevamente.';
+      });
     }
   }
 
   Future<void> _verificarVotoExistente() async {
     if (_fechaSeleccionadaId == null || _deviceId == null) return;
 
+    if (EntretenimientoPublicoGuemes.aplica) {
+      final respuesta = await EntretenimientoPublicoGuemes.solicitar({
+        'accion': 'mi_prode',
+        'fechaId': _fechaSeleccionadaId,
+        'token': _deviceId,
+      });
+      if (!mounted) return;
+      final voto = respuesta['voto'];
+      setState(() {
+        _votosGuardados = voto == null
+            ? null
+            : Map<String, dynamic>.from(voto['predicciones']);
+        _puntosUsuario = voto?['puntos'] ?? 0;
+        _cargando = false;
+      });
+      return;
+    }
     final votoQuery = await FirebaseFirestore.instance
         .collection('prode_votos')
         .where('fecha_id', isEqualTo: _fechaSeleccionadaId)
@@ -80,6 +111,7 @@ class _PantallaProdeUsuarioState extends State<PantallaProdeUsuario> {
         .limit(1)
         .get();
 
+    if (!mounted) return;
     if (votoQuery.docs.isNotEmpty) {
       final data = votoQuery.docs.first.data();
       setState(() {
@@ -96,6 +128,7 @@ class _PantallaProdeUsuarioState extends State<PantallaProdeUsuario> {
   }
 
   Future<void> _enviarPronostico(int cantidadPartidos) async {
+    if (_enviando) return;
     final nombre = _nombreController.text.trim();
 
     if (nombre.isEmpty) {
@@ -121,15 +154,24 @@ class _PantallaProdeUsuarioState extends State<PantallaProdeUsuario> {
       final prefs = await SharedPreferences.getInstance();
       await prefs.setString('prode_nombre_usuario', nombre);
 
-      await FirebaseFirestore.instance.collection('prode_votos').add({
-        'fecha_id': _fechaSeleccionadaId,
-        'user_id': _deviceId,
-        'nombre_usuario': nombre,
-        'predicciones': _votosTemp,
-        'fecha_voto': FieldValue.serverTimestamp(),
-        'puntos': 0,
-      });
-
+      if (EntretenimientoPublicoGuemes.aplica) {
+        await EntretenimientoPublicoGuemes.solicitar({
+          'accion': 'enviar_prode',
+          'fechaId': _fechaSeleccionadaId,
+          'token': _deviceId,
+          'nombre': nombre,
+          'predicciones': _votosTemp,
+        });
+      } else {
+        await FirebaseFirestore.instance.collection('prode_votos').add({
+          'fecha_id': _fechaSeleccionadaId,
+          'user_id': _deviceId,
+          'nombre_usuario': nombre,
+          'predicciones': _votosTemp,
+          'fecha_voto': FieldValue.serverTimestamp(),
+          'puntos': 0,
+        });
+      }
       await _verificarVotoExistente();
 
       if (mounted) {
@@ -141,12 +183,19 @@ class _PantallaProdeUsuarioState extends State<PantallaProdeUsuario> {
         );
       }
     } catch (e) {
+      if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text("Error al enviar. Revisa tu conexión.")),
+        SnackBar(content: Text(e.toString().replaceFirst("Exception: ", ""))),
       );
     } finally {
       if (mounted) setState(() => _enviando = false);
     }
+  }
+
+  @override
+  void dispose() {
+    _nombreController.dispose();
+    super.dispose();
   }
 
   @override
@@ -159,6 +208,19 @@ class _PantallaProdeUsuarioState extends State<PantallaProdeUsuario> {
       ),
       body: _cargando
           ? const Center(child: CircularProgressIndicator())
+          : _errorCarga != null
+          ? Center(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(_errorCarga!),
+                  TextButton(
+                    onPressed: _buscarFechaActiva,
+                    child: const Text('Reintentar'),
+                  ),
+                ],
+              ),
+            )
           : _fechaSeleccionadaId == null
           ? Center(
               child: Column(
@@ -191,7 +253,9 @@ class _PantallaProdeUsuarioState extends State<PantallaProdeUsuario> {
                 final titulo = dataFecha['titulo'] ?? 'Fecha Actual';
 
                 // --- LA MAGIA DEL BLOQUEO ESTÁ ACÁ ---
-                bool prodeCerrado = dataFecha['bloqueado'] ?? false;
+                bool prodeCerrado =
+                    dataFecha['bloqueado'] == true ||
+                    dataFecha['estado'] != 'ABIERTA';
                 // Entra en lectura si ya votó O si cerraste el prode desde el admin
                 bool modoLectura = _votosGuardados != null || prodeCerrado;
 

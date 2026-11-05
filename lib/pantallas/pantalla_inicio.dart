@@ -353,7 +353,6 @@ class _PantallaInicioState extends State<PantallaInicio> {
     required Color colorPrimario,
     required bool hayStreamEnVivo,
     required String urlStream,
-    required bool hayMinutoEnVivo,
   }) {
     final botones = <Widget>[];
 
@@ -408,21 +407,10 @@ class _PantallaInicioState extends State<PantallaInicio> {
     if (_moduloMinuto) {
       botones.add(
         BotonMenu(
-          titulo: hayMinutoEnVivo ? 'Goles VIVO' : 'Historial',
+          titulo: 'Historial',
           icono: Icons.timer,
-          colorPrimario: hayMinutoEnVivo ? Colors.amber[700]! : Colors.grey,
+          colorPrimario: Colors.grey,
           alPresionar: () {
-            if (hayMinutoEnVivo) {
-              _navegarA(
-                PantallaMinutoAMinuto(
-                  config: widget.config,
-                  deporteId: widget.deporteId,
-                ),
-              );
-
-              return;
-            }
-
             _navegarA(
               PantallaHistorialMinuto(
                 config: widget.config,
@@ -586,10 +574,9 @@ class _PantallaInicioState extends State<PantallaInicio> {
       colorPrimario: colorPrimario,
       hayStreamEnVivo: _streamCentralEnVivo,
       urlStream: _streamCentralUrl,
-      hayMinutoEnVivo: _minutoCentralEnVivo,
     );
 
-    return _grilla(botones);
+    return _grilla(botones, minutoActivo: _minutoCentralEnVivo);
   }
 
   // ============================================================
@@ -636,23 +623,64 @@ class _PantallaInicioState extends State<PantallaInicio> {
               colorPrimario: colorPrimario,
               hayStreamEnVivo: hayStreamEnVivo,
               urlStream: urlStream,
-              hayMinutoEnVivo: hayMinutoEnVivo,
             );
 
-            return _grilla(botones);
+            return _grilla(botones, minutoActivo: hayMinutoEnVivo);
           },
         );
       },
     );
   }
 
-  Widget _grilla(List<Widget> botones) {
-    return GridView.count(
+  Widget _grilla(List<Widget> botones, {required bool minutoActivo}) {
+    final grilla = GridView.count(
       crossAxisCount: 3,
       padding: const EdgeInsets.symmetric(horizontal: 20),
       mainAxisSpacing: 20,
       crossAxisSpacing: 20,
       children: botones,
+    );
+    if (!_moduloMinuto || !minutoActivo) return grilla;
+
+    return Column(
+      children: [
+        Padding(
+          padding: const EdgeInsets.fromLTRB(20, 0, 20, 12),
+          child: Material(
+            color: const Color(0xFFFFD54F),
+            borderRadius: BorderRadius.circular(16),
+            clipBehavior: Clip.antiAlias,
+            child: InkWell(
+              onTap: () => _navegarA(PantallaMinutoAMinuto(
+                config: widget.config,
+                deporteId: widget.deporteId,
+              )),
+              child: const Padding(
+                padding: EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                child: Row(
+                  children: [
+                    Icon(Icons.timer, color: Colors.black87),
+                    SizedBox(width: 12),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text('Seguí el minuto a minuto',
+                            style: TextStyle(color: Colors.black87, fontWeight: FontWeight.bold)),
+                          Text('Partido en juego · goles y novedades',
+                            style: TextStyle(color: Colors.black87, fontSize: 12)),
+                        ],
+                      ),
+                    ),
+                    Icon(Icons.chevron_right, color: Colors.black87),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        ),
+        Expanded(child: grilla),
+      ],
     );
   }
 

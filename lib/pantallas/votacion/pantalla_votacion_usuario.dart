@@ -1,3 +1,7 @@
+import 'dart:convert';
+import 'dart:math';
+import 'package:http/http.dart' as http;
+import '../../tusede/servicios/contexto_club.dart';
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -123,10 +127,25 @@ class _PantallaVotarDetalleState extends State<_PantallaVotarDetalle> {
 
     try {
       // 2. Guardar en Firebase
+      if (ContextoClub.clubId == 'guemes') {
+        final preferencias = await SharedPreferences.getInstance();
+        var dispositivo = preferencias.getString('voto_dispositivo_seguro');
+        dispositivo ??= List.generate(32, (_) => Random.secure().nextInt(16).toRadixString(16)).join();
+        await preferencias.setString('voto_dispositivo_seguro', dispositivo);
+        final respuesta = await http.post(
+          Uri.parse('https://southamerica-east1-club-guemes-2.cloudfunctions.net/votarFiguraGuemes'),
+          headers: {'Content-Type': 'application/json'},
+          body: jsonEncode({'votacionId': widget.votacionId, 'candidatoId': candidato['id_jugador'], 'dispositivo': dispositivo}),
+        ).timeout(const Duration(seconds: 15));
+        if (respuesta.statusCode != 200) {
+          throw Exception('No se pudo registrar el voto. Revisá si ya votaste o si la votación sigue abierta.');
+        }
+      } else {
       await FirebaseFirestore.instance.collection('votaciones').doc(widget.votacionId).update({
         'candidatos': listaCompleta,
         'total_votos': FieldValue.increment(1)
       });
+      }
 
       // 3. Guardar localmente
       final prefs = await SharedPreferences.getInstance();

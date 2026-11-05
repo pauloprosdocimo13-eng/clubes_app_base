@@ -1,3 +1,5 @@
+import 'package:firebase_auth/firebase_auth.dart';
+import '../tusede/servicios/contexto_club.dart';
 import 'dart:convert';
 import 'dart:io';
 
@@ -47,9 +49,7 @@ class _InputImagenState extends State<InputImagen> {
     bool esComputadora = false;
 
     if (!kIsWeb) {
-      if (Platform.isWindows ||
-          Platform.isMacOS ||
-          Platform.isLinux) {
+      if (Platform.isWindows || Platform.isMacOS || Platform.isLinux) {
         esComputadora = true;
       }
     }
@@ -65,10 +65,7 @@ class _InputImagenState extends State<InputImagen> {
         child: Wrap(
           children: [
             ListTile(
-              leading: const Icon(
-                Icons.camera_alt,
-                color: Colors.blue,
-              ),
+              leading: const Icon(Icons.camera_alt, color: Colors.blue),
               title: const Text('Tomar Foto (Cámara)'),
               onTap: () {
                 Navigator.pop(context);
@@ -76,10 +73,7 @@ class _InputImagenState extends State<InputImagen> {
               },
             ),
             ListTile(
-              leading: const Icon(
-                Icons.photo_library,
-                color: Colors.green,
-              ),
+              leading: const Icon(Icons.photo_library, color: Colors.green),
               title: const Text('Elegir de Galería'),
               onTap: () {
                 Navigator.pop(context);
@@ -160,28 +154,29 @@ class _InputImagenState extends State<InputImagen> {
 
       final nombreFinal =
           widget.nombreArchivo != null &&
-                  widget.nombreArchivo!.trim().isNotEmpty
-              ? '${widget.nombreArchivo!.trim()}.$extension'
-              : 'socio_$ahora.$extension';
+              widget.nombreArchivo!.trim().isNotEmpty
+          ? '${widget.nombreArchivo!.trim()}.$extension'
+          : 'socio_$ahora.$extension';
 
-      final uri = Uri.parse(
-        ConfiguracionApp.actual.urlSubidaFoto,
-      );
+      final uri = Uri.parse(ConfiguracionApp.actual.urlSubidaFoto);
 
-      final request = http.MultipartRequest(
-        'POST',
-        uri,
-      );
+      final request = http.MultipartRequest('POST', uri);
+
+      if (ContextoClub.clubId == 'guemes') {
+        final usuario = FirebaseAuth.instance.currentUser;
+        if (usuario == null)
+          throw Exception('Iniciá sesión para subir imágenes.');
+        final token = await usuario.getIdToken();
+        if (token == null) throw Exception('Volvé a iniciar sesión.');
+        request.headers['Authorization'] = 'Bearer $token';
+        request.fields['carpeta'] = widget.carpeta;
+      }
 
       if (kIsWeb) {
         final bytes = await imagen.readAsBytes();
 
         request.files.add(
-          http.MultipartFile.fromBytes(
-            'imagen',
-            bytes,
-            filename: nombreFinal,
-          ),
+          http.MultipartFile.fromBytes('imagen', bytes, filename: nombreFinal),
         );
       } else {
         request.files.add(
@@ -196,9 +191,7 @@ class _InputImagenState extends State<InputImagen> {
       final response = await request.send();
 
       if (response.statusCode != 200) {
-        throw Exception(
-          'Error de conexión: ${response.statusCode}',
-        );
+        throw Exception('Error de conexión: ${response.statusCode}');
       }
 
       final respStr = await response.stream.bytesToString();
@@ -206,16 +199,13 @@ class _InputImagenState extends State<InputImagen> {
 
       if (jsonResp['status'] != 'ok') {
         throw Exception(
-          jsonResp['message'] ??
-              'Error desconocido del servidor',
+          jsonResp['message'] ?? 'Error desconocido del servidor',
         );
       }
 
-      final timestamp =
-          DateTime.now().millisecondsSinceEpoch.toString();
+      final timestamp = DateTime.now().millisecondsSinceEpoch.toString();
 
-      final urlFinal =
-          "${jsonResp['url']}?v=$timestamp";
+      final urlFinal = "${jsonResp['url']}?v=$timestamp";
 
       widget.alSubirImagen(urlFinal);
 
@@ -251,14 +241,12 @@ class _InputImagenState extends State<InputImagen> {
   @override
   Widget build(BuildContext context) {
     final bool tieneImagen =
-        widget.urlInicial != null &&
-        widget.urlInicial!.isNotEmpty;
+        widget.urlInicial != null && widget.urlInicial!.isNotEmpty;
 
     return Column(
       children: [
         InkWell(
-          onTap:
-              _subiendo ? null : _seleccionarOrigen,
+          onTap: _subiendo ? null : _seleccionarOrigen,
           borderRadius: BorderRadius.circular(15),
           child: Container(
             width: 100,
@@ -266,55 +254,37 @@ class _InputImagenState extends State<InputImagen> {
             decoration: BoxDecoration(
               color: Colors.grey[200],
               borderRadius: BorderRadius.circular(15),
-              border: Border.all(
-                color: Colors.grey[400]!,
-              ),
-              image:
-                  tieneImagen && !_subiendo
-                      ? DecorationImage(
-                          image: NetworkImage(
-                            widget.urlInicial!,
-                          ),
-                          fit: BoxFit.cover,
-                        )
-                      : null,
+              border: Border.all(color: Colors.grey[400]!),
+              image: tieneImagen && !_subiendo
+                  ? DecorationImage(
+                      image: NetworkImage(widget.urlInicial!),
+                      fit: BoxFit.cover,
+                    )
+                  : null,
             ),
             child: _subiendo
-                ? const Center(
-                    child: CircularProgressIndicator(),
-                  )
+                ? const Center(child: CircularProgressIndicator())
                 : tieneImagen
-                    ? null
-                    : const Center(
-                        child: Column(
-                          mainAxisAlignment:
-                              MainAxisAlignment.center,
-                          children: [
-                            Icon(
-                              Icons.add_a_photo,
-                              color: Colors.grey,
-                              size: 30,
-                            ),
-                            SizedBox(height: 5),
-                            Text(
-                              'Foto',
-                              style: TextStyle(
-                                color: Colors.grey,
-                                fontSize: 10,
-                              ),
-                            ),
-                          ],
+                ? null
+                : const Center(
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Icon(Icons.add_a_photo, color: Colors.grey, size: 30),
+                        SizedBox(height: 5),
+                        Text(
+                          'Foto',
+                          style: TextStyle(color: Colors.grey, fontSize: 10),
                         ),
-                      ),
+                      ],
+                    ),
+                  ),
           ),
         ),
         if (tieneImagen && !_subiendo)
           TextButton(
             onPressed: _seleccionarOrigen,
-            child: const Text(
-              'Cambiar',
-              style: TextStyle(fontSize: 12),
-            ),
+            child: const Text('Cambiar', style: TextStyle(fontSize: 12)),
           ),
       ],
     );

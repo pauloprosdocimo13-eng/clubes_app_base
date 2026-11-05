@@ -57,17 +57,19 @@ class PortadaReservasPublica {
 /// - usa Cloud Function.
 /// - NO lee ni escribe las subcolecciones centrales desde Flutter.
 ///
-/// Güemes/Legacy:
-/// - conserva el comportamiento histórico actual.
+/// Güemes usa un endpoint propio protegido; otros Legacy conservan su acceso actual.
 class ServicioReservasPublicas {
   static const String _url =
       'https://southamerica-east1-tu-sede-app.cloudfunctions.net/'
       'reservasPublicas';
 
   bool get usaTuSedeCentral => ServicioDatosClub.usaTuSedeCentral;
+  bool get _usaPortalProtegido => usaTuSedeCentral || ContextoClub.clubId == 'guemes';
+  String get _urlPortal => usaTuSedeCentral ? _url
+      : 'https://southamerica-east1-club-guemes-2.cloudfunctions.net/reservasGuemes';
 
   Future<PortadaReservasPublica> cargarPortada() async {
-    if (!usaTuSedeCentral) {
+    if (!_usaPortalProtegido) {
       final config = await FirebaseFirestore.instance
           .collection('configuracion')
           .doc('reservas')
@@ -123,7 +125,7 @@ class ServicioReservasPublicas {
     required String espacioId,
     required String fecha,
   }) async {
-    if (!usaTuSedeCentral) {
+    if (!_usaPortalProtegido) {
       final query = await FirebaseFirestore.instance
           .collection('reservas')
           .where('espacio_id', isEqualTo: espacioId)
@@ -186,7 +188,7 @@ class ServicioReservasPublicas {
     required String fecha,
     required String hora,
   }) async {
-    if (!usaTuSedeCentral) {
+    if (!_usaPortalProtegido) {
       final check = await FirebaseFirestore.instance
           .collection('reservas')
           .where('espacio_id', isEqualTo: espacioId)
@@ -257,7 +259,7 @@ class ServicioReservasPublicas {
     try {
       response = await http
           .post(
-            Uri.parse(_url),
+            Uri.parse(_urlPortal),
             headers: const {
               'Content-Type': 'application/json',
             },

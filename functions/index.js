@@ -148,3 +148,12 @@ exports.notificarEventoPartido = onDocumentWritten("partidos_en_vivo/{partidoId}
     }
 });
 */
+// Portal de Güemes: acceso público limitado, sin exponer documentos privados.
+exports.buscarCarnetGuemes = require("./carnet_publico_guemes").buscarCarnetGuemes;
+exports.reservasGuemes = require("./reservas_publicas_guemes").reservasGuemes;
+
+exports.votarFiguraGuemes = require("./voto_publico_guemes").votarFiguraGuemes;
+
+exports.entretenimientoGuemes = require("./entretenimiento_guemes").entretenimientoGuemes;
+
+exports.autorizarImagenGuemes = require("./autorizar_imagen_guemes").autorizarImagenGuemes;

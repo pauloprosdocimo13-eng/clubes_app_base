@@ -7,6 +7,8 @@ import '../tusede/servicios/servicio_datos_club.dart';
 import '../tusede/servicios/servicio_sesion_tusede.dart';
 
 class AdminPermisos {
+  static const String cambiarFechaIngresos = 'Cambiar fecha de ingresos';
+
   static const String admin = 'admin';
   static const String tesoreria = 'tesoreria';
   static const String administracion = 'administracion';
@@ -16,6 +18,7 @@ class AdminPermisos {
   static const Map<String, List<String>> predeterminados = {
     tesoreria: [
       'Caja y Finanzas',
+      cambiarFechaIngresos,
       'Padrón Socios',
       'Escanear Ingreso',
       'Config. Precios',
@@ -51,7 +54,12 @@ class AdminPermisos {
   };
 
   static const Map<String, List<String>> predeterminadosCentral = {
-    tesoreria: ['Caja y Finanzas', 'Padrón Socios', 'Config. Precios'],
+    tesoreria: [
+      'Caja y Finanzas',
+      cambiarFechaIngresos,
+      'Padrón Socios',
+      'Config. Precios',
+    ],
     administracion: [
       'Padrón Socios',
       'Agenda / Reservas',
@@ -169,7 +177,7 @@ class AdminPermisos {
           .doc(email)
           .get();
 
-      if (doc.exists) {
+      if (doc.exists && doc.data()?['activo'] != false) {
         return (doc.data()?['rol'] ?? '').toString();
       }
 
@@ -184,6 +192,24 @@ class AdminPermisos {
   // ============================================================
   // VISIBILIDAD
   // ============================================================
+
+  static Future<bool> puedeCambiarFechaIngresos() async {
+    final rol = await obtenerRol();
+    if (rol == admin) return true;
+    if (rol.isEmpty) return false;
+    // Consultar el servidor al abrir y al guardar: no reutilizar permisos viejos.
+    try {
+      final doc = await ServicioDatosClub.configuracionDoc(
+        'permisos_roles',
+      ).get(const GetOptions(source: Source.server));
+      final lista = doc.data()?[rol];
+      if (lista is List) return lista.contains(cambiarFechaIngresos);
+      return !ServicioDatosClub.usaTuSedeCentral &&
+          (predeterminados[rol] ?? const []).contains(cambiarFechaIngresos);
+    } catch (_) {
+      return false;
+    }
+  }
 
   static bool puedeVer(String rolUsuario, String tituloMenu) {
     if (rolUsuario == admin) {

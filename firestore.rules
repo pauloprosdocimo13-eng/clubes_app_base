@@ -1,19 +1,119 @@
 rules_version = '2';
-
 service cloud.firestore {
   match /databases/{database}/documents {
-
-    // This rule allows anyone with your Firestore database reference to view, edit,
-    // and delete all data in your Firestore database. It is useful for getting
-    // started, but it is configured to expire after 30 days because it
-    // leaves your app open to attackers. At that time, all client
-    // requests to your Firestore database will be denied.
-    //
-    // Make sure to write security rules for your app before that time, or else
-    // all client requests to your Firestore database will be denied until you Update
-    // your rules
-    match /{document=**} {
-      allow read, write: if request.time < timestamp.date(2025, 12, 27);
+    function autenticado() { return request.auth != null; }
+    function perfil() {
+      return get(/databases/$(database)/documents/permisos_admin/$(request.auth.token.email)).data;
     }
+    function personal() {
+      return autenticado() && request.auth.token.email is string
+        && exists(/databases/$(database)/documents/permisos_admin/$(request.auth.token.email))
+        && perfil().get('activo', true) == true
+        && perfil().rol in ['admin','tesoreria','administracion','deportes','institucional','ingreso'];
+    }
+    function esAdministrador() { return personal() && perfil().rol == 'admin'; }
+    function predeterminados(rol) {
+      return rol == 'tesoreria' ? ['Caja y Finanzas','Cambiar fecha de ingresos','Padrón Socios','Escanear Ingreso','Config. Precios','Configurar Pagos','Tienda Oficial','Gestionar Rifas']
+        : rol == 'administracion' ? ['Caja y Finanzas','Padrón Socios','Escanear Ingreso','Agenda / Reservas','Publicar Noticia','Configurar Pop-up','Configurar Espacios','Tienda Oficial','Gestionar Rifas','Configuración Club']
+        : rol == 'deportes' ? ['Tomar Asistencia','Consola en VIVO','Configurar Streaming','Publicar Noticia']
+        : rol == 'institucional' ? ['Publicar Noticia','Votación Figura','Agenda / Reservas','Tienda Oficial']
+        : rol == 'ingreso' ? ['Escanear Ingreso','Tomar Asistencia'] : [];
+    }
+    function permisos() {
+      let ruta = /databases/$(database)/documents/configuracion/permisos_roles;
+      return exists(ruta) ? get(ruta).data.get(perfil().rol, predeterminados(perfil().rol)) : predeterminados(perfil().rol);
+    }
+    function puede(opciones) { return personal() && (esAdministrador() || permisos().hasAny(opciones)); }
+    function publica(col) {
+      return col in ['avisos','noticias','galeria','publicidad','jugadores','partidos','partidos_en_vivo','historial_partidos','rivales','espacios','tienda','anuncios','votaciones','prode_fechas'];
+    }
+    function acceso(col, lectura) {
+      return (col == 'socios' && (puede(['Padrón Socios','Caja y Finanzas']) || (lectura && puede(['Escanear Ingreso','Tomar Asistencia']))))
+        || (col == 'auditoria_socios' && puede(['Padrón Socios','Caja y Finanzas']))
+        || (col in ['movimientos','movimientos_eliminados','vencimientos'] && puede(['Caja y Finanzas']))
+        || (col == 'asistencias' && puede(['Tomar Asistencia','Escanear Ingreso']))
+        || (col == 'reservas' && puede(['Agenda / Reservas']))
+        || (col == 'espacios' && puede(['Configurar Espacios']))
+        || (col == 'jugadores' && puede(['Gestionar Plantel']))
+        || (col in ['partidos','historial_partidos','partidos_en_vivo'] && puede(['Gestionar Partidos','Consola en VIVO']))
+        || (col == 'rivales' && puede(['Rivales y Ubicaciones']))
+        || (col == 'avisos' && puede(['Avisos Urgentes']))
+        || (col == 'noticias' && puede(['Publicar Noticia']))
+        || (col == 'galeria' && puede(['Subir Fotos']))
+        || (col == 'publicidad' && puede(['Publicidad']))
+        || (col == 'tienda' && puede(['Tienda Oficial']))
+        || (col == 'sorteos' && puede(['Gestionar Rifas']))
+        || (col == 'anuncios' && esAdministrador())
+        || (col in ['prode_fechas','prode_votos'] && puede(['Gestión Prode']))
+        || (col == 'votaciones' && puede(['Votación Figura']))
+        || (col == 'sugerencias' && esAdministrador());
+    }
+    function configPublica(id) {
+      return id in ['general','actividades','contacto','enlaces','stream','aviso_entrada','precios','reservas','versiones','visor_tv','jornada_actual'];
+    }
+    function configAcceso(id, lectura) {
+      return esAdministrador()
+        || (id == 'permisos_roles' && lectura && personal())
+        || (id == 'general' && puede(['Configurar Tiras','Configuración Club']))
+        || (id in ['actividades','contacto'] && puede(['Configuración Club']))
+        || (id == 'precios' && puede(['Config. Precios']))
+        || (id == 'pagos' && puede(['Configurar Pagos']))
+        || (id == 'reservas' && puede(['Agenda / Reservas','Configurar Espacios']))
+        || (id == 'categorias_finanzas' && puede(['Caja y Finanzas']))
+        || (id == 'stream' && puede(['Configurar Streaming']))
+        || (id == 'aviso_entrada' && puede(['Configurar Pop-up']));
+    }
+    // El día contable se calcula con hora del servidor en Argentina (UTC-3).
+    function ingresoHoy() {
+      return request.resource.data.fecha is timestamp
+        && (request.resource.data.fecha - duration.value(3, 'h')).date()
+          == (request.time - duration.value(3, 'h')).date();
+    }
+    function fechaMovimientoValida() {
+      return request.method == 'delete'
+        || (request.method == 'create'
+          && (request.resource.data.get('tipo', '') != 'ingreso'
+            || puede(['Cambiar fecha de ingresos']) || ingresoHoy())
+          && (request.resource.data.get('origen', '') != 'manual'
+            || (request.resource.data.fecha_registro == request.time
+              && request.resource.data.admin_uid == request.auth.uid)))
+        || (request.method == 'update'
+          && !request.resource.data.diff(resource.data).affectedKeys()
+            .hasAny(['fecha_registro', 'admin_uid', 'admin_email'])
+          && (esAdministrador()
+            || (puede(['Cambiar fecha de ingresos'])
+              && !request.resource.data.diff(resource.data).affectedKeys().hasAny(['tipo']))
+            || (resource.data.get('tipo', '') != 'ingreso'
+              && request.resource.data.get('tipo', '') != 'ingreso')
+            || !request.resource.data.diff(resource.data).affectedKeys().hasAny(['fecha', 'tipo'])));
+    }
+
+
+
+    match /permisos_admin/{email} {
+      allow get: if esAdministrador() || (autenticado() && request.auth.token.email == email);
+      allow list, create, update, delete: if esAdministrador();
+    }
+    match /configuracion/{id} {
+      allow read: if configPublica(id) || configAcceso(id, true);
+      allow write: if configAcceso(id, false);
+    }
+    match /{col}/{id} {
+      allow read: if publica(col) || acceso(col, true);
+      allow create, update, delete: if acceso(col, false)
+        && (col != 'movimientos' || fechaMovimientoValida())
+        && (col != 'auditoria_socios' || (request.method == 'create'
+          && request.resource.data.usuario_uid == request.auth.uid
+          && request.resource.data.fecha == request.time));
+    }
+    // Formularios públicos: solo alta y campos acotados; nunca lectura del buzón.
+    match /sugerencias/{id} {
+      allow create: if request.resource.data.keys().hasOnly(['texto','fecha','usuario_id','usuario_email','leido'])
+        && request.resource.data.texto is string && request.resource.data.texto.size() > 0
+        && request.resource.data.texto.size() <= 2000 && request.resource.data.leido == false
+        && request.resource.data.fecha == request.time;
+    }
+    // Los votos públicos se procesan por el servicio; no se permite reemplazar candidatos.
+    match /{document=**} { allow read, write: if false; }
   }
 }

@@ -82,6 +82,7 @@ class _PantallaAdminMinutoState extends State<PantallaAdminMinuto> {
   Timer? _timer;
   String _tiempoDisplay = "00:00";
   Timestamp? _inicioTiempoRef;
+  Timestamp? _minutoPedidoRef;
   String _estadoRef = "";
 
   @override
@@ -242,7 +243,7 @@ class _PantallaAdminMinutoState extends State<PantallaAdminMinuto> {
         (_estadoRef != '1T' && _estadoRef != '2T')) {
       return;
     }
-    final now = DateTime.now();
+    final now = _minutoPedidoRef?.toDate() ?? DateTime.now();
     final inicio = _inicioTiempoRef!.toDate();
     final difference = now.difference(inicio);
     final minutos = difference.inMinutes;
@@ -259,7 +260,7 @@ class _PantallaAdminMinutoState extends State<PantallaAdminMinuto> {
     if (data['inicio_tiempo'] != null &&
         (data['estado'] == '1T' || data['estado'] == '2T')) {
       Timestamp inicio = data['inicio_tiempo'];
-      Duration diferencia = DateTime.now().difference(inicio.toDate());
+      Duration diferencia = ((data['minuto_pedido_en'] as Timestamp?)?.toDate() ?? DateTime.now()).difference(inicio.toDate());
       String minutos = diferencia.inMinutes.toString();
       String segundos = (diferencia.inSeconds % 60).toString().padLeft(2, '0');
       return "$minutos:$segundos";
@@ -346,11 +347,44 @@ class _PantallaAdminMinutoState extends State<PantallaAdminMinuto> {
         'estado': '1T',
         'inicio_tiempo': FieldValue.serverTimestamp(),
         'inicio_partido_real': FieldValue.serverTimestamp(),
+        'minuto_pedido_en': null,
         'eventos': [],
       });
     });
     await _cargarJugadoresLocales(_categoriaSeleccionada);
   });
+
+  Future<void> _cambiarMinutoPedido(bool reanudar) {
+    final sesion = _sesionVisible;
+    final estado = _estadoRef;
+    return _ejecutar(() async {
+      final ref = ServicioDatosClub.partidosEnVivo.doc(widget.deporteId);
+      await ServicioDatosClub.firestore.runTransaction((tx) async {
+        final snapshot = await tx.get(ref);
+        final data = snapshot.data();
+        _validarPartido(data, sesion);
+        if (data!['estado'] != estado || !['1T', '2T'].contains(estado)) {
+          throw StateError('El tiempo cambió. Revisá la consola.');
+        }
+        final pausa = data['minuto_pedido_en'] as Timestamp?;
+        if (reanudar != (pausa != null)) {
+          throw StateError('Otro operador cambió el reloj. Revisá la consola.');
+        }
+        if (reanudar) {
+          final inicio = data['inicio_tiempo'] as Timestamp?;
+          if (inicio == null) throw StateError('No se encontró el inicio del tiempo.');
+          final duracion = DateTime.now().difference(pausa!.toDate());
+          if (duracion.isNegative) throw StateError('Revisá la hora del dispositivo.');
+          tx.update(ref, {
+            'inicio_tiempo': Timestamp.fromDate(inicio.toDate().add(duracion)),
+            'minuto_pedido_en': null,
+          });
+        } else {
+          tx.update(ref, {'minuto_pedido_en': FieldValue.serverTimestamp()});
+        }
+      });
+    });
+  }
 
   Future<void> _cambiarEstado(String nuevoEstado, {String? motivoSuspension}) {
     final sesion = _sesionVisible;
@@ -365,7 +399,7 @@ class _PantallaAdminMinutoState extends State<PantallaAdminMinuto> {
         if (data!['estado'] != estadoEsperado) {
           throw StateError('El tiempo del partido cambió. Revisá la consola.');
         }
-        final cambios = <String, dynamic>{'estado': nuevoEstado};
+        final cambios = <String, dynamic>{'estado': nuevoEstado, 'minuto_pedido_en': null};
         if (nuevoEstado == '2T') {
           cambios['inicio_tiempo'] = FieldValue.serverTimestamp();
         }
@@ -879,6 +913,7 @@ class _PantallaAdminMinutoState extends State<PantallaAdminMinuto> {
             _sesionVisible = data['sesion_id'] as String?;
             _estadoRef = data['estado'] ?? '1T';
             _inicioTiempoRef = data['inicio_tiempo'] as Timestamp?;
+            _minutoPedidoRef = data['minuto_pedido_en'] as Timestamp?;
             if (_categoriaPlantelCargado != data['categoria']) {
               WidgetsBinding.instance.addPostFrameCallback((_) {
                 _cargarJugadoresLocales(data['categoria']);
@@ -1068,10 +1103,11 @@ class _PantallaAdminMinutoState extends State<PantallaAdminMinuto> {
                   children: [
                     const Text("ESTADO", style: TextStyle(color: Colors.grey)),
                     Text(
-                      estado,
-                      style: const TextStyle(
+                      data['minuto_pedido_en'] != null ? 'MINUTO\nPEDIDO' : estado,
+                      textAlign: TextAlign.center,
+                      style: TextStyle(
                         color: Colors.yellow,
-                        fontSize: 24,
+                        fontSize: data['minuto_pedido_en'] != null ? 16 : 24,
                         fontWeight: FontWeight.bold,
                       ),
                     ),
@@ -1270,6 +1306,12 @@ class _PantallaAdminMinutoState extends State<PantallaAdminMinuto> {
           spacing: 10,
           runSpacing: 10,
           children: [
+            if (estado == '1T' || estado == '2T')
+              ElevatedButton.icon(
+                onPressed: () => _cambiarMinutoPedido(data['minuto_pedido_en'] != null),
+                icon: Icon(data['minuto_pedido_en'] != null ? Icons.play_arrow : Icons.pause),
+                label: Text(data['minuto_pedido_en'] != null ? 'Reanudar reloj' : 'Pedir minuto'),
+              ),
             if (estado == '1T')
               ElevatedButton(
                 onPressed: () => _cambiarEstado('ENTRETIEMPO'),

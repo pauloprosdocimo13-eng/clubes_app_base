@@ -99,3 +99,12 @@ test('rivales rechazan deporte inválido y clubes inactivos/Legacy', async () =>
   active=false; assert.equal((await request(null,'generico','rivales')).status,404); active=true;
   assert.equal((await request(null,'guemes','rivales')).status,404);
 });
+
+
+test('minuto pedido se publica para sincronizar el reloj y se limpia al reanudar', () => {
+  const data = context.sanitizarVivo({activo:true,estado:'1T',inicio_tiempo:{toMillis:()=>1000},minuto_pedido_en:{toMillis:()=>36000},admin_email:'privado'});
+  assert.equal(data.inicio_tiempo_ms, 1000);
+  assert.equal(data.minuto_pedido_en_ms, 36000);
+  assert.equal(data.admin_email, undefined);
+  assert.equal(context.sanitizarVivo({minuto_pedido_en:null}).minuto_pedido_en_ms, 0);
+});

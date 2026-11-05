@@ -38,6 +38,7 @@ class _PantallaMinutoAMinutoState extends State<PantallaMinutoAMinuto> {
   String _tiempoTranscurrido = '00:00';
 
   Timestamp? _inicioTiempo;
+  Timestamp? _minutoPedido;
   Timestamp? _horaInicioReal;
 
   String _estado = '';
@@ -169,6 +170,7 @@ class _PantallaMinutoAMinutoState extends State<PantallaMinutoAMinuto> {
 
   void _sincronizarDatosPartido(Map<String, dynamic> data) {
     _estado = (data['estado'] ?? '1T').toString();
+    _minutoPedido = data['minuto_pedido_en'] as Timestamp?;
 
     final inicioTiempo = data['inicio_tiempo'];
 
@@ -189,6 +191,7 @@ class _PantallaMinutoAMinutoState extends State<PantallaMinutoAMinuto> {
 
   void _limpiarRelojPartido() {
     _estado = '';
+    _minutoPedido = null;
     _inicioTiempo = null;
     _horaInicioReal = null;
     _tiempoTranscurrido = '00:00';
@@ -206,7 +209,7 @@ class _PantallaMinutoAMinutoState extends State<PantallaMinutoAMinuto> {
       return;
     }
 
-    final ahora = DateTime.now();
+    final ahora = _minutoPedido?.toDate() ?? DateTime.now();
 
     final inicio = _inicioTiempo!.toDate();
 
@@ -232,6 +235,7 @@ class _PantallaMinutoAMinutoState extends State<PantallaMinutoAMinuto> {
   }
 
   String _textoEstadoLargo(String estado) {
+    if (_minutoPedido != null) return 'MINUTO PEDIDO';
     if (estado == '1T') {
       return '1er Tiempo';
     }

@@ -304,6 +304,8 @@ class ServicioContenidoPublico {
 
     final vivo = Map<String, dynamic>.from(raw);
 
+    _convertirTimestamp(vivo, origen: 'minuto_pedido_en_ms', destino: 'minuto_pedido_en');
+
     _convertirTimestamp(
       vivo,
       origen: 'inicio_tiempo_ms',

@@ -1,0 +1,10 @@
+rules_version = '2';
+service firebase.storage {
+  match /b/{bucket}/o {
+    // Compatibilidad con las imágenes públicas existentes. No autoriza listados.
+    match /{allPaths=**} {
+      allow get: if true;
+      allow list, write: if false;
+    }
+  }
+}

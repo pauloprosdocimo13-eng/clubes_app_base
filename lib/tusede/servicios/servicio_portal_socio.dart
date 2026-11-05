@@ -34,8 +34,7 @@ class SocioPortalEncontrado {
 /// - consume una Cloud Function pública controlada.
 /// - recibe únicamente los datos mínimos del carnet.
 ///
-/// GÜEMES y demás Legacy:
-/// - conservan ServicioFirebase() sin cambios.
+/// Güemes usa un endpoint propio protegido; otros Legacy conservan su acceso actual.
 class ServicioPortalSocio {
   static const String _urlCarnetPublico =
       'https://southamerica-east1-tu-sede-app.cloudfunctions.net/'
@@ -48,6 +47,9 @@ class ServicioPortalSocio {
   });
 
   bool get usaTuSedeCentral => ServicioDatosClub.usaTuSedeCentral;
+  bool get _usaPortalProtegido => usaTuSedeCentral || ContextoClub.clubId == 'guemes';
+  String get _urlPortal => usaTuSedeCentral ? _urlCarnetPublico
+      : 'https://southamerica-east1-club-guemes-2.cloudfunctions.net/buscarCarnetGuemes';
 
   String get origenDescripcion => usaTuSedeCentral
       ? 'TuSede Central · Portal público protegido'
@@ -60,8 +62,8 @@ class ServicioPortalSocio {
       return null;
     }
 
-    // Legacy no cambia.
-    if (!usaTuSedeCentral) {
+    // Los demás clubes Legacy conservan su acceso actual.
+    if (!_usaPortalProtegido) {
       final query = await ServicioDatosClub.socios
           .where('dni', isEqualTo: dniLimpio)
           .limit(5)
@@ -89,7 +91,7 @@ class ServicioPortalSocio {
     try {
       response = await http
           .post(
-            Uri.parse(_urlCarnetPublico),
+            Uri.parse(_urlPortal),
             headers: const <String, String>{
               'Content-Type': 'application/json',
             },
@@ -161,7 +163,7 @@ class ServicioPortalSocio {
   }
 
   Future<Map<String, double>> obtenerPreciosCuotas() async {
-    if (!usaTuSedeCentral) {
+    if (!_usaPortalProtegido) {
       return ServicioFirebase().obtenerPreciosCuotas();
     }
 
@@ -189,7 +191,7 @@ class ServicioPortalSocio {
   }
 
   Future<Map<String, dynamic>> obtenerConfigPagos() async {
-    if (!usaTuSedeCentral) {
+    if (!_usaPortalProtegido) {
       return ServicioFirebase().obtenerConfigPagos();
     }
 
@@ -206,7 +208,7 @@ class ServicioPortalSocio {
   Future<List<Map<String, dynamic>>> obtenerGrupoFamiliar(
     String familiaId,
   ) async {
-    if (!usaTuSedeCentral) {
+    if (!_usaPortalProtegido) {
       return ServicioFirebase().obtenerGrupoFamiliar(familiaId);
     }
 
@@ -226,7 +228,7 @@ class ServicioPortalSocio {
   Future<String> obtenerTelefonoWsp(
     Map<String, dynamic> configPagos,
   ) async {
-    if (!usaTuSedeCentral) {
+    if (!_usaPortalProtegido) {
       return ServicioFirebase().obtenerTelefonoWsp(configPagos);
     }
 

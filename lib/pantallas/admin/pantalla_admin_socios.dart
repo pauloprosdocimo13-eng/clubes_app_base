@@ -1,6 +1,6 @@
 import 'dart:io';
 import 'dart:typed_data';
-import 'package:flutter/foundation.dart' show kIsWeb;
+import 'package:flutter/foundation.dart' show kIsWeb, mapEquals;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
@@ -17,6 +17,7 @@ import 'package:url_launcher/url_launcher.dart';
 
 import '../../configuracion/configuracion_app.dart';
 import '../../servicios/actividades_baja_socio.dart';
+import '../../servicios/descuentos_socio.dart';
 import '../../tusede/servicios/servicio_datos_club.dart';
 import 'pantalla_admin_formulario_familia.dart';
 import 'pantalla_admin_precios.dart';
@@ -156,6 +157,83 @@ class _PantallaAdminSociosState extends State<PantallaAdminSocios> {
     });
 
     return lineas.join("\n");
+  }
+
+  final Set<String> _guardandoConvivencia = {};
+
+  Future<void> _registrarConvivencia(
+    String socioId, Map<String, dynamic> socio,
+  ) async {
+    if (_guardandoConvivencia.contains(socioId)) return;
+    final anterior = socio['reglas_convivencia_firmadas'] == true;
+    final nuevo = !anterior;
+    // Capturar referencias antes del diálogo evita cambiar de club al guardar.
+    final referencia = ServicioDatosClub.socios.doc(socioId);
+    final auditoria = ServicioDatosClub.auditoriaSocios.doc();
+    final usuario = ServicioDatosClub.usuarioAuthActual;
+    if (usuario == null) return;
+    setState(() => _guardandoConvivencia.add(socioId));
+    try {
+      final confirmar = await showDialog<bool>(
+        context: context,
+        builder: (ctx) => AlertDialog(
+          title: Text(nuevo ? 'Registrar firma de convivencia' : 'Marcar firma pendiente'),
+          content: Text(
+            '${socio['apellido'] ?? ''}, ${socio['nombre'] ?? ''}\n\n'
+            '${nuevo ? '¿Confirmás que este socio firmó las reglas de convivencia?' : '¿Confirmás que querés dejar la firma como pendiente?'}',
+          ),
+          actions: [
+            TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('CANCELAR')),
+            FilledButton(onPressed: () => Navigator.pop(ctx, true), child: const Text('CONFIRMAR')),
+          ],
+        ),
+      );
+      if (confirmar != true || !mounted) return;
+      await referencia.firestore.runTransaction((tx) async {
+        final actual = await tx.get(referencia);
+        final datos = actual.data();
+        if (datos == null || datos['eliminado'] == true) {
+          throw StateError('El socio ya no está disponible.');
+        }
+        if ((datos['reglas_convivencia_firmadas'] == true) != anterior) {
+          throw StateError('Otra persona cambió el estado. Revisá el padrón antes de continuar.');
+        }
+        tx.update(referencia, {
+          'reglas_convivencia_firmadas': nuevo,
+          'convivencia_actualizada_en': FieldValue.serverTimestamp(),
+          'convivencia_actualizada_por_uid': usuario.uid,
+          'convivencia_actualizada_por_email': usuario.email ?? '',
+          'modificado_en': FieldValue.serverTimestamp(),
+          'modificado_por_uid': usuario.uid,
+          'modificado_por_email': usuario.email ?? '',
+        });
+        tx.set(auditoria, {
+          'accion': 'modificacion',
+          'socio_id': socioId,
+          'dni': datos['dni'] ?? socioId,
+          'nombre': datos['nombre'] ?? '',
+          'apellido': datos['apellido'] ?? '',
+          'familia_id': datos['familia_id'] ?? '',
+          'es_titular': datos['es_titular'] == true,
+          'usuario_uid': usuario.uid,
+          'usuario_email': usuario.email ?? '',
+          'fecha': FieldValue.serverTimestamp(),
+          'cambios': {'reglas_convivencia_firmadas': {'anterior': anterior, 'nuevo': nuevo}},
+          'detalle': 'Registro de firma de reglas de convivencia',
+        });
+      });
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+          content: Text(nuevo ? 'Firma de convivencia registrada.' : 'Firma de convivencia pendiente.'),
+        ));
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('No se pudo guardar: $e')));
+      }
+    } finally {
+      if (mounted) setState(() => _guardandoConvivencia.remove(socioId));
+    }
   }
 
   Future<void> _toggleAptoFisico(String docId, bool valorActual) async {
@@ -339,6 +417,7 @@ class _PantallaAdminSociosState extends State<PantallaAdminSocios> {
         "Descuento %",
         "Apto Fisico",
         "Notas Internas",
+        "Reglas de convivencia firmadas",
       ];
       sheet.appendRow(headers.map((e) => TextCellValue(e)).toList());
 
@@ -372,6 +451,7 @@ class _PantallaAdminSociosState extends State<PantallaAdminSocios> {
           TextCellValue(descuento),
           TextCellValue(aptoFisicoStr),
           TextCellValue(notas),
+          TextCellValue(data['reglas_convivencia_firmadas'] == true ? "SI" : "PENDIENTE"),
         ];
         sheet.appendRow(row);
       }
@@ -1484,12 +1564,13 @@ class _PantallaAdminSociosState extends State<PantallaAdminSocios> {
 
     final listaActividades = conceptosCobroSocio(data);
 
-    Map<String, int> descPorActividad = {};
+    final descPorActividad = DescuentosSocio.paraCobro(
+      data['descuentos_por_actividad'], listaActividades,
+    );
     Map<String, TextEditingController> preciosEditables = {};
 
     for (String act in listaActividades) {
       String actividadLimpia = act.trim();
-      descPorActividad[actividadLimpia] = 0;
 
       double precioBase = 0;
       _preciosCache.forEach((key, value) {
@@ -1503,6 +1584,7 @@ class _PantallaAdminSociosState extends State<PantallaAdminSocios> {
     }
 
     int cantidadMesesAPagar = 1;
+    String metodoPago = 'Efectivo';
 
     showDialog(
       context: context,
@@ -1734,7 +1816,7 @@ class _PantallaAdminSociosState extends State<PantallaAdminSocios> {
                                       Icons.arrow_drop_down,
                                       size: 16,
                                     ),
-                                    items: [0, 10, 20, 30, 50, 100].map((d) {
+                                    items: DescuentosSocio.opciones.map((d) {
                                       return DropdownMenuItem<int>(
                                         value: d,
                                         child: Text(
@@ -1767,6 +1849,25 @@ class _PantallaAdminSociosState extends State<PantallaAdminSocios> {
                       );
                     }).toList(),
                     const SizedBox(height: 10),
+                    DropdownButtonFormField<String>(
+                      initialValue: metodoPago,
+                      decoration: const InputDecoration(
+                        labelText: 'Medio de pago',
+                        border: OutlineInputBorder(),
+                      ),
+                      items: ['Efectivo', 'Mercado Pago', 'Transferencia', 'Tarjeta']
+                          .map((medio) => DropdownMenuItem(value: medio, child: Text(medio)))
+                          .toList(),
+                      onChanged: (valor) {
+                        if (valor != null) setStateDialog(() => metodoPago = valor);
+                      },
+                    ),
+                    const SizedBox(height: 10),
+                    const Text(
+                      'Al confirmar el pago, los descuentos y becas quedan guardados para los próximos cobros. Elegí "Sin Desc." para quitarlos.',
+                      style: TextStyle(fontSize: 12),
+                    ),
+                    const SizedBox(height: 8),
                     const Divider(thickness: 2),
                     Row(
                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -1813,6 +1914,7 @@ class _PantallaAdminSociosState extends State<PantallaAdminSocios> {
                         preciosEditables,
                         nombreMesBase,
                         cantidadMesesAPagar,
+                        metodoPago,
                       );
                       Navigator.pop(ctx);
                     }
@@ -1834,6 +1936,7 @@ class _PantallaAdminSociosState extends State<PantallaAdminSocios> {
     Map<String, TextEditingController> preciosEditables,
     String nombreMesFormateado,
     int cantidadMeses,
+    String metodoPago,
   ) async {
     try {
       final db = ServicioDatosClub.firestore;
@@ -1850,7 +1953,26 @@ class _PantallaAdminSociosState extends State<PantallaAdminSocios> {
 
       WriteBatch batch = db.batch();
 
+      final descuentosAnteriores = DescuentosSocio.leer(socioData['descuentos_por_actividad']);
+      final descuentosGuardados = {
+        ...descuentosAnteriores,
+        ...DescuentosSocio.leer(descuentosActividades),
+      };
+      if (!mapEquals(descuentosAnteriores, descuentosGuardados)) {
+        _agregarAuditoriaAlBatch(
+          batch: batch,
+          db: db,
+          accion: 'modificacion',
+          socioId: docId,
+          datosSocio: socioData,
+          cambios: {'descuentos_por_actividad': {
+            'anterior': descuentosAnteriores, 'nuevo': descuentosGuardados,
+          }},
+          detalle: 'Descuentos y becas guardados al confirmar el cobro',
+        );
+      }
       batch.update(ServicioDatosClub.socios.doc(docId), {
+        'descuentos_por_actividad': descuentosGuardados,
         'ultimo_mes_pago': nuevoUltimoMesStr,
         'al_dia': true,
         'porcentaje_descuento': 0,
@@ -1895,6 +2017,9 @@ class _PantallaAdminSociosState extends State<PantallaAdminSocios> {
         batch.set(ServicioDatosClub.movimientos.doc(), {
           'tipo': 'ingreso',
           'monto': subtotalTotal,
+          'metodo': subtotalTotal == 0 ? 'Sin movimiento de dinero' : metodoPago,
+          'fecha_registro': FieldValue.serverTimestamp(),
+          'admin_uid': userAdmin?.uid ?? '',
           'fecha': FieldValue.serverTimestamp(),
           'concepto':
               "Cobro de $mesesActividad mes(es) - $actividad$etiquetaDescuento",
@@ -2427,8 +2552,11 @@ class _PantallaAdminSociosState extends State<PantallaAdminSocios> {
                                 bottom: Radius.circular(12),
                               ),
                             ),
-                            child: Row(
-                              mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                            child: SizedBox(
+                              width: double.infinity,
+                              child: Wrap(
+                              alignment: WrapAlignment.spaceEvenly,
+                              crossAxisAlignment: WrapCrossAlignment.center,
                               children: [
                                 TextButton.icon(
                                   style: TextButton.styleFrom(
@@ -2463,6 +2591,24 @@ class _PantallaAdminSociosState extends State<PantallaAdminSocios> {
                                   onPressed: () =>
                                       _toggleAptoFisico(id, tieneAptoFisico),
                                 ),
+                                TextButton.icon(
+                                  onPressed: _guardandoConvivencia.contains(id)
+                                      ? null
+                                      : () => _registrarConvivencia(id, data),
+                                  icon: Icon(
+                                    data['reglas_convivencia_firmadas'] == true
+                                        ? Icons.assignment_turned_in
+                                        : Icons.assignment_outlined,
+                                    size: 18,
+                                  ),
+                                  label: Text(data['reglas_convivencia_firmadas'] == true
+                                      ? 'Reglas: firmadas' : 'Reglas: pendiente'),
+                                  style: TextButton.styleFrom(
+                                    foregroundColor: data['reglas_convivencia_firmadas'] == true
+                                        ? Colors.green.shade700 : Colors.grey.shade700,
+                                    textStyle: const TextStyle(fontSize: 12),
+                                  ),
+                                ),
                                 IconButton(
                                   icon: const Icon(Icons.payments, size: 22),
                                   color: Colors.green,
@@ -2485,6 +2631,7 @@ class _PantallaAdminSociosState extends State<PantallaAdminSocios> {
                                   onPressed: () => _borrarSocio(id, data),
                                 ),
                               ],
+                            ),
                             ),
                           ),
                         ],

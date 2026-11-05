@@ -12,9 +12,12 @@ import 'dart:typed_data';
 import 'package:pdf/pdf.dart';
 import 'package:pdf/widgets.dart' as pw;
 import '../../configuracion/configuracion_app.dart';
+import '../../configuracion/admin_permisos.dart';
+import '../../servicios/fecha_caja.dart';
+import '../../servicios/exportacion_caja.dart';
 import '../../tusede/servicios/servicio_datos_club.dart';
+import '../../tusede/servicios/contexto_club.dart';
 import 'package:file_saver/file_saver.dart';
-
 
 const List<String> _categoriasFinanzasBase = [
   'Cuotas',
@@ -82,18 +85,13 @@ class _RepositorioCategoriasFinanzas {
         categorias.add(nombreLimpio);
       }
 
-      tx.set(
-        _docRef,
-        {
-          'categorias': categorias,
-          'actualizado_en': FieldValue.serverTimestamp(),
-          'actualizado_por_email':
-              ServicioDatosClub.usuarioAuthActual?.email ?? 'Desconocido',
-          'actualizado_por_uid':
-              ServicioDatosClub.usuarioAuthActual?.uid ?? '',
-        },
-        SetOptions(merge: true),
-      );
+      tx.set(_docRef, {
+        'categorias': categorias,
+        'actualizado_en': FieldValue.serverTimestamp(),
+        'actualizado_por_email':
+            ServicioDatosClub.usuarioAuthActual?.email ?? 'Desconocido',
+        'actualizado_por_uid': ServicioDatosClub.usuarioAuthActual?.uid ?? '',
+      }, SetOptions(merge: true));
 
       return categorias;
     });
@@ -107,9 +105,7 @@ class _RepositorioCategoriasFinanzas {
     final limpio = _limpiarNombre(valor);
     if (limpio.isEmpty) return;
 
-    final existe = lista.any(
-      (c) => c.toLowerCase() == limpio.toLowerCase(),
-    );
+    final existe = lista.any((c) => c.toLowerCase() == limpio.toLowerCase());
     if (!existe) {
       lista.add(limpio);
     }
@@ -221,10 +217,8 @@ class _PantallaAdminFinanzasState extends State<PantallaAdminFinanzas>
                         child: Text('Todas'),
                       ),
                       ..._categoriasFinanzas.map(
-                        (c) => DropdownMenuItem<String>(
-                          value: c,
-                          child: Text(c),
-                        ),
+                        (c) =>
+                            DropdownMenuItem<String>(value: c, child: Text(c)),
                       ),
                     ],
                     onChanged: (v) => setStateDialog(() => catTemp = v),
@@ -430,17 +424,14 @@ class _TabMovimientos extends StatelessWidget {
         final user = ServicioDatosClub.usuarioAuthActual;
         final batch = db.batch();
 
-        batch.set(
-          ServicioDatosClub.movimientosEliminados.doc(id),
-          {
-            ...data,
-            'motivo_eliminacion': motivoCtrl.text.trim(),
-            'usuario_elimino': usuarioCtrl.text.trim(),
-            'usuario_auth_email': user?.email ?? 'Desconocido',
-            'usuario_auth_uid': user?.uid ?? '',
-            'fecha_eliminacion': FieldValue.serverTimestamp(),
-          },
-        );
+        batch.set(ServicioDatosClub.movimientosEliminados.doc(id), {
+          ...data,
+          'motivo_eliminacion': motivoCtrl.text.trim(),
+          'usuario_elimino': usuarioCtrl.text.trim(),
+          'usuario_auth_email': user?.email ?? 'Desconocido',
+          'usuario_auth_uid': user?.uid ?? '',
+          'fecha_eliminacion': FieldValue.serverTimestamp(),
+        });
 
         batch.delete(ServicioDatosClub.movimientos.doc(id));
         await batch.commit();
@@ -471,72 +462,9 @@ class _TabMovimientos extends StatelessWidget {
     List<QueryDocumentSnapshot> docs,
   ) async {
     try {
-      var excel = Excel.createExcel();
-      Sheet sheetObject = excel['Caja'];
-      excel.delete('Sheet1');
-
-      sheetObject.appendRow([
-        TextCellValue("Fecha"),
-        TextCellValue("Socio / Nombre"),
-        TextCellValue("Concepto / Actividad"),
-        TextCellValue("Categoría"),
-        TextCellValue("Ingreso (+)"),
-        TextCellValue("Egreso (-)"),
-      ]);
-
-      double totalIngresos = 0;
-      double totalEgresos = 0;
-
-      for (var doc in docs) {
-        var data = doc.data() as Map<String, dynamic>;
-
-        DateTime fecha =
-            (data['fecha'] as Timestamp?)?.toDate() ?? DateTime.now();
-        String fechaStr = DateFormat('dd/MM/yyyy HH:mm').format(fecha);
-        String socio = data['socio_nombre'] ?? '-';
-        String concepto = data['concepto'] ?? '';
-        String categoria = data['categoria'] ?? 'Varios';
-        double monto = (data['monto'] ?? 0).toDouble();
-        String tipo = (data['tipo'] ?? '').toString().toLowerCase();
-
-        double ingreso = 0;
-        double egreso = 0;
-
-        if (tipo == 'ingreso') {
-          ingreso = monto;
-          totalIngresos += monto;
-        } else {
-          egreso = monto;
-          totalEgresos += monto;
-        }
-
-        sheetObject.appendRow([
-          TextCellValue(fechaStr),
-          TextCellValue(socio),
-          TextCellValue(concepto),
-          TextCellValue(categoria),
-          DoubleCellValue(ingreso),
-          DoubleCellValue(egreso),
-        ]);
-      }
-
-      sheetObject.appendRow([
-        TextCellValue(""),
-        TextCellValue(""),
-        TextCellValue("TOTALES"),
-        TextCellValue(""),
-        DoubleCellValue(totalIngresos),
-        DoubleCellValue(totalEgresos),
-      ]);
-
-      sheetObject.appendRow([
-        TextCellValue(""),
-        TextCellValue(""),
-        TextCellValue("RESULTADO NETO"),
-        TextCellValue(""),
-        DoubleCellValue(totalIngresos - totalEgresos),
-        TextCellValue(""),
-      ]);
+      final excel = ExportacionCaja.crear(
+        docs.map((doc) => doc.data() as Map<String, dynamic>),
+      );
 
       var fileBytes = excel.save();
       String nombreArchivo =
@@ -1366,7 +1294,13 @@ class _TabNuevoMovimientoState extends State<_TabNuevoMovimiento> {
   bool _guardando = false;
   List<String> _categorias = List<String>.from(_categoriasFinanzasBase);
 
-  DateTime _fechaMovimiento = DateTime.now();
+  DateTime _fechaMovimiento = FechaCaja.ahoraArgentina();
+  bool _puedeCambiarFecha = false;
+
+  Future<void> _cargarPermisoFecha() async {
+    final permitido = await AdminPermisos.puedeCambiarFechaIngresos();
+    if (mounted) setState(() => _puedeCambiarFecha = permitido);
+  }
 
   String? _socioVinculadoId;
   String? _socioVinculadoNombre;
@@ -1385,6 +1319,7 @@ class _TabNuevoMovimientoState extends State<_TabNuevoMovimiento> {
     _categorias = _combinarCategorias(widget.categoriasIniciales);
     _cargarActividades();
     _cargarCategorias();
+    _cargarPermisoFecha();
   }
 
   @override
@@ -1497,7 +1432,9 @@ class _TabNuevoMovimientoState extends State<_TabNuevoMovimiento> {
     }
 
     try {
-      final categorias = await _RepositorioCategoriasFinanzas.agregar(nombreLimpio);
+      final categorias = await _RepositorioCategoriasFinanzas.agregar(
+        nombreLimpio,
+      );
       if (!mounted) return;
 
       final creada = categorias.firstWhere(
@@ -1549,6 +1486,7 @@ class _TabNuevoMovimientoState extends State<_TabNuevoMovimiento> {
   }
 
   Future<void> _seleccionarFechaMovimiento() async {
+    if (_tipo == 'ingreso' && !_puedeCambiarFecha) return;
     final picked = await showDatePicker(
       context: context,
       initialDate: _fechaMovimiento,
@@ -1572,8 +1510,8 @@ class _TabNuevoMovimientoState extends State<_TabNuevoMovimiento> {
           picked.year,
           picked.month,
           picked.day,
-          DateTime.now().hour,
-          DateTime.now().minute,
+          FechaCaja.ahoraArgentina().hour,
+          FechaCaja.ahoraArgentina().minute,
         );
       });
     }
@@ -1685,13 +1623,22 @@ class _TabNuevoMovimientoState extends State<_TabNuevoMovimiento> {
     );
   }
 
+  Future<bool> _puedeGestionarCajaLegacy() async {
+    await AdminPermisos.inicializarMatriz();
+    return AdminPermisos.puedeVer(
+      await AdminPermisos.obtenerRol(),
+      'Caja y Finanzas',
+    );
+  }
+
   Future<void> _pedirClaveParaGasto() async {
     // TuSede Central: no usamos una contraseña compartida guardada en Firestore.
     // La autorización depende del usuario central autenticado y de su rol.
-    if (ServicioDatosClub.usaTuSedeCentral) {
+    if (ServicioDatosClub.usaTuSedeCentral || ContextoClub.clubId == 'guemes') {
       try {
-        final autorizado =
-            await ServicioDatosClub.usuarioCentralPuedeGestionarFinanzas();
+        final autorizado = ServicioDatosClub.usaTuSedeCentral
+            ? await ServicioDatosClub.usuarioCentralPuedeGestionarFinanzas()
+            : await _puedeGestionarCajaLegacy();
 
         if (!mounted) return;
 
@@ -1699,7 +1646,7 @@ class _TabNuevoMovimientoState extends State<_TabNuevoMovimiento> {
           ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(
               content: Text(
-                'Tu usuario de TuSede no tiene permisos para registrar egresos.',
+                'Tu usuario no tiene permisos para registrar egresos.',
               ),
               backgroundColor: Colors.red,
             ),
@@ -1720,7 +1667,7 @@ class _TabNuevoMovimientoState extends State<_TabNuevoMovimiento> {
                   ],
                 ),
                 content: Text(
-                  'Tu identidad de TuSede está autorizada para registrar '
+                  'Tu cuenta está autorizada para registrar '
                   'este egreso en ${ServicioDatosClub.origenDescripcion}.\n\n'
                   '¿Querés continuar?',
                 ),
@@ -1889,6 +1836,7 @@ class _TabNuevoMovimientoState extends State<_TabNuevoMovimiento> {
   }
 
   Future<void> _guardar() async {
+    if (_guardando) return;
     setState(() => _guardando = true);
 
     double montoPdf = double.parse(_montoCtrl.text);
@@ -1901,6 +1849,15 @@ class _TabNuevoMovimientoState extends State<_TabNuevoMovimiento> {
 
     try {
       final userAdmin = ServicioDatosClub.usuarioAuthActual;
+      if (userAdmin == null) {
+        throw StateError('Ingresá nuevamente a tu cuenta.');
+      }
+      final puedeCambiarFecha = await AdminPermisos.puedeCambiarFechaIngresos();
+      if (!mounted) return;
+      if (_tipo == 'ingreso' && !puedeCambiarFecha) {
+        _fechaMovimiento = FechaCaja.ahoraArgentina();
+      }
+      fechaPdf = _fechaMovimiento;
 
       await ServicioDatosClub.movimientos.add({
         'tipo': _tipo,
@@ -1908,12 +1865,15 @@ class _TabNuevoMovimientoState extends State<_TabNuevoMovimiento> {
         'concepto': _conceptoCtrl.text,
         'metodo': _metodo,
         'categoria': _categoria,
-        'fecha': Timestamp.fromDate(_fechaMovimiento),
+        'fecha': _tipo == 'ingreso' && !puedeCambiarFecha
+            ? FieldValue.serverTimestamp()
+            : Timestamp.fromDate(FechaCaja.aUtc(_fechaMovimiento)),
+        'fecha_registro': FieldValue.serverTimestamp(),
         'socio_id': _socioVinculadoId,
         'socio_nombre': _socioVinculadoNombre,
         'origen': 'manual',
-        'admin_email': userAdmin?.email ?? 'Desconocido',
-        'admin_uid': userAdmin?.uid ?? '',
+        'admin_email': userAdmin.email ?? 'Desconocido',
+        'admin_uid': userAdmin.uid,
         'actividad_manual': (_tipo == 'ingreso') ? _actividadManual : null,
         'meses_manual': (_tipo == 'ingreso' && _actividadManual != null)
             ? _cuotasManual
@@ -1933,7 +1893,7 @@ class _TabNuevoMovimientoState extends State<_TabNuevoMovimiento> {
       _cuotasManual = 1;
       _cuotasManual2 = 1;
       _categoria = 'Cuotas';
-      _fechaMovimiento = DateTime.now();
+      _fechaMovimiento = FechaCaja.ahoraArgentina();
 
       if (mounted) {
         showDialog(
@@ -1989,7 +1949,10 @@ class _TabNuevoMovimientoState extends State<_TabNuevoMovimiento> {
   }
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context) =>
+      AbsorbPointer(absorbing: _guardando, child: _formulario(context));
+
+  Widget _formulario(BuildContext context) {
     return SingleChildScrollView(
       padding: const EdgeInsets.all(20),
       child: Column(
@@ -2001,7 +1964,12 @@ class _TabNuevoMovimientoState extends State<_TabNuevoMovimiento> {
                   "INGRESO",
                   Colors.green,
                   _tipo == 'ingreso',
-                  () => setState(() => _tipo = 'ingreso'),
+                  () => setState(() {
+                    _tipo = 'ingreso';
+                    if (!_puedeCambiarFecha) {
+                      _fechaMovimiento = FechaCaja.ahoraArgentina();
+                    }
+                  }),
                 ),
               ),
               const SizedBox(width: 15),
@@ -2026,20 +1994,29 @@ class _TabNuevoMovimientoState extends State<_TabNuevoMovimiento> {
               "Fecha: ${DateFormat('dd/MM/yyyy').format(_fechaMovimiento)}",
               style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
             ),
-            subtitle: const Text(
-              "Toca para imputar a otro mes",
+            subtitle: Text(
+              _tipo == 'ingreso' && !_puedeCambiarFecha
+                  ? "Se registra con la fecha de hoy (Argentina)"
+                  : "Toca para cambiar la fecha",
               style: TextStyle(fontSize: 11),
             ),
             leading: Icon(
               Icons.calendar_today,
               color: widget.config.colorPrimario,
             ),
-            trailing: const Icon(Icons.edit, size: 18),
+            trailing: Icon(
+              _tipo == 'ingreso' && !_puedeCambiarFecha
+                  ? Icons.lock_outline
+                  : Icons.edit,
+              size: 18,
+            ),
             shape: RoundedRectangleBorder(
               borderRadius: BorderRadius.circular(10),
               side: BorderSide(color: Colors.grey[300]!),
             ),
-            onTap: _seleccionarFechaMovimiento,
+            onTap: _guardando || (_tipo == 'ingreso' && !_puedeCambiarFecha)
+                ? null
+                : _seleccionarFechaMovimiento,
           ),
           const SizedBox(height: 15),
 
@@ -2106,10 +2083,7 @@ class _TabNuevoMovimientoState extends State<_TabNuevoMovimiento> {
                     ..._categorias.map(
                       (m) => DropdownMenuItem<String>(
                         value: m,
-                        child: Text(
-                          m,
-                          style: const TextStyle(fontSize: 13),
-                        ),
+                        child: Text(m, style: const TextStyle(fontSize: 13)),
                       ),
                     ),
                     const DropdownMenuItem<String>(

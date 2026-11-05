@@ -26,6 +26,7 @@ class _PantallaAdminMatrizPermisosState
   final List<String> _todosLosModulos = [
     'Tomar Asistencia',
     'Caja y Finanzas',
+    AdminPermisos.cambiarFechaIngresos,
     'Escanear Ingreso',
     'Padrón Socios',
     'Config. Precios',
@@ -67,8 +68,7 @@ class _PantallaAdminMatrizPermisosState
       _errorCarga = null;
     });
     try {
-      if (ServicioDatosClub.usaTuSedeCentral &&
-          await AdminPermisos.obtenerRol() != AdminPermisos.admin) {
+      if (await AdminPermisos.obtenerRol() != AdminPermisos.admin) {
         throw Exception(
           'Solo el administrador del club puede editar la matriz.',
         );
@@ -93,7 +93,7 @@ class _PantallaAdminMatrizPermisosState
           _accesosActuales[rol] =
               (ServicioDatosClub.usaTuSedeCentral
                       ? (AdminPermisos.predeterminadosCentral[rol] ?? [])
-                      : <String>[])
+                      : (AdminPermisos.predeterminados[rol] ?? <String>[]))
                   .where(_todosLosModulos.contains)
                   .toList();
         }
@@ -189,7 +189,7 @@ class _PantallaAdminMatrizPermisosState
                       style: const TextStyle(fontWeight: FontWeight.bold),
                     ),
                     subtitle: Text(
-                      "${modulosPermitidos.length} módulos habilitados",
+                      "${modulosPermitidos.length} permisos habilitados",
                     ),
                     children: _todosLosModulos.map((modulo) {
                       bool tieneAcceso = modulosPermitidos.contains(modulo);
@@ -198,6 +198,11 @@ class _PantallaAdminMatrizPermisosState
                           modulo,
                           style: const TextStyle(fontSize: 14),
                         ),
+                        subtitle: modulo == AdminPermisos.cambiarFechaIngresos
+                            ? const Text(
+                                'Permite elegir otra fecha al registrar ingresos. También requiere Caja y Finanzas.',
+                              )
+                            : null,
                         value: tieneAcceso,
                         activeColor: Colors.blue,
                         dense: true,

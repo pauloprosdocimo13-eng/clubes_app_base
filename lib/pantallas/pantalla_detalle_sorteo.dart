@@ -1,9 +1,10 @@
+import '../servicios/entretenimiento_publico_guemes.dart';
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:url_launcher/url_launcher.dart';
 import '../configuracion/configuracion_app.dart';
 
-class PantallaDetalleSorteo extends StatelessWidget {
+class PantallaDetalleSorteo extends StatefulWidget {
   final ConfiguracionApp config;
   final String sorteoId;
   final Map<String, dynamic> dataSorteo;
@@ -15,15 +16,39 @@ class PantallaDetalleSorteo extends StatelessWidget {
     required this.dataSorteo,
   });
 
+  @override
+  State<PantallaDetalleSorteo> createState() => _PantallaDetalleSorteoState();
+}
+
+class _PantallaDetalleSorteoState extends State<PantallaDetalleSorteo> {
+  ConfiguracionApp get config => widget.config;
+  String get sorteoId => widget.sorteoId;
+  Map<String, dynamic> get dataSorteo => widget.dataSorteo;
+  late final Stream<Map<String, dynamic>> _stream =
+      EntretenimientoPublicoGuemes.aplica
+      ? EntretenimientoPublicoGuemes.rifas(id: sorteoId).map(
+          (r) => (r['rifas'] as List).isEmpty
+              ? <String, dynamic>{}
+              : Map<String, dynamic>.from(r['rifas'][0]),
+        )
+      : FirebaseFirestore.instance
+            .collection('sorteos')
+            .doc(sorteoId)
+            .snapshots()
+            .map((d) => d.data() ?? <String, dynamic>{});
   Future<void> _reservarPorWhatsApp(BuildContext context, int numero) async {
     // 1. Buscamos el teléfono del club
     String telefono = "5491126440284"; // Fallback
     try {
-      final doc = await FirebaseFirestore.instance.collection('configuracion').doc('general').get();
+      final doc = await FirebaseFirestore.instance
+          .collection('configuracion')
+          .doc('general')
+          .get();
       if (doc.exists) {
         final data = doc.data()!;
         // Priorizamos teléfono de ventas, sino contacto
-        telefono = data['telefono_ventas'] ?? data['telefono_contacto'] ?? telefono;
+        telefono =
+            data['telefono_ventas'] ?? data['telefono_contacto'] ?? telefono;
       }
     } catch (e) {
       print("Error obteniendo teléfono: $e");
@@ -32,15 +57,22 @@ class PantallaDetalleSorteo extends StatelessWidget {
     // 2. Armamos el mensaje
     final titulo = dataSorteo['titulo'] ?? 'la Rifa';
     final precio = dataSorteo['precio'] ?? 0;
-    final mensaje = "Hola! 👋 Quiero reservar el número *$numero* para: $titulo (Valor: \$$precio). ¿Cómo hago el pago?";
+    final mensaje =
+        "Hola! 👋 Quiero reservar el número *$numero* para: $titulo (Valor: \$$precio). ¿Cómo hago el pago?";
 
     // 3. Abrimos WhatsApp
-    final urlString = "https://wa.me/$telefono?text=${Uri.encodeComponent(mensaje)}";
+    final urlString =
+        "https://wa.me/$telefono?text=${Uri.encodeComponent(mensaje)}";
     try {
-      await launchUrl(Uri.parse(urlString), mode: LaunchMode.externalApplication);
+      await launchUrl(
+        Uri.parse(urlString),
+        mode: LaunchMode.externalApplication,
+      );
     } catch (e) {
       if (context.mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("No se pudo abrir WhatsApp")));
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text("No se pudo abrir WhatsApp")),
+        );
       }
     }
   }
@@ -68,11 +100,28 @@ class PantallaDetalleSorteo extends StatelessWidget {
             width: double.infinity,
             child: Column(
               children: [
-                Text("Premio: $premio", style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16), textAlign: TextAlign.center),
+                Text(
+                  "Premio: $premio",
+                  style: const TextStyle(
+                    fontWeight: FontWeight.bold,
+                    fontSize: 16,
+                  ),
+                  textAlign: TextAlign.center,
+                ),
                 const SizedBox(height: 5),
-                Text("Valor del número: \$$precio", style: TextStyle(color: config.colorPrimario, fontWeight: FontWeight.w900, fontSize: 18)),
+                Text(
+                  "Valor del número: \$$precio",
+                  style: TextStyle(
+                    color: config.colorPrimario,
+                    fontWeight: FontWeight.w900,
+                    fontSize: 18,
+                  ),
+                ),
                 const SizedBox(height: 10),
-                const Text("Tocá un número libre (VERDE) para pedirlo por WhatsApp", style: TextStyle(fontSize: 12, fontStyle: FontStyle.italic)),
+                const Text(
+                  "Tocá un número libre (VERDE) para pedirlo por WhatsApp",
+                  style: TextStyle(fontSize: 12, fontStyle: FontStyle.italic),
+                ),
               ],
             ),
           ),
@@ -81,13 +130,26 @@ class PantallaDetalleSorteo extends StatelessWidget {
 
           // GRILLA EN TIEMPO REAL
           Expanded(
-            child: StreamBuilder<DocumentSnapshot>(
-              stream: FirebaseFirestore.instance.collection('sorteos').doc(sorteoId).snapshots(),
+            child: StreamBuilder<Map<String, dynamic>>(
+              stream: _stream,
               builder: (context, snapshot) {
-                if (!snapshot.hasData) return const Center(child: CircularProgressIndicator());
+                if (snapshot.hasError)
+                  return const Center(
+                    child: Text(
+                      'No se pudo consultar la disponibilidad. Volvé a entrar para reintentar.',
+                    ),
+                  );
+                if (!snapshot.hasData)
+                  return const Center(child: CircularProgressIndicator());
 
-                final liveData = snapshot.data!.data() as Map<String, dynamic>;
-                final vendidos = List<int>.from(liveData['numeros_vendidos'] ?? []);
+                final liveData = snapshot.data!;
+                if (liveData.isEmpty)
+                  return const Center(
+                    child: Text('Este sorteo ya no está disponible.'),
+                  );
+                final vendidos = List<int>.from(
+                  liveData['numeros_vendidos'] ?? [],
+                );
 
                 return GridView.builder(
                   padding: const EdgeInsets.all(10),
@@ -100,15 +162,24 @@ class PantallaDetalleSorteo extends StatelessWidget {
                   itemBuilder: (context, index) {
                     final numero = index;
                     final estaVendido = vendidos.contains(numero);
-                    final numeroStr = numero.toString().padLeft(cantidad > 100 ? 3 : 2, '0');
+                    final numeroStr = numero.toString().padLeft(
+                      cantidad > 100 ? 3 : 2,
+                      '0',
+                    );
 
                     return InkWell(
                       onTap: estaVendido
-                          ? () => ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Este número ya está vendido 😢")))
+                          ? () => ScaffoldMessenger.of(context).showSnackBar(
+                              const SnackBar(
+                                content: Text("Este número ya está vendido 😢"),
+                              ),
+                            )
                           : () => _reservarPorWhatsApp(context, numero),
                       child: Container(
                         decoration: BoxDecoration(
-                          color: estaVendido ? Colors.red[100] : Colors.green[100],
+                          color: estaVendido
+                              ? Colors.red[100]
+                              : Colors.green[100],
                           borderRadius: BorderRadius.circular(8),
                           border: Border.all(
                             color: estaVendido ? Colors.red : Colors.green,
@@ -118,7 +189,13 @@ class PantallaDetalleSorteo extends StatelessWidget {
                         child: Center(
                           child: estaVendido
                               ? const Icon(Icons.close, color: Colors.red)
-                              : Text(numeroStr, style: TextStyle(fontWeight: FontWeight.bold, color: Colors.green[900])),
+                              : Text(
+                                  numeroStr,
+                                  style: TextStyle(
+                                    fontWeight: FontWeight.bold,
+                                    color: Colors.green[900],
+                                  ),
+                                ),
                         ),
                       ),
                     );

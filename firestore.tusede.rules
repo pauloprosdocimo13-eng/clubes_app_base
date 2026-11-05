@@ -54,8 +54,33 @@ service cloud.firestore {
       return usuarioTuSede().rol in ['tesoreria','administracion','deportes','institucional','ingreso']
         && exists(ruta) && get(ruta).data.get(usuarioTuSede().rol, []).hasAny(opciones);
     }
+    // El día contable se calcula con hora del servidor en Argentina (UTC-3).
+    function ingresoHoy() {
+      return request.resource.data.fecha is timestamp
+        && (request.resource.data.fecha - duration.value(3, 'h')).date()
+          == (request.time - duration.value(3, 'h')).date();
+    }
+    function fechaMovimientoValida(clubId) {
+      return request.method == 'delete'
+        || (request.method == 'create'
+          && (request.resource.data.get('tipo', '') != 'ingreso'
+            || administraClub(clubId) || permiso(clubId,['Cambiar fecha de ingresos']) || ingresoHoy())
+          && (request.resource.data.get('origen', '') != 'manual'
+            || (request.resource.data.fecha_registro == request.time
+              && request.resource.data.admin_uid == request.auth.uid)))
+        || (request.method == 'update'
+          && !request.resource.data.diff(resource.data).affectedKeys()
+            .hasAny(['fecha_registro', 'admin_uid', 'admin_email'])
+          && (administraClub(clubId)
+            || (permiso(clubId,['Cambiar fecha de ingresos'])
+              && !request.resource.data.diff(resource.data).affectedKeys().hasAny(['tipo']))
+            || (resource.data.get('tipo', '') != 'ingreso'
+              && request.resource.data.get('tipo', '') != 'ingreso')
+            || !request.resource.data.diff(resource.data).affectedKeys().hasAny(['fecha', 'tipo'])));
+    }
+
     function accesoColeccion(clubId, col, lectura) {
-      return (col in ['socios','auditoria_socios'] && (permiso(clubId,['Padrón Socios','Caja y Finanzas']) || (lectura && permiso(clubId,['Escanear Ingreso','Tomar Asistencia']))))
+      return (col in ['socios','auditoria_socios'] && (permiso(clubId,['PadrÃ³n Socios','Caja y Finanzas']) || (lectura && permiso(clubId,['Escanear Ingreso','Tomar Asistencia']))))
         || (col in ['movimientos','movimientos_eliminados','pagos','vencimientos'] && permiso(clubId,['Caja y Finanzas']))
         || (col == 'asistencias' && permiso(clubId,['Tomar Asistencia','Escanear Ingreso']))
         || (col == 'jugadores' && permiso(clubId,['Gestionar Plantel']))
@@ -70,13 +95,13 @@ service cloud.firestore {
         || (col == 'reservas' && permiso(clubId,['Agenda / Reservas']))
         || (col == 'productos' && permiso(clubId,['Tienda Oficial']))
         || (col == 'sorteos' && permiso(clubId,['Gestionar Rifas']))
-        || (col == 'actividades' && permiso(clubId,['Configuración Club']));
+        || (col == 'actividades' && permiso(clubId,['ConfiguraciÃ³n Club']));
     }
     function accesoConfiguracion(clubId, doc, lectura) {
       return (lectura && doc in ['permisos_roles','general','actividades','contacto'])
-        || (doc == 'general' && permiso(clubId,['Configurar Tiras','Configuración Club']))
-        || (doc in ['actividades','contacto'] && permiso(clubId,['Configuración Club']))
-        || (doc == 'precios' && (permiso(clubId,['Config. Precios']) || (lectura && permiso(clubId,['Padrón Socios','Caja y Finanzas','Tomar Asistencia']))))
+        || (doc == 'general' && permiso(clubId,['Configurar Tiras','ConfiguraciÃ³n Club']))
+        || (doc in ['actividades','contacto'] && permiso(clubId,['ConfiguraciÃ³n Club']))
+        || (doc == 'precios' && (permiso(clubId,['Config. Precios']) || (lectura && permiso(clubId,['PadrÃ³n Socios','Caja y Finanzas','Tomar Asistencia']))))
         || (doc == 'pagos' && permiso(clubId,['Configurar Pagos']))
         || (doc == 'categorias_finanzas' && permiso(clubId,['Caja y Finanzas']))
         || (doc == 'seguridad' && lectura && permiso(clubId,['Escanear Ingreso']))
@@ -186,6 +211,7 @@ service cloud.firestore {
           && (administraClub(clubId) ||
             (coleccion == 'configuracion' ? accesoConfiguracion(clubId, documento, true) : accesoColeccion(clubId, coleccion, true)));
         allow write: if puedeAccederClub(clubId)
+          && (coleccion != 'movimientos' || fechaMovimientoValida(clubId))
           && !exists(/databases/$(database)/documents/eliminaciones_club/$(clubId))
           && !exists(/databases/$(database)/documents/restauraciones_club/$(clubId))
           && (administraClub(clubId) ||

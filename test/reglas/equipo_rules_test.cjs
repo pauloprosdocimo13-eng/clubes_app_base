@@ -2,7 +2,7 @@ const {before,after,test} = require('node:test');
 const fs = require('node:fs');
 const path = require('node:path');
 const {initializeTestEnvironment,assertSucceeds,assertFails} = require('@firebase/rules-unit-testing');
-const {doc,setDoc,getDoc,deleteDoc,collection,getDocs,updateDoc,setLogLevel} = require('firebase/firestore');
+const {doc,setDoc,getDoc,deleteDoc,collection,getDocs,updateDoc,setLogLevel,Timestamp,serverTimestamp} = require('firebase/firestore');
 setLogLevel('silent');
 if (!/^127\.0\.0\.1:8185$/.test(process.env.FIRESTORE_EMULATOR_HOST || '')) throw new Error('Solo ejecutar contra el emulador local 127.0.0.1:8185.');
 let env;
@@ -88,4 +88,50 @@ test('eliminación bloquea incluso al administrador',async()=>{
  await env.withSecurityRulesDisabled(ctx=>setDoc(doc(ctx.firestore(),'eliminaciones_club/demo'),{estado:'usuarios'}));
  await assertFails(setDoc(doc(db('admin'),'clubes/demo/socios/nuevo'),{nombre:'No'}));
  await assertFails(getDocs(collection(db('super'),'clubes/demo/socios')));
+});
+
+
+test('ingresos sin permiso delegado: solo admin imputa otro día; auditoría inmutable', async()=>{
+ await env.withSecurityRulesDisabled(ctx=>deleteDoc(doc(ctx.firestore(),'eliminaciones_club/demo')));
+ const caja=db('caja'), admin=db('admin');
+ const ayer=Timestamp.fromMillis(Date.now()-86400000);
+ const manana=Timestamp.fromMillis(Date.now()+86400000);
+ const datos=(uid,fecha)=>({tipo:'ingreso',origen:'manual',fecha,fecha_registro:serverTimestamp(),admin_uid:uid,monto:100});
+ const ref=doc(caja,'clubes/demo/movimientos/fecha-caja');
+ await assertSucceeds(setDoc(ref,datos('caja',serverTimestamp())));
+ await assertFails(setDoc(doc(caja,'clubes/demo/movimientos/ayer'),datos('caja',ayer)));
+ await assertFails(setDoc(doc(caja,'clubes/demo/movimientos/manana'),datos('caja',manana)));
+ await assertFails(setDoc(doc(caja,'clubes/demo/movimientos/suplantado'),datos('admin',serverTimestamp())));
+ await assertFails(setDoc(doc(caja,'clubes/demo/movimientos/sin-auditoria'),{tipo:'ingreso',origen:'manual',fecha:serverTimestamp()}));
+ await assertSucceeds(setDoc(doc(admin,'clubes/demo/movimientos/retroactivo'),datos('admin',ayer)));
+ await assertFails(updateDoc(ref,{fecha:ayer}));
+ await assertFails(updateDoc(ref,{tipo:'egreso'}));
+ await assertSucceeds(updateDoc(ref,{concepto:'Corrección de texto'}));
+ await assertFails(updateDoc(doc(admin,'clubes/demo/movimientos/fecha-caja'),{fecha_registro:ayer}));
+ await assertSucceeds(updateDoc(doc(admin,'clubes/demo/movimientos/fecha-caja'),{fecha:ayer}));
+ await assertFails(setDoc(doc(db('ajeno'),'clubes/demo/movimientos/ajeno'),datos('ajeno',ayer)));
+ await assertFails(setDoc(doc(env.unauthenticatedContext().firestore(),'clubes/demo/movimientos/publico'),datos('caja',serverTimestamp())));
+ // Los cobros del padrón siguen funcionando con su timestamp del servidor.
+ await assertSucceeds(setDoc(doc(caja,'clubes/demo/movimientos/cuota'),{tipo:'ingreso',fecha:serverTimestamp(),monto:10}));
+});
+
+test('fechas configurables por club para tesorería y otros roles; revocación inmediata',async()=>{
+ const admin=db('admin'), ayer=Timestamp.fromMillis(Date.now()-86400000);
+ const matriz=doc(admin,'clubes/demo/configuracion/permisos_roles');
+ for(const [uid,rol] of [['caja','tesoreria'],['comunica','institucional']]) {
+  await assertSucceeds(updateDoc(matriz,{[rol]:['Caja y Finanzas','Cambiar fecha de ingresos']}));
+  const destino=doc(db(uid),`clubes/demo/movimientos/delegado-${uid}`);
+  const data={tipo:'ingreso',origen:'manual',fecha:ayer,fecha_registro:serverTimestamp(),admin_uid:uid};
+  await assertSucceeds(setDoc(destino,data));
+  await assertSucceeds(updateDoc(destino,{fecha:Timestamp.fromMillis(Date.now()-172800000)}));
+  await assertFails(updateDoc(destino,{fecha_registro:ayer}));
+  await assertFails(updateDoc(destino,{tipo:'egreso'}));
+  await assertFails(setDoc(doc(db(uid),'clubes/otro/movimientos/ajeno'),data));
+  await assertFails(updateDoc(doc(db(uid),'clubes/demo/configuracion/permisos_roles'),{[rol]:[]}));
+  await assertSucceeds(updateDoc(matriz,{[rol]:['Caja y Finanzas']}));
+  await assertFails(setDoc(doc(db(uid),`clubes/demo/movimientos/revocado-${uid}`),data));
+  await assertFails(updateDoc(destino,{fecha:ayer}));
+ }
+ await assertSucceeds(updateDoc(matriz,{tesoreria:['Cambiar fecha de ingresos']}));
+ await assertFails(setDoc(doc(db('caja'),'clubes/demo/movimientos/sin-caja'),{tipo:'ingreso',fecha:ayer}));
 });

@@ -1,0 +1,8 @@
+# Integrar en public_html/uploads/.htaccess sin borrar otras reglas existentes.
+Options -Indexes
+<FilesMatch "(?i)\.(php[0-9]*|phtml|phar|cgi|pl|py|sh|shtml)(\.|$)">
+    Require all denied
+</FilesMatch>
+<IfModule mod_headers.c>
+    Header set X-Content-Type-Options "nosniff"
+</IfModule>

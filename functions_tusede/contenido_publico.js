@@ -714,6 +714,8 @@ function sanitizarVivo(data) {
     estado:
       texto(data.estado),
 
+    minuto_pedido_en_ms: fechaMillis(data.minuto_pedido_en),
+
     inicio_tiempo_ms:
       fechaMillis(
           data.inicio_tiempo,
